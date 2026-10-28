@@ -1,87 +1,70 @@
 // The "Google Drive" card (Setup › School Year), and the bottom-left reminder that
-// appears when Google ends your sign-in (about once a week in testing mode).
+// appears when the one-hour Google pass runs out with no click to renew it.
+// The Google codes are kept on this computer only (deviceSettings.js).
 
 import { editable, h, toast } from '../dom.js';
-import { commit, setUi, store } from '../store.js';
+import { refresh, setUi } from '../store.js';
+import { apiKey, clientId, setDevice, setupLink } from '../deviceSettings.js';
 import {
-  APP_ORIGIN, canSignIn, connectDrive, disconnectDrive, google, saveClientSecret,
+  appAddress, canSignIn, connectDrive, disconnectDrive, google, prepareDrive,
 } from '../google.js';
 import { dismissNotice, showNotice } from '../notices.js';
 
 const SIGN_IN_NOTICE = 'google-sign-in';
 
 export function googleCard() {
-  const { googleClientId, googleApiKey } = store.state.settings;
-  const setSetting = (key) => (value) => commit((s) => { s.settings[key] = value; });
+  const setCode = (key) => (value) => {
+    setDevice({ [key]: value.trim() });
+    if (key === 'googleClientId') prepareDrive(clientId());
+    refresh();
+  };
   return h('section', { class: 'card setup-card google-card' },
     h('h3', {}, 'Google Drive'),
-    h('p', { class: 'hint' }, 'Paste the codes from your Google project (see the setup guide), then connect. You stay signed in.'),
+    h('p', { class: 'hint' }, 'Paste the codes from your Google project (see the setup guide), then connect. They’re kept on this computer only.'),
     h('div', { class: 'google-origin' },
       h('span', {}, 'Your planner’s address for Google: '),
-      h('code', {}, APP_ORIGIN),
-      h('button', { class: 'btn small light', onclick: () => copyText(APP_ORIGIN) }, 'Copy')),
+      h('code', {}, appAddress()),
+      h('button', { class: 'btn small light', onclick: () => copyText(appAddress()) }, 'Copy')),
     h('label', { class: 'field' }, h('span', {}, 'Client ID'),
-      editable(googleClientId, setSetting('googleClientId'), { placeholder: '…apps.googleusercontent.com', allowEmpty: true, spellcheck: 'false' })),
-    secretField(),
-    h('label', { class: 'field' }, h('span', {}, 'API key (for picking files later)'),
-      editable(googleApiKey, setSetting('googleApiKey'), { placeholder: 'AIza…', allowEmpty: true, spellcheck: 'false' })),
-    connectRow(googleClientId),
+      editable(clientId(), setCode('googleClientId'), { placeholder: '…apps.googleusercontent.com', allowEmpty: true, spellcheck: 'false' })),
+    h('label', { class: 'field' }, h('span', {}, 'API key (for picking files)'),
+      editable(apiKey(), setCode('googleApiKey'), { placeholder: 'AIza…', allowEmpty: true, spellcheck: 'false' })),
+    connectRow(),
+    clientId() ? h('p', { class: 'hint' }, 'Using another computer? ',
+      h('button', { class: 'btn small light', onclick: () => copyText(setupLink()), 'data-tip': 'Open this link on the other computer and the codes fill themselves in.' }, 'Copy a setup link')) : null,
   );
 }
 
-/** The secret is sent to this computer's server and never shown again. */
-function secretField() {
-  return h('label', { class: 'field' },
-    h('span', {}, 'Client secret ', google.hasSecret ? h('span', { class: 'saved-tag' }, '✓ saved on this computer') : null),
-    h('input', {
-      class: 'inline-edit', type: 'password', autocomplete: 'off', spellcheck: 'false',
-      placeholder: google.hasSecret ? 'Paste a new one to replace it' : 'GOCSPX-…',
-      onchange: (e) => {
-        const value = e.target.value.trim();
-        if (value) saveClientSecret(value).then(() => toast('Client secret saved on this computer.'));
-      },
-    }));
-}
-
-function connectRow(clientId) {
-  if (location.origin !== APP_ORIGIN) {
-    return h('p', { class: 'google-status error' }, 'Google only works when the planner is opened at ', h('a', { href: APP_ORIGIN }, APP_ORIGIN), '.');
-  }
+function connectRow() {
   if (google.status === 'connected') {
     return h('div', { class: 'google-status ok' },
       h('span', {}, `✓ Connected to Google Drive${google.userName ? ` as ${google.userName}` : ''}`),
       h('button', { class: 'btn small light', onclick: disconnectDrive }, 'Disconnect'));
   }
-  const ready = canSignIn(clientId);
-  const again = google.status === 'needs-signin';
+  const ready = canSignIn(clientId());
   return h('div', {},
     h('button', {
       class: 'btn', disabled: !ready || google.status === 'working',
-      title: ready ? 'Opens Google’s sign-in window' : 'Paste the Client ID and client secret first',
+      title: ready ? 'Opens Google’s sign-in window' : 'Paste the Client ID first',
       onclick: () => signIn(),
-    }, buttonLabel(again)),
+    }, google.status === 'working' ? 'Connecting…' : 'Connect Google Drive'),
     google.message ? h('p', { class: `google-status ${google.status === 'error' ? 'error' : ''}` }, google.message) : null);
-}
-
-function buttonLabel(again) {
-  if (google.status === 'working') return 'Connecting…';
-  return again ? 'Sign in to Google again' : 'Connect Google Drive';
 }
 
 function signIn() {
   dismissNotice(SIGN_IN_NOTICE);
-  return connectDrive(store.state.settings.googleClientId.trim());
+  return connectDrive(clientId());
 }
 
-/** Bottom-left reminder with a Sign in button — only when both codes are filled in. */
+/** Bottom-left reminder with a button — when the Google pass ran out. */
 export function showSignInNotice() {
-  if (!canSignIn(store.state.settings.googleClientId)) return;
+  if (!canSignIn(clientId())) return;
   showNotice({
     id: SIGN_IN_NOTICE,
     tone: 'warn',
-    title: 'Google Drive signed you out',
-    message: 'This happens about once a week. Sign in again to keep using Drive.',
-    actions: [{ label: 'Sign in', run: signIn }],
+    title: 'Google Drive needs a click',
+    message: 'Google asks the planner to check in every hour. Click anywhere (or here) to reconnect — your changes are safe on this computer meanwhile.',
+    actions: [{ label: 'Reconnect', run: () => {} }],
     seconds: 20,
   });
 }
@@ -95,17 +78,16 @@ function copyText(text) {
 const PILLS = {
   connected: { tone: 'ok', text: 'Drive connected', tip: () => `Connected to Google Drive${google.userName ? ` as ${google.userName}` : ''}. Click for settings.` },
   working: { tone: 'busy', text: 'Drive connecting…', tip: () => 'Connecting to Google Drive…' },
-  'needs-signin': { tone: 'warn', text: 'Drive: sign in', tip: () => 'Google signed you out. Click to sign in again.' },
+  'needs-signin': { tone: 'warn', text: 'Drive: click to reconnect', tip: () => 'Click anywhere to reconnect Google Drive.' },
   error: { tone: 'warn', text: 'Drive: not connected', tip: () => google.message || 'Click to connect.' },
   idle: { tone: 'off', text: 'Drive: not connected', tip: () => 'Click to connect Google Drive.' },
 };
 
 /** Always-visible Drive status in the top bar (hidden until a Client ID is entered). */
 export function drivePill() {
-  const clientId = store.state.settings.googleClientId;
-  if (!clientId) return null;
+  if (!clientId()) return null;
   const pill = PILLS[google.status] || PILLS.idle;
-  const offerSignIn = google.status !== 'connected' && google.status !== 'working' && canSignIn(clientId);
+  const offerSignIn = google.status !== 'connected' && google.status !== 'working' && canSignIn(clientId());
   return h('button', {
     class: `drive-pill ${pill.tone}`,
     'data-tip': pill.tip(),

@@ -1,56 +1,49 @@
-// Google Drive connection. You sign in once through Google's own window;
-// the local server keeps a long-lasting sign-in (see googleAuth.js) and the
-// planner quietly gets fresh one-hour passes from it. Permissions: "drive.file"
-// (change only files you pick or it made) plus "drive.readonly" (look inside
-// your folders, to bring in and watch folders of decks — it never changes them).
-// Passes are kept in memory only.
+// Google Drive connection, entirely in the browser (no planner server needed).
+// You sign in through Google's own window; Google hands the page a one-hour
+// pass, kept in memory only. Before it runs out, your next click anywhere in
+// the planner quietly gets a fresh one (Google's window may flash briefly).
+// Browsers only allow Google's window to open right after a click, which is
+// why reconnecting waits for one.
+//
+// Permissions: "drive.file" (change only files you pick or the planner made)
+// plus "drive.readonly" (look inside your folders, to bring in and watch folders
+// of decks, and to find plans shared with you — it never changes them).
+
+import { device, setDevice } from './deviceSettings.js';
 
 const GIS_SRC = 'https://accounts.google.com/gsi/client';
 export const DRIVE_FILE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
 export const DRIVE_READ_SCOPE = 'https://www.googleapis.com/auth/drive.readonly';
 export const DRIVE_SCOPE = `${DRIVE_FILE_SCOPE} ${DRIVE_READ_SCOPE}`;
-/** The address to add to "Authorized JavaScript origins" in Google's setup. */
-export const APP_ORIGIN = 'http://localhost:5178';
-const REFRESH_EARLY_SECONDS = 300;
+const RENEW_EARLY_SECONDS = 600;
 
-/**
- * status: 'idle' | 'working' | 'connected' | 'needs-signin' | 'error'
- * hasSecret: the client secret is saved on this computer.
- */
-export const google = { status: 'idle', message: '', userName: '', token: null, hasSecret: false, scope: '' };
+/** status: 'idle' | 'working' | 'connected' | 'needs-signin' | 'error' */
+export const google = { status: 'idle', message: '', userName: '', token: null, scope: '' };
 
-let onChange = () => {};
-let onNeedsSignIn = () => {};
-let refreshTimer = null;
+let handlers = { change: () => {}, needsSignIn: () => {} };
+let tokenClient = null;
+let clientIdInUse = '';
+let renewTimer = null;
+let expireTimer = null;
 
-/** `change` redraws the page; `needsSignIn` is called when Google ends the sign-in. */
-export function setGoogleHandlers({ change, needsSignIn }) {
-  onChange = change;
-  onNeedsSignIn = needsSignIn;
+/** `change` redraws the page; `needsSignIn` is called when the pass runs out with no click to renew it. */
+export function setGoogleHandlers(next) {
+  handlers = { ...handlers, ...next };
 }
 
 function set(patch) {
   Object.assign(google, patch);
-  onChange();
+  handlers.change();
 }
 
-// ---------- talking to the local server ----------
-
-async function api(method, name, body) {
-  const res = await fetch(`/api/google/${name}`, {
-    method, headers: { 'X-Planner': '1' }, body: body ? JSON.stringify(body) : undefined,
-  });
-  return { status: res.status, body: await res.json().catch(() => ({})) };
+/** The address to add to "Authorized JavaScript origins" in Google's setup (where the planner is open now). */
+export function appAddress() {
+  return location.origin;
 }
 
-export async function saveClientSecret(clientSecret) {
-  const { body } = await api('PUT', 'secret', { clientSecret });
-  set({ hasSecret: Boolean(body.hasSecret) });
-}
-
-/** Both codes needed to sign in are filled in. */
+/** The Client ID is filled in (it's all the browser needs to sign in). */
 export function canSignIn(clientId) {
-  return looksLikeClientId(clientId || '') && google.hasSecret;
+  return looksLikeClientId(clientId || '');
 }
 
 // ---------- signing in ----------
@@ -75,91 +68,119 @@ const PROBLEMS = {
   access_denied: 'Google access was not allowed. If you clicked Cancel, try again and click Continue / Allow.',
   api_disabled: 'Signed in, but the Google Drive API isn’t turned on in your Google project yet (guide step 3).',
   drive_failed: 'Signed in, but Google Drive didn’t answer as expected. Try again in a minute.',
-  no_secret: 'Paste the client secret first (guide step 6).',
-  invalid_client: 'Google didn’t accept the Client ID or client secret. Check both were copied completely.',
-  invalid_grant: 'Google didn’t accept the sign-in. Please try again.',
+  invalid_client: 'Google didn’t accept the Client ID. Check it was copied completely.',
+  idpiframe_initialization_failed: 'Google doesn’t know this address yet. Add it to “Authorized JavaScript origins” (guide step 5).',
 };
 
 function problem(code) {
   return PROBLEMS[code] || `Something went wrong (${code}). Try again, or check the guide’s troubleshooting section.`;
 }
 
-/** Open Google's sign-in window (must follow a click), then stay signed in. */
+/**
+ * Get ready to sign in when the planner opens (loads Google's sign-in code). If you were
+ * connected last time, your first click anywhere reconnects.
+ */
+export async function prepareDrive(clientId) {
+  if (!canSignIn(clientId)) return;
+  try {
+    await clientFor(clientId);
+  } catch (err) {
+    set({ status: 'error', message: problem(err.message) });
+    return;
+  }
+  if (device.driveConnected && google.status === 'idle') {
+    set({ status: 'needs-signin', message: 'Click anywhere to reconnect Google Drive.' });
+    renewOnNextClick();
+  }
+}
+
+async function clientFor(clientId) {
+  await loadSignInScript();
+  if (tokenClient && clientIdInUse === clientId) return tokenClient;
+  clientIdInUse = clientId;
+  tokenClient = window.google.accounts.oauth2.initTokenClient({
+    client_id: clientId,
+    scope: DRIVE_SCOPE,
+    include_granted_scopes: true,
+    callback: (res) => (res.error ? failed(res.error) : useToken(res)),
+    error_callback: (err) => failed(err.type || 'unknown'),
+  });
+  return tokenClient;
+}
+
+/** Open Google's sign-in window. Must follow a click. */
 export async function connectDrive(clientId) {
+  if (google.status === 'working') return;
   set({ status: 'working', message: 'Waiting for the Google window…' });
   try {
-    await loadSignInScript();
-    const code = await requestCode(clientId);
-    const { status, body } = await api('POST', 'exchange', { clientId, code });
-    if (status !== 200) throw new Error(body.error || 'google_error');
-    await useToken(clientId, body);
+    // An empty prompt lets Google skip the questions once you've said yes before.
+    (await clientFor(clientId)).requestAccessToken({ prompt: device.driveConnected ? '' : 'consent' });
   } catch (err) {
-    set({ status: 'error', token: null, message: problem(err.message) });
+    failed(err.message);
   }
 }
 
-function requestCode(clientId) {
-  return new Promise((resolve, reject) => {
-    const client = window.google.accounts.oauth2.initCodeClient({
-      client_id: clientId,
-      scope: DRIVE_SCOPE,
-      ux_mode: 'popup',
-      // "consent" makes Google hand out the long-lasting sign-in every time.
-      prompt: 'consent',
-      callback: (res) => (res.error ? reject(new Error(res.error)) : resolve(res.code)),
-      error_callback: (err) => reject(new Error(err.type || 'unknown')),
-    });
-    client.requestCode();
-  });
+function failed(code) {
+  const quiet = code === 'popup_closed' && google.token;
+  set(quiet ? { status: 'connected', message: '' } : { status: 'error', message: problem(code) });
 }
 
-async function useToken(clientId, { accessToken, expiresIn, scope = '' }) {
-  const userName = google.userName || await driveUserName(accessToken);
-  set({ status: 'connected', token: accessToken, userName, message: '', scope });
-  clearTimeout(refreshTimer);
-  refreshTimer = setTimeout(() => refreshDrive(clientId), Math.max(60, expiresIn - REFRESH_EARLY_SECONDS) * 1000);
-}
-
-/** Get a fresh pass from the saved sign-in, with no Google window. */
-export async function refreshDrive(clientId) {
+async function useToken({ access_token: token, expires_in: expiresIn, scope = '' }) {
   try {
-    const { status, body } = await api('POST', 'refresh', { clientId });
-    if (status === 200) return await useToken(clientId, body);
-    if (status === 401) return needsSignIn();
-    throw new Error(body.error || 'google_error');
+    const userName = google.userName || await driveUserName(token);
+    setDevice({ driveConnected: true });
+    set({ status: 'connected', token, userName, message: '', scope });
+    scheduleRenewal(Number(expiresIn) || 3600);
   } catch (err) {
-    return set({ status: 'error', token: null, message: problem(err.message) });
+    failed(err.message);
   }
 }
 
-function needsSignIn() {
-  clearTimeout(refreshTimer);
-  set({ status: 'needs-signin', token: null, message: 'Google signed you out. Sign in again to keep using Drive.' });
-  onNeedsSignIn();
+function scheduleRenewal(seconds) {
+  clearTimeout(renewTimer);
+  clearTimeout(expireTimer);
+  renewTimer = setTimeout(renewOnNextClick, Math.max(60, seconds - RENEW_EARLY_SECONDS) * 1000);
+  expireTimer = setTimeout(expired, seconds * 1000);
 }
 
-/** When the planner opens: reconnect quietly if you signed in before. */
-export async function resumeDrive(clientId) {
-  const { body } = await api('GET', 'status').catch(() => ({ body: {} }));
-  set({ hasSecret: Boolean(body.hasSecret) });
-  if (!looksLikeClientId(clientId || '')) return;
-  if (body.signedIn) await refreshDrive(clientId);
+function expired() {
+  set({ status: 'needs-signin', token: null, message: 'Click anywhere to reconnect Google Drive.' });
+  renewOnNextClick();
+  handlers.needsSignIn();
+}
+
+let armed = false;
+/** Your next click anywhere gets a fresh pass from Google. */
+function renewOnNextClick() {
+  if (armed) return;
+  armed = true;
+  document.addEventListener('click', () => {
+    armed = false;
+    if (google.status !== 'working') connectDrive(clientIdInUse);
+  }, { capture: true, once: true });
 }
 
 async function driveUserName(token) {
-  const res = await fetch('https://www.googleapis.com/drive/v3/about?fields=user(displayName)', {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+  let res;
+  try {
+    res = await fetch('https://www.googleapis.com/drive/v3/about?fields=user(displayName)', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+  } catch {
+    throw new Error('offline');
+  }
   if (res.status === 403) throw new Error('api_disabled');
   if (!res.ok) throw new Error('drive_failed');
   const body = await res.json();
   return body.user?.displayName || '';
 }
 
-export async function disconnectDrive() {
-  clearTimeout(refreshTimer);
-  await api('POST', 'disconnect').catch(() => {});
-  set({ status: 'idle', token: null, userName: '', message: '' });
+export function disconnectDrive() {
+  clearTimeout(renewTimer);
+  clearTimeout(expireTimer);
+  if (google.token) window.google?.accounts?.oauth2?.revoke(google.token, () => {});
+  setDevice({ driveConnected: false });
+  set({ status: 'idle', token: null, userName: '', message: '', scope: '' });
 }
 
 /** The sign-in allows looking inside folders (older sign-ins only had drive.file). */

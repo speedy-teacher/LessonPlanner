@@ -93,22 +93,34 @@ export function projectNumber(clientId) {
  * Open Google's picker for slide decks and folders (several at once).
  * Resolves to the picked items [{ id, name, mimeType }], or [] if closed.
  */
-export async function pickFromDrive({ token, apiKey, clientId }) {
+export function pickFromDrive({ token, apiKey, clientId }) {
+  return openPicker({ token, apiKey, clientId }, {
+    mimeTypes: [...DRIVE_DECK_TYPES, DRIVE_FOLDER], folders: true, multiple: true, title: 'Pick slide decks or folders',
+  });
+}
+
+/** Open Google's picker for one plan file (also gives the planner permission to save it). */
+export function pickPlanFromDrive({ token, apiKey, clientId }) {
+  return openPicker({ token, apiKey, clientId }, { mimeTypes: ['application/json'], title: 'Pick a plan file' });
+}
+
+async function openPicker({ token, apiKey, clientId }, { mimeTypes, folders = false, multiple = false, title }) {
   await loadPicker();
   const { picker } = window.google;
   const view = new picker.DocsView(picker.ViewId.DOCS)
     .setIncludeFolders(true)
-    .setSelectFolderEnabled(true)
-    .setMimeTypes([...DRIVE_DECK_TYPES, DRIVE_FOLDER].join(','));
+    .setSelectFolderEnabled(folders)
+    .setMimeTypes((folders ? mimeTypes : [...mimeTypes, DRIVE_FOLDER]).join(','));
+  const builder = new picker.PickerBuilder().addView(view);
+  if (multiple) builder.enableFeature(picker.Feature.MULTISELECT_ENABLED);
+  if (!multiple) builder.addView(new picker.DocsView(picker.ViewId.DOCS).setMimeTypes(mimeTypes.join(',')).setOwnedByMe(false));
   return new Promise((resolve) => {
-    new picker.PickerBuilder()
-      .addView(view)
-      .enableFeature(picker.Feature.MULTISELECT_ENABLED)
+    builder
       .setOAuthToken(token)
       .setDeveloperKey(apiKey)
       .setAppId(projectNumber(clientId))
       .setOrigin(window.location.origin)
-      .setTitle('Pick slide decks or folders')
+      .setTitle(title)
       .setCallback((data) => {
         if (data.action === picker.Action.PICKED) resolve(data.docs.map(pickedItem));
         if (data.action === picker.Action.CANCEL) resolve([]);

@@ -79,8 +79,8 @@ const RELATIONS = {
   criteria: [['criterionLessons', 'criterionId', 'delete'], ['placements', 'criterionId', 'delete'], ['weekLessons', 'criterionId', 'null']],
 };
 
-/** App-wide settings (not tied to a year). Google ids are public, not passwords. */
-export const DEFAULT_SETTINGS = { googleClientId: '', googleApiKey: '' };
+/** Settings shared by everyone using a plan (none yet). Per-computer settings live in deviceSettings.js. */
+export const DEFAULT_SETTINGS = {};
 
 export function newId(prefix) {
   const rand = Math.random().toString(36).slice(2, 8);

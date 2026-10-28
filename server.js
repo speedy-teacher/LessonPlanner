@@ -1,24 +1,18 @@
-// Small local web server: serves the app and saves/loads its data file.
+// Small local web server for trying the planner on this computer. The planner
+// itself is a plain website (the public/ folder) that keeps its data in the
+// browser and Google Drive, so it can be put on any static web host.
 //
-//   GET  /api/state   -> { state: {...} | null }
-//   PUT  /api/state   -> saves the whole state (POST also accepted, for
-//                        saving while the page is closing)
-//
-// Data is written to data/lesson-planner.json. A copy is also kept per day
-// in data/backups/ so an accidental change can always be recovered.
-//
-//   /api/google/*    -> staying signed in to Google Drive (see googleAuth.js)
+//   GET /api/state -> { state: {...} | null }  read-only: the data the older planner
+//                     saved in data/lesson-planner.json, so it can be moved to Drive.
 
 import { createServer } from 'node:http';
-import { mkdir, readFile, rename, writeFile, copyFile, access } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import { join, extname, normalize, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { exec } from 'node:child_process';
-import { createGoogleAuth } from './googleAuth.js';
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = join(ROOT, 'public');
-const MAX_BODY = 20 * 1024 * 1024;
 
 const TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -30,7 +24,7 @@ const TYPES = {
   '.json': 'application/json',
 };
 
-export function createApp({ dataDir = join(ROOT, 'data'), google = {} } = {}) {
+export function createApp({ dataDir = join(ROOT, 'data') } = {}) {
   const dataFile = join(dataDir, 'lesson-planner.json');
 
   async function loadState() {
@@ -42,64 +36,19 @@ export function createApp({ dataDir = join(ROOT, 'data'), google = {} } = {}) {
     }
   }
 
-  async function saveState(state) {
-    await mkdir(join(dataDir, 'backups'), { recursive: true });
-    const tmp = `${dataFile}.tmp`;
-    await writeFile(tmp, JSON.stringify(state, null, 2));
-    await rename(tmp, dataFile);
-    const backup = join(dataDir, 'backups', `${new Date().toISOString().slice(0, 10)}.json`);
-    const exists = await access(backup).then(() => true, () => false);
-    if (!exists) await copyFile(dataFile, backup);
-  }
-
-  const handleGoogle = createGoogleAuth({ dataDir, ...google });
-
   return createServer((req, res) => {
-    handle(req, res, { loadState, saveState, handleGoogle }).catch((err) => {
+    handle(req, res, loadState).catch((err) => {
       console.error(err);
       send(res, 500, { error: 'Something went wrong on the server.' });
     });
   });
 }
 
-async function handle(req, res, store) {
-  const url = new URL(req.url, 'http://localhost');
-  if (url.pathname === '/api/state') return handleState(req, res, store);
-  if (url.pathname.startsWith('/api/google/')) {
-    const readJson = async () => JSON.parse((await readBody(req)) || '{}');
-    const [status, body] = await store.handleGoogle(req, url.pathname.slice('/api/google/'.length), readJson);
-    return send(res, status, body);
-  }
+async function handle(req, res, loadState) {
   if (req.method !== 'GET') return send(res, 405, { error: 'Method not allowed' });
+  const url = new URL(req.url, 'http://localhost');
+  if (url.pathname === '/api/state') return send(res, 200, { state: await loadState() });
   return serveStatic(url.pathname, res);
-}
-
-async function handleState(req, res, store) {
-  if (req.method === 'GET') return send(res, 200, { state: await store.loadState() });
-  if (req.method !== 'PUT' && req.method !== 'POST') return send(res, 405, { error: 'Method not allowed' });
-  const state = JSON.parse(await readBody(req));
-  if (!isValidState(state)) return send(res, 400, { error: 'That does not look like planner data.' });
-  await store.saveState(state);
-  return send(res, 200, { ok: true, savedAt: new Date().toISOString() });
-}
-
-export function isValidState(state) {
-  return Boolean(state) && typeof state === 'object' && !Array.isArray(state)
-    && Number.isInteger(state.schemaVersion) && Array.isArray(state.years);
-}
-
-function readBody(req) {
-  return new Promise((resolve, reject) => {
-    let size = 0;
-    const chunks = [];
-    req.on('data', (chunk) => {
-      size += chunk.length;
-      if (size > MAX_BODY) reject(new Error('Body too large'));
-      else chunks.push(chunk);
-    });
-    req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
-    req.on('error', reject);
-  });
 }
 
 async function serveStatic(pathname, res) {

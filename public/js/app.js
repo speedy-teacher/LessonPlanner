@@ -1,14 +1,17 @@
-// App shell: header, year picker, tabs, keyboard shortcuts.
+// App shell: header, plan button, tabs, keyboard shortcuts.
 
 import { h, installTooltips } from './dom.js';
-import { commit, loadData, redo, refresh, setUi, store, subscribe, undo } from './store.js';
-import { resumeDrive, setGoogleHandlers } from './google.js';
+import { redo, refresh, setUi, store, subscribe, undo } from './store.js';
+import { google, prepareDrive, setGoogleHandlers } from './google.js';
+import { applySetupLink, clientId } from './deviceSettings.js';
+import { openLastPlan, syncNow } from './workspace.js';
 import { drivePill, showSignInNotice } from './views/googleCard.js';
+import { planButton, welcome } from './views/plans.js';
 import { renderPlan, planKeys } from './views/plan.js';
 import { renderSchedule, scheduleKeys } from './views/schedule.js';
 import { renderLessonSchedule, lessonScheduleKeys, showThisWeek } from './views/lessonSchedule.js';
 import { renderOutcomes } from './views/outcomes.js';
-import { renderSetup, openNewYear } from './views/setup.js';
+import { renderSetup } from './views/setup.js';
 import { renderLessons, lessonKeys } from './views/lessons.js';
 import { installCalendarScrolling, showCalendar } from './views/calendarGrid.js';
 import { checkWatchedFolders, startWatchingDrive } from './views/deckImport.js';
@@ -35,6 +38,7 @@ function restoreFocus(key) {
 function render() {
   const focusKey = document.activeElement?.dataset?.key;
   const main = document.getElementById('main');
+  if (!store.state) return renderWelcome(main);
   const tab = activeTab();
   const hasYear = store.state.years.length > 0;
   // Redrawing the same screen keeps its scroll position; a new tab or year starts fresh.
@@ -47,17 +51,21 @@ function render() {
   main.scrollTop = scroll;
   if (!sameView && hasYear && tab.onShow) tab.onShow();
   restoreFocus(focusKey);
+  return undefined;
+}
+
+/** No plan open yet on this computer: just the welcome (open or start a plan). */
+function renderWelcome(main) {
+  document.getElementById('year-picker').replaceChildren();
+  document.getElementById('tabs').replaceChildren();
+  document.getElementById('drive-status').replaceChildren(...[drivePill()].filter(Boolean));
+  document.getElementById('save-status').textContent = '';
+  main.replaceChildren(welcome());
+  main.dataset.view = 'welcome';
 }
 
 function renderHeader() {
-  const yearSelect = h('select', {
-    class: 'year-select',
-    'aria-label': 'Academic year',
-    onchange: (e) => commit((s) => { s.activeYearId = e.target.value; }),
-  }, store.state.years.map((y) => h('option', { value: y.id, selected: y.id === store.state.activeYearId }, y.name)));
-  document.getElementById('year-picker').replaceChildren(
-    h('span', { class: 'mini-label' }, 'School year'), yearSelect,
-    h('button', { class: 'btn small light', title: 'Start a new academic year', onclick: openNewYear }, '+ New year'));
+  document.getElementById('year-picker').replaceChildren(...[planButton()].filter(Boolean));
   document.getElementById('tabs').replaceChildren(
     ...TABS.filter((t) => !t.menu).map((t) => h('button', {
       class: `tab ${t.id === activeTab().id ? 'active' : ''}`,
@@ -107,17 +115,27 @@ async function start() {
   document.getElementById('redo').addEventListener('click', redo);
   document.addEventListener('keydown', onKey);
   subscribe(render);
+  applySetupLink();
+  // Each Drive change redraws; once connected, the plan is synced and watched Drive folders are checked for new decks.
+  let wasConnected = false;
+  setGoogleHandlers({
+    change: () => {
+      const connected = google.status === 'connected';
+      if (connected && !wasConnected) syncNow();
+      wasConnected = connected;
+      refresh();
+      checkWatchedFolders();
+    },
+    needsSignIn: showSignInNotice,
+  });
   try {
-    await loadData();
-    // Each Drive change redraws; once connected, watched Drive folders are checked for new decks.
-    setGoogleHandlers({ change: () => { refresh(); checkWatchedFolders(); }, needsSignIn: showSignInNotice });
-    startWatchingDrive();
-    resumeDrive(store.state.settings.googleClientId);
+    if (!await openLastPlan()) render();
   } catch (err) {
-    document.getElementById('main').replaceChildren(h('p', { class: 'empty-note' },
-      'The planner couldn’t load. Please close this tab and double-click “Start Lesson Planner” again.'));
     console.error(err);
+    render();
   }
+  startWatchingDrive();
+  prepareDrive(clientId());
 }
 
 start();

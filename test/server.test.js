@@ -1,7 +1,8 @@
-// Data is saved and loaded automatically through the local server.
+// The local server only serves the planner's files, plus (read-only) the data the
+// older planner saved on this computer, so it can be moved to Google Drive.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, readdir, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createApp } from '../server.js';
@@ -14,42 +15,33 @@ async function withServer(dataDir, fn) {
   try { return await fn(base); } finally { server.close(); }
 }
 
-test('saved data is loaded again after the planner restarts', async () => {
+test('the older planner’s saved data can be read (to move it to Drive), but never changed', async () => {
   const dataDir = await mkdtemp(join(tmpdir(), 'planner-'));
-  const state = seedState();
   try {
     await withServer(dataDir, async (base) => {
       assert.deepEqual(await (await fetch(`${base}/api/state`)).json(), { state: null });
-      const res = await fetch(`${base}/api/state`, { method: 'PUT', body: JSON.stringify(state) });
-      assert.equal(res.status, 200);
     });
+    const state = seedState();
+    await writeFile(join(dataDir, 'lesson-planner.json'), JSON.stringify(state));
     await withServer(dataDir, async (base) => {
-      const { state: loaded } = await (await fetch(`${base}/api/state`)).json();
-      assert.deepEqual(loaded, state);
-    });
-    assert.equal((await readdir(join(dataDir, 'backups'))).length, 1);
-  } finally {
-    await rm(dataDir, { recursive: true, force: true });
-  }
-});
-
-test('nonsense data is refused instead of overwriting the planner', async () => {
-  const dataDir = await mkdtemp(join(tmpdir(), 'planner-'));
-  try {
-    await withServer(dataDir, async (base) => {
+      assert.deepEqual((await (await fetch(`${base}/api/state`)).json()).state, state);
       const res = await fetch(`${base}/api/state`, { method: 'PUT', body: JSON.stringify({ hello: 1 }) });
-      assert.equal(res.status, 400);
+      assert.equal(res.status, 405);
     });
+    assert.deepEqual(JSON.parse(await readFile(join(dataDir, 'lesson-planner.json'), 'utf8')), state);
   } finally {
     await rm(dataDir, { recursive: true, force: true });
   }
 });
 
-test('the app page is served', async () => {
+test('the app page is served, with addresses that also work from a web host’s sub-folder', async () => {
   await withServer(await mkdtemp(join(tmpdir(), 'planner-')), async (base) => {
     const res = await fetch(base);
     assert.equal(res.status, 200);
-    assert.match(await res.text(), /Lesson Planner/);
+    const page = await res.text();
+    assert.match(page, /Lesson Planner/);
+    assert.doesNotMatch(page, /(src|href)="\/[^/]/, 'no addresses starting at the site root');
+    assert.equal((await fetch(`${base}/js/app.js`)).status, 200);
     assert.equal((await fetch(`${base}/../server.js`)).status, 404);
   });
 });

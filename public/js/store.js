@@ -1,8 +1,8 @@
-// Holds the planner data, saves it automatically, and remembers past
-// versions so any change can be undone.
+// Holds the open plan's data, saves it automatically, and remembers past
+// versions so any change can be undone. Where it's saved (this computer and
+// Google Drive) is up to workspace.js, which hands in `persist`.
 
 import { normalize } from './model.js';
-import { seedState } from './seed.js';
 
 const SAVE_DELAY_MS = 400;
 const UNDO_LIMIT = 100;
@@ -19,13 +19,22 @@ export const store = {
 
 let saveTimer = null;
 let dirty = false;
+let persister = { save: async () => {}, closing: () => {} };
 
-export async function loadData() {
-  const res = await fetch('/api/state');
-  if (!res.ok) throw new Error('Could not load your planner data.');
-  const { state } = await res.json();
-  store.state = normalize(state || seedState());
-  if (!state) queueSave();
+/** `save(state)` keeps the data (may throw to retry later); `closing(state)` runs if the page closes unsaved. */
+export function setPersist(next) {
+  persister = next;
+}
+
+/** Show a plan (a different one starts with a fresh undo history). */
+export function useState(state, { sameDocument = false } = {}) {
+  clearTimeout(saveTimer);
+  dirty = false;
+  store.state = normalize(state);
+  if (!sameDocument) {
+    store.undoStack = [];
+    store.redoStack = [];
+  }
   notify();
 }
 
@@ -94,13 +103,7 @@ function queueSave() {
 async function save() {
   dirty = false;
   try {
-    const res = await fetch('/api/state', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(store.state),
-    });
-    if (!res.ok) throw new Error(`Save failed (${res.status})`);
-    if (!dirty) setSaveStatus('saved');
+    await persister.save(store.state);
   } catch {
     dirty = true;
     setSaveStatus('error');
@@ -109,17 +112,28 @@ async function save() {
   }
 }
 
-function setSaveStatus(status) {
+const STATUS_TEXT = {
+  saving: 'Saving…',
+  saved: 'All changes saved',
+  local: 'Saved on this computer',
+  error: 'Couldn’t save — retrying…',
+};
+
+/** The words next to undo/redo. `text` overrides the usual words for `status`. */
+export function setSaveStatus(status, text = STATUS_TEXT[status]) {
   store.saveStatus = status;
   const el = document.getElementById('save-status');
   if (!el) return;
-  const text = { saving: 'Saving…', saved: 'All changes saved', error: 'Can’t reach the planner — retrying…' };
-  el.textContent = text[status];
+  el.textContent = text;
   el.dataset.status = status;
 }
 
-// Save immediately if the page is closed with unsaved changes.
+/** Changes are waiting for the short save delay. */
+export function hasPendingSave() {
+  return dirty;
+}
+
+// Keep a quick copy if the page is closed with unsaved changes.
 window.addEventListener('pagehide', () => {
-  if (!dirty || !store.state) return;
-  navigator.sendBeacon('/api/state', new Blob([JSON.stringify(store.state)], { type: 'application/json' }));
+  if (dirty && store.state) persister.closing(store.state);
 });

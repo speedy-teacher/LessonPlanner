@@ -47,16 +47,25 @@ kbd {
 .brand-icon { background: #fff8ec; border-radius: 50%; width: 32px; height: 32px; display: grid; place-items: center; font-size: 18px; }
 .year-picker { display: flex; align-items: center; gap: 8px; }
 .year-picker .mini-label { color: #e8dcf5; }
-.year-select {
-  border: 0; border-radius: 10px; padding: 6px 10px; font-weight: 700;
-  background: #fff8ec; color: var(--royal); cursor: pointer;
+.plan-button {
+  border: 0; border-radius: 10px; padding: 6px 12px; font-weight: 700;
+  background: #fff8ec; color: var(--royal); cursor: pointer; display: flex; align-items: center; gap: 6px;
 }
+.plan-button:hover { background: #fff; }
+.where-tag {
+  font-size: 11px; font-weight: 700; border-radius: 999px; padding: 1px 8px;
+  background: var(--royal-soft); color: var(--royal);
+}
+.where-tag.local { background: var(--gold-soft); color: #7a5a14; }
+.where-tag.view { background: var(--card-2); color: var(--ink-soft); }
 .top-actions { margin-left: auto; display: flex; align-items: center; gap: 6px; }
 .top-actions .icon-btn { color: #fff8ec; font-size: 18px; }
 .top-actions .icon-btn:hover:not(:disabled) { background: rgba(255, 255, 255, .15); }
 .save-status { font-size: 13px; opacity: .9; min-width: 150px; text-align: right; }
 .save-status::before { content: '✓ '; }
 .save-status[data-status="saving"]::before { content: '⋯ '; }
+.save-status[data-status="local"]::before { content: '💻 '; }
+.save-status:empty::before { content: ''; }
 .save-status[data-status="error"] { color: #ffd2c4; font-weight: 700; }
 .save-status[data-status="error"]::before { content: '! '; }
 
@@ -614,3 +623,25 @@ input:focus, select:focus, button:focus-visible { outline: 3px solid #cdb8ea; ou
   .ls-layout { grid-template-columns: 1fr; }
   .ls-palette { position: static; max-height: none; }
 }
+
+/* ---------- plans (one per school year) ---------- */
+
+.welcome-card { max-width: 620px; margin: 28px auto; padding: 24px; }
+.welcome-card h2 { color: var(--royal); margin-bottom: 8px; }
+.modal-card:has(.plans-panel) { width: min(560px, 100%); max-height: 90vh; overflow-y: auto; }
+.plans-panel { display: flex; flex-direction: column; gap: 14px; }
+.plans-section { display: flex; flex-direction: column; gap: 6px; }
+.plans-section h3 { color: var(--navy); font-size: 15px; }
+.plans-section.this-plan { background: var(--royal-soft); border-radius: 12px; padding: 12px; }
+.plans-section.old-planner { background: var(--gold-soft); border-radius: 12px; padding: 12px; }
+.plans-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.plans-actions label.btn { cursor: pointer; }
+.plan-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.plan-row { display: flex; align-items: center; gap: 4px; }
+.plan-open {
+  flex: 1; display: flex; align-items: center; gap: 8px; text-align: left; cursor: pointer;
+  border: 1px solid var(--line); background: var(--card); border-radius: 10px; padding: 8px 12px; font-weight: 700;
+}
+.plan-open:hover:not(:disabled) { background: var(--card-2); }
+.plan-open:disabled { cursor: default; border-color: var(--royal); }
+.plan-open .hint { margin: 0; font-weight: 600; }

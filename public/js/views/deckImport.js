@@ -6,6 +6,7 @@
 import { h } from '../dom.js';
 import { addDeck, DECK_EXTENSIONS, DRIVE_FOLDER, importDriveItems, importLocalFiles, syncWatchedFolders, watchedFolders } from '../library.js';
 import { canReadFolders, connectDrive, google } from '../google.js';
+import { apiKey, clientId } from '../deviceSettings.js';
 import { listFolderTree, pickFromDrive } from '../drive.js';
 import { driveFileId } from '../locations.js';
 import { dismissNotice, showNotice } from '../notices.js';
@@ -76,14 +77,15 @@ function pickLocal(folder) {
 
 /** Make sure Drive is connected (and can read folders); otherwise explain and offer to sign in. */
 function driveReady({ needFolders }) {
-  const { googleClientId, googleApiKey } = store.state.settings;
+  const googleClientId = clientId();
+  const googleApiKey = apiKey();
   const goSetup = { label: 'Open School Year', run: () => setUi({ tab: 'setup' }) };
   if (!googleClientId || !googleApiKey) {
     showNotice({ id: 'drive-import', tone: 'warn', title: 'Google Drive isn’t set up yet', message: 'Fill in the Google Drive card under Setup › School Year first (including the API key).', actions: [goSetup] });
     return false;
   }
   if (google.status !== 'connected') {
-    showNotice({ id: 'drive-import', tone: 'warn', title: 'Connect Google Drive first', message: 'Sign in to Google Drive, then try again.', actions: [{ label: 'Sign in', run: () => connectDrive(googleClientId.trim()) }] });
+    showNotice({ id: 'drive-import', tone: 'warn', title: 'Connect Google Drive first', message: 'Sign in to Google Drive, then try again.', actions: [{ label: 'Sign in', run: () => connectDrive(googleClientId) }] });
     return false;
   }
   if (needFolders && !canReadFolders()) {
@@ -97,16 +99,15 @@ function askForFolderAccess() {
   showNotice({
     id: 'drive-folder-access', tone: 'warn', title: 'One more Google permission',
     message: 'To bring in folders and watch them for new decks, Google needs you to sign in again and allow the planner to see your Drive files (it never changes them).',
-    actions: [{ label: 'Sign in again', run: () => connectDrive(store.state.settings.googleClientId.trim()) }],
+    actions: [{ label: 'Sign in again', run: () => connectDrive(clientId()) }],
     seconds: null,
   });
 }
 
 async function importFromDrive() {
   if (!driveReady({ needFolders: false })) return;
-  const { googleClientId, googleApiKey } = store.state.settings;
   try {
-    const picked = await pickFromDrive({ token: google.token, apiKey: googleApiKey.trim(), clientId: googleClientId });
+    const picked = await pickFromDrive({ token: google.token, apiKey: apiKey(), clientId: clientId() });
     if (!picked.length) return;
     const hasFolder = picked.some((p) => p.mimeType === DRIVE_FOLDER);
     if (hasFolder && !canReadFolders()) { askForFolderAccess(); return; }
