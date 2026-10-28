@@ -3,11 +3,16 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   add, addSlide, autoFill, blocksFor, createYear, criteriaFor, emptyState, find, inYear,
-  instrumentsAt, moveSlide, normalize, paintInstrument, placeOutcome, placementWarnings,
-  remove, slidesFor, toggleGrade, templatesByCategory, templateUsage, duplicateTemplate,
+  instrumentsAt, moveSlide, normalize, paintInstrument, placeCriterion, placementWarnings,
+  movePlacement, resizePlacement, criteriaForGrade,
+  remove, slidesFor, toggleGrade, templatesByCategory, templateUsage, duplicateTemplate, nextColor,
 } from '../public/js/model.js';
 import { seedState } from '../public/js/seed.js';
 import { monthWeeks, weekdaysBetween } from '../public/js/dates.js';
+
+function place({ s, year, school, grade, crit }, startDate, endDate = startDate) {
+  return placeCriterion(s, { yearId: year.id, schoolId: school.id, gradeId: grade.id, criterionId: crit.id, startDate, endDate });
+}
 
 function smallYear() {
   const s = emptyState();
@@ -60,8 +65,8 @@ test('editing the new year leaves the old year untouched', () => {
 });
 
 test('a new year without copying starts empty, and calendars never carry over', () => {
-  const { s, year, school, grade, outcome } = smallYear();
-  placeOutcome(s, { yearId: year.id, schoolId: school.id, gradeId: grade.id, outcomeId: outcome.id, date: '2026-09-14' });
+  const { s, year, school, grade, crit } = smallYear();
+  place({ s, year, school, grade, crit }, '2026-09-14');
   const copied = createYear(s, { name: 'B', startDate: '2027-08-23', endDate: '2028-06-09' }, year.id);
   assert.equal(inYear(s, 'placements', copied.id).length, 0);
   const blank = createYear(s, { name: 'C', startDate: '2028-08-21', endDate: '2029-06-08' });
@@ -88,7 +93,7 @@ test('lesson slides keep a teaching order that can be changed', () => {
 
 test('removing an outcome removes its criteria, slides and calendar entries', () => {
   const { s, year, school, grade, outcome, crit } = smallYear();
-  placeOutcome(s, { yearId: year.id, schoolId: school.id, gradeId: grade.id, outcomeId: outcome.id, date: '2026-09-14' });
+  place({ s, year, school, grade, crit }, '2026-09-14');
   remove(s, 'outcomes', outcome.id);
   assert.equal(s.criteria.length, 0);
   assert.equal(slidesFor(s, crit.id).length, 0);
@@ -121,30 +126,78 @@ test('painting school days makes merged ranges across weekends; erasing splits t
   assert.deepEqual(instrumentsAt(s, year.id, school.id, '2026-09-17'), []);
 });
 
-test('warns when an outcome needs an instrument the school does not have that day', () => {
-  const { s, year, school, grade, uke, outcome, slide } = smallYear();
+test('warns when an eval needs an instrument the school does not have on some of its days', () => {
+  const ctx = smallYear();
+  const { s, year, school, uke, slide } = ctx;
   paintInstrument(s, { yearId: year.id, schoolId: school.id, instrumentId: uke.id, dates: weekdaysBetween('2026-10-05', '2026-10-09'), on: true });
-  const ok = placeOutcome(s, { yearId: year.id, schoolId: school.id, gradeId: grade.id, outcomeId: outcome.id, date: '2026-10-06' });
-  const bad = placeOutcome(s, { yearId: year.id, schoolId: school.id, gradeId: grade.id, outcomeId: outcome.id, date: '2026-10-13' });
-  assert.equal(placementWarnings(s, ok).length, 0);
-  const [warning] = placementWarnings(s, bad);
+  assert.equal(placementWarnings(s, place(ctx, '2026-10-06', '2026-10-09')).length, 0);
+  const [warning] = placementWarnings(s, place(ctx, '2026-10-08', '2026-10-13'));
   assert.equal(warning.slide.id, slide.id);
   assert.equal(warning.instrument.name, 'Ukulele');
+  assert.deepEqual(warning.missingDates, ['2026-10-12', '2026-10-13']);
   assert.deepEqual(warning.blocks.map((b) => b.startDate), ['2026-10-05']);
 });
 
-test('no warning for grades the instrument lesson does not apply to', () => {
-  const { s, year, school, outcome } = smallYear();
+test('only eval criteria for the selected grade are offered for dragging', () => {
+  const { s, year, outcome, crit, grade } = smallYear();
   const k = add(s, 'grades', { yearId: year.id, name: 'Kindergarten', short: 'K' });
-  const p = placeOutcome(s, { yearId: year.id, schoolId: school.id, gradeId: k.id, outcomeId: outcome.id, date: '2026-10-13' });
-  assert.equal(placementWarnings(s, p).length, 0);
+  assert.deepEqual(criteriaForGrade(s, outcome.id, grade.id).map((c) => c.id), [crit.id]);
+  assert.deepEqual(criteriaForGrade(s, outcome.id, k.id), []);
 });
 
-test('templates fill in school, grade, date and instrument from the calendar', () => {
-  const { s, year, school, grade, outcome, slide } = smallYear();
-  const p = placeOutcome(s, { yearId: year.id, schoolId: school.id, gradeId: grade.id, outcomeId: outcome.id, date: '2026-10-13' });
-  const values = Object.fromEntries(autoFill(s, slide, p).map((f) => [f.key, f.value]));
-  assert.deepEqual(values, { school: 'Test School', grade: 'Grade 3', date: '2026-10-13', instrument: 'Ukulele' });
+test('an eval placed on a day can be stretched over several days', () => {
+  const ctx = smallYear();
+  const p = place(ctx, '2026-10-05');
+  assert.deepEqual([p.startDate, p.endDate], ['2026-10-05', '2026-10-05']);
+  resizePlacement(ctx.s, p.id, { endDate: '2026-10-09' });
+  assert.deepEqual([p.startDate, p.endDate], ['2026-10-05', '2026-10-09']);
+  resizePlacement(ctx.s, p.id, { startDate: '2026-10-12' });
+  assert.deepEqual([p.startDate, p.endDate], ['2026-10-09', '2026-10-12'], 'dragged past the end: swapped');
+});
+
+test('moving a multi-day eval keeps its length', () => {
+  const ctx = smallYear();
+  const p = place(ctx, '2026-10-05', '2026-10-09');
+  movePlacement(ctx.s, p.id, '2026-10-19');
+  assert.deepEqual([p.startDate, p.endDate], ['2026-10-19', '2026-10-23']);
+});
+
+test('removing an eval criterion removes it from the calendar', () => {
+  const ctx = smallYear();
+  place(ctx, '2026-10-05');
+  remove(ctx.s, 'criteria', ctx.crit.id);
+  assert.equal(ctx.s.placements.length, 0);
+});
+
+test('templates fill in school, grade, dates and instrument from the calendar', () => {
+  const ctx = smallYear();
+  const one = Object.fromEntries(autoFill(ctx.s, ctx.slide, place(ctx, '2026-10-13')).map((f) => [f.key, f.value]));
+  assert.deepEqual(one, { school: 'Test School', grade: 'Grade 3', date: '2026-10-13', instrument: 'Ukulele' });
+  const many = Object.fromEntries(autoFill(ctx.s, ctx.slide, place(ctx, '2026-10-13', '2026-10-15')).map((f) => [f.key, f.value]));
+  assert.equal(many.date, '2026-10-13/2026-10-15');
+});
+
+test('outcomes get a color, and each new one gets an unused color', () => {
+  const s = seedState();
+  const outcomes = inYear(s, 'outcomes', s.activeYearId);
+  assert.ok(outcomes.every((o) => /^#[0-9a-f]{6}$/i.test(o.color)));
+  assert.equal(new Set(outcomes.map((o) => o.color)).size, outcomes.length);
+  assert.ok(!outcomes.some((o) => o.color === nextColor(s, 'outcomes', s.activeYearId)));
+});
+
+test('saved data from the first version is upgraded: outcome entries become eval entries', () => {
+  const { s, year, school, grade, outcome, crit } = smallYear();
+  add(s, 'criteria', { outcomeId: outcome.id, title: 'Other grade only', gradeIds: [] }); // not converted: no matching grade
+  const old = { ...s, schemaVersion: 1, placements: [{ id: 'p1', yearId: year.id, schoolId: school.id, gradeId: grade.id, outcomeId: outcome.id, date: '2026-09-14' }] };
+  delete outcome.color;
+  const upgraded = normalize(structuredClone(old));
+  assert.equal(upgraded.schemaVersion, 2);
+  assert.equal(upgraded.placements.length, 1);
+  assert.deepEqual(
+    [upgraded.placements[0].criterionId, upgraded.placements[0].startDate, upgraded.placements[0].endDate],
+    [crit.id, '2026-09-14', '2026-09-14'],
+  );
+  assert.ok(upgraded.outcomes[0].color);
 });
 
 test('templates are grouped by category, alphabetically, uncategorized last', () => {

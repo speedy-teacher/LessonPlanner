@@ -1,10 +1,9 @@
 // "Setup": the year's dates and the lists everything else is built from.
 
 import { adder, editable, h, iconButton, openModal, toast } from '../dom.js';
-import { add, createYear, remove, suggestNextYear, update } from '../model.js';
+import { add, createYear, nextColor, remove, suggestNextYear, update } from '../model.js';
 import { commit, store, undo } from '../store.js';
 import { current, year } from './common.js';
-import { OUTCOME_COLORS } from './plan.js';
 
 const LISTS = [
   { collection: 'schools', title: 'Schools', placeholder: 'New school…', note: 'Removing a school also removes its calendar entries and instrument schedule.' },
@@ -54,13 +53,13 @@ function listCard({ collection, title, placeholder, note }) {
         commit((s) => remove(s, collection, item.id));
         toast(`Removed ${item.name}.`, { label: 'Undo', run: undo });
       })))),
-    adder(placeholder, (name) => commit((s) => add(s, collection, newRecord(collection, name, items.length))), `add-${collection}`),
+    adder(placeholder, (name) => commit((s) => add(s, collection, newRecord(collection, name))), `add-${collection}`),
   );
 }
 
-function newRecord(collection, name, count) {
+function newRecord(collection, name) {
   const base = { yearId: year().id, name };
-  if (collection === 'instruments') return { ...base, color: OUTCOME_COLORS[count % OUTCOME_COLORS.length] };
+  if (collection === 'instruments') return { ...base, color: nextColor(store.state, 'instruments', base.yearId) };
   if (collection === 'grades') return { ...base, short: name.replace(/^grade\s*/i, '').slice(0, 3) };
   return base;
 }

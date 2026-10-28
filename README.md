@@ -8,10 +8,12 @@ Everything saves automatically to `data/lesson-planner.json` (with a daily copy 
 
 ## Screens
 
-- **Lesson Calendar** — pick a school and grade, then drag essential outcomes onto days
-  (or click an outcome, then click days). Switching school/grade keeps the same month so you can compare.
-  ⚠ marks an outcome whose lesson needs an instrument that isn't at that school that day — hover to read why.
-  Shortcuts: `[` `]` school, `0`–`5` grade, `←` `→` month, `Esc` stop placing, `Ctrl+Z` undo.
+- **Lesson Calendar** — pick a school and grade, then drag eval criteria (grouped and colored by
+  essential outcome) onto a day, and drag either end of the bar to stretch it over several days
+  (or click an eval, then click days). Switching school/grade keeps the same month so you can compare.
+  ⚠ marks an eval whose lesson needs an instrument that isn't at that school on some of its days — hover to read why.
+  Shortcuts: `[` `]` school, `0`–`5` grade, `←` `→` month, `Shift`+`←` `→` shorten/lengthen the selected bar,
+  `Esc` stop placing, `Ctrl+Z` undo.
 - **Instrument Schedule** — paint which instruments are at which school, color coded.
 - **Outcomes & Lessons** — essential outcomes → eval criteria → grades and ordered lesson slides.
 - **Templates** — the lesson slide template library: search, categories, which details each template
@@ -24,7 +26,9 @@ Everything saves automatically to `data/lesson-planner.json` (with a daily copy 
 One JSON file of flat collections linked by id (see `public/js/model.js`):
 `years`, `instruments`, `schools`, `grades`, `outcomes`, `templates` (year-scoped, copied each new year
 with a `copiedFromId` link back), `criteria` → `slides` (belong to an outcome), and the calendars
-`placements` and `instrumentBlocks` (year-scoped, never copied).
+`placements` (an eval criterion for a school + grade from `startDate` to `endDate`) and
+`instrumentBlocks` (year-scoped, never copied). Outcomes carry a `color` shared by all their evals.
+Older saved files are upgraded automatically when loaded (`schemaVersion`).
 
 ## For developers
 

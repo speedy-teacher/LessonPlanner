@@ -13,7 +13,7 @@ import { formatDate } from '../dates.js';
 export function slidePreview(slide, { number, fields = [], warn = false, small = false } = {}) {
   const template = find(store.state, 'templates', slide.templateId);
   const instrument = find(store.state, 'instruments', slide.instrumentId);
-  return h('figure', { class: `slide-preview ${warn ? 'warn' : ''} ${small ? 'small' : ''}` },
+  return h('figure', { class: `slide-preview ${warn ? 'has-warn' : ''} ${small ? 'small' : ''}` },
     h('div', { class: 'slide-canvas' },
       h('div', { class: 'slide-template' }, template ? template.name : 'No template'),
       h('div', { class: 'slide-fields' }, fields.map((f) => h('div', { class: 'slide-field' },
@@ -33,5 +33,6 @@ function caption(slide, instrument, number, warn) {
 
 function showValue(field) {
   if (!field.value) return `«${field.label}»`;
-  return field.key === 'date' ? formatDate(field.value) : field.value;
+  if (field.key !== 'date') return field.value;
+  return field.value.split('/').map(formatDate).join(' – ');
 }

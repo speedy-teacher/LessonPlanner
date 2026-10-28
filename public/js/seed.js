@@ -1,7 +1,7 @@
 // Placeholder starter data, used the very first time the app opens.
 // Everything here is made up.
 
-import { add, addSlide, createYear, emptyState, paintInstrument, placeOutcome } from './model.js';
+import { PALETTE, add, addSlide, createYear, emptyState, paintInstrument, placeCriterion } from './model.js';
 import { weekdaysBetween } from './dates.js';
 
 const SCHOOLS = ['Acorn Elementary', 'Bluebird Elementary', 'Cedar Grove Elementary', 'Dandelion Elementary'];
@@ -55,14 +55,14 @@ export function seedState() {
     instruments: INSTRUMENTS.map(([name, color]) => add(state, 'instruments', { yearId: year.id, name, color }).id),
     templates: TEMPLATES.map(([name, category, autoFields]) => add(state, 'templates', { yearId: year.id, name, category, autoFields }).id),
   };
-  const outcomes = OUTCOMES.map((o) => seedOutcome(state, year.id, ids, o));
+  OUTCOMES.forEach((o, i) => seedOutcome(state, year.id, ids, o, PALETTE[i]));
   seedSchedule(state, year.id, ids);
-  seedPlacements(state, year.id, ids, outcomes);
+  seedPlacements(state, year.id, ids);
   return state;
 }
 
-function seedOutcome(state, yearId, ids, [code, title, criteria]) {
-  const outcome = add(state, 'outcomes', { yearId, code, title });
+function seedOutcome(state, yearId, ids, [code, title, criteria], color) {
+  const outcome = add(state, 'outcomes', { yearId, code, title, color });
   for (const [critTitle, shorts, slides] of criteria) {
     const gradeIds = ids.grades.filter((g) => shorts.includes(g.short)).map((g) => g.id);
     const crit = add(state, 'criteria', { outcomeId: outcome.id, title: critTitle, gradeIds });
@@ -74,7 +74,6 @@ function seedOutcome(state, yearId, ids, [code, title, criteria]) {
       });
     }
   }
-  return outcome.id;
 }
 
 // Each school gets each instrument for a stretch of the year, rotating.
@@ -89,13 +88,30 @@ function seedSchedule(state, yearId, ids) {
   });
 }
 
-function seedPlacements(state, yearId, ids, outcomes) {
-  const grade3 = ids.grades[3].id;
-  const plan = [['2026-09-14', 0], ['2026-10-05', 1], ['2026-11-02', 4], ['2026-12-07', 2]];
-  ids.schools.slice(0, 2).forEach((schoolId) => {
-    plan.forEach(([date, o]) => placeOutcome(state, { yearId, schoolId, gradeId: grade3, outcomeId: outcomes[o], date }));
-  });
-  const k = ids.grades[0].id;
-  placeOutcome(state, { yearId, schoolId: ids.schools[0], gradeId: k, outcomeId: outcomes[0], date: '2026-09-09' });
-  placeOutcome(state, { yearId, schoolId: ids.schools[0], gradeId: k, outcomeId: outcomes[3], date: '2026-10-14' });
+// Grade 3 at the first two schools, plus a little Kindergarten; [criterion title, start, end].
+const PLAN = {
+  3: [
+    ['Plays a steady beat on an instrument', '2026-09-14', '2026-09-18'],
+    ['Plays a simple melody', '2026-10-05', '2026-10-09'],
+    ['Describes music with words', '2026-10-19', '2026-10-21'],
+    ['Plays a part in a group', '2026-11-02', '2026-11-06'],
+    ['Makes up a short pattern', '2026-12-07', '2026-12-09'],
+  ],
+  0: [
+    ['Moves to a steady beat', '2026-09-08', '2026-09-11'],
+    ['Describes music with words', '2026-10-12', '2026-10-14'],
+  ],
+};
+
+function seedPlacements(state, yearId, ids) {
+  const critId = (title) => state.criteria.find((c) => c.title === title).id;
+  for (const [gradeIndex, rows] of Object.entries(PLAN)) {
+    const gradeId = ids.grades[gradeIndex].id;
+    const schools = gradeIndex === '3' ? ids.schools.slice(0, 2) : ids.schools.slice(0, 1);
+    for (const schoolId of schools) {
+      for (const [title, startDate, endDate] of rows) {
+        placeCriterion(state, { yearId, schoolId, gradeId, criterionId: critId(title), startDate, endDate });
+      }
+    }
+  }
 }

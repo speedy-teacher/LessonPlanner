@@ -101,3 +101,13 @@ export function formatShort(iso) {
 export function formatRange(start, end) {
   return start === end ? formatShort(start) : `${formatShort(start)} – ${formatShort(end)}`;
 }
+
+/** Whole calendar days from a to b (negative if b is earlier). */
+export function daysBetween(a, b) {
+  return Math.round((parseISO(b) - parseISO(a)) / DAY_MS);
+}
+
+/** Monday of the week a date falls in. */
+export function mondayOf(iso) {
+  return addDays(iso, -((weekday(iso) + 6) % 7));
+}

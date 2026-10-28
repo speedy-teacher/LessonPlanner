@@ -3,7 +3,7 @@
 
 import { adder, editable, h, iconButton, toast } from '../dom.js';
 import {
-  add, addSlide, autoFill, criteriaFor, find, moveSlide, remove, slidesFor, templatesByCategory, toggleGrade, update,
+  add, addSlide, autoFill, nextColor, criteriaFor, find, moveSlide, remove, slidesFor, templatesByCategory, toggleGrade, update,
 } from '../model.js';
 import { commit, setUi, store, undo } from '../store.js';
 import { current, emptyNote, pickId, year } from './common.js';
@@ -24,7 +24,7 @@ export function renderOutcomes() {
           onclick: () => setUi({ outcomeId: o.id }),
         }, h('span', { class: 'chip-code' }, o.code || '•'), h('span', { class: 'chip-title' }, o.title))))),
       adder('New outcome…', (title) => {
-        const o = commit((s) => add(s, 'outcomes', { yearId: year().id, code: '', title }));
+        const o = commit((s) => add(s, 'outcomes', { yearId: year().id, code: '', title, color: nextColor(s, 'outcomes', year().id) }));
         setUi({ outcomeId: o.id });
       }, 'add-outcome')),
     h('section', { class: 'main-col card' },
@@ -35,6 +35,11 @@ export function renderOutcomes() {
 function outcomeEditor(outcome) {
   return h('div', { class: 'outcome-editor' },
     h('div', { class: 'editor-head' },
+      h('label', { class: 'field color-field', title: 'Color for this outcome and all its evals on the calendar' }, h('span', {}, 'Color'),
+        h('input', {
+          type: 'color', class: 'color-pick big', value: outcome.color,
+          onchange: (e) => commit((s) => update(s, 'outcomes', outcome.id, { color: e.target.value })),
+        })),
       h('label', { class: 'field code-field' }, h('span', {}, 'Code'),
         editable(outcome.code, (code) => commit((s) => update(s, 'outcomes', outcome.id, { code })), { placeholder: 'e.g. MU1' })),
       h('label', { class: 'field grow' }, h('span', {}, 'Essential outcome'),

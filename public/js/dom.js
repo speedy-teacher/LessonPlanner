@@ -14,10 +14,17 @@ export function h(tag, props = {}, ...children) {
 const SPECIAL_PROPS = {
   class: (el, v) => { el.className = v; },
   dataset: (el, v) => Object.assign(el.dataset, v),
-  style: (el, v) => (typeof v === 'object' ? Object.assign(el.style, v) : el.setAttribute('style', v)),
+  style: (el, v) => (typeof v === 'object' ? setStyles(el, v) : el.setAttribute('style', v)),
   value: (el, v) => { el.value = v; },
   checked: (el, v) => { el.checked = v; },
 };
+
+// setProperty is needed for CSS variables like '--chip'.
+function setStyles(el, styles) {
+  for (const [name, value] of Object.entries(styles)) {
+    if (value !== null && value !== undefined) el.style.setProperty(name.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`), value);
+  }
+}
 
 function setProp(el, key, value) {
   if (value === undefined || value === null || value === false) return;

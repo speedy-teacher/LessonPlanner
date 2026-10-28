@@ -10,9 +10,12 @@
 //
 // This module is shared by the browser app and the Node tests.
 
-import { addDays, isWeekday, nextWeekday, weekdaysBetween } from './dates.js';
+import { addDays, daysBetween, isWeekday, nextWeekday, weekdaysBetween } from './dates.js';
 
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
+
+/** Default colors handed out to new outcomes and instruments (earthy & royal). */
+export const PALETTE = ['#6b8f5e', '#6a4c93', '#b5654a', '#3f6e8c', '#c49a3a', '#8c4f6b', '#4f7d7a', '#7a6248'];
 
 /** Collections and what each record looks like (documentation + normalizing). */
 export const COLLECTIONS = {
@@ -20,11 +23,11 @@ export const COLLECTIONS = {
   instruments: 'id, yearId, name, color',
   schools: 'id, yearId, name',
   grades: 'id, yearId, name, short',
-  outcomes: 'id, yearId, code, title',
+  outcomes: 'id, yearId, code, title, color',
   templates: 'id, yearId, name, category, autoFields[]',
   criteria: 'id, outcomeId, title, gradeIds[]',
   slides: 'id, criterionId, title, templateId?, instrumentId?, position',
-  placements: 'id, yearId, schoolId, gradeId, outcomeId, date',
+  placements: 'id, yearId, schoolId, gradeId, criterionId, startDate, endDate',
   instrumentBlocks: 'id, yearId, schoolId, instrumentId, startDate, endDate',
 };
 
@@ -53,9 +56,9 @@ const RELATIONS = {
   instruments: [['instrumentBlocks', 'instrumentId', 'delete'], ['slides', 'instrumentId', 'null']],
   schools: [['placements', 'schoolId', 'delete'], ['instrumentBlocks', 'schoolId', 'delete']],
   grades: [['placements', 'gradeId', 'delete'], ['criteria', 'gradeIds', 'pull']],
-  outcomes: [['criteria', 'outcomeId', 'delete'], ['placements', 'outcomeId', 'delete']],
+  outcomes: [['criteria', 'outcomeId', 'delete']],
   templates: [['slides', 'templateId', 'null']],
-  criteria: [['slides', 'criterionId', 'delete']],
+  criteria: [['slides', 'criterionId', 'delete'], ['placements', 'criterionId', 'delete']],
 };
 
 export function newId(prefix) {
@@ -85,11 +88,42 @@ export function normalize(raw) {
     if (!Array.isArray(t.autoFields)) t.autoFields = [];
     if (typeof t.category !== 'string') t.category = '';
   });
+  if ((state.schemaVersion || 1) < 2) migrateToV2(state);
+  for (const year of state.years) assignOutcomeColors(state, year.id);
   if (!state.years.some((y) => y.id === state.activeYearId)) {
     state.activeYearId = state.years.at(-1)?.id ?? null;
   }
   state.schemaVersion = SCHEMA_VERSION;
   return state;
+}
+
+/**
+ * Version 1 placed whole outcomes on single days. Version 2 places eval
+ * criteria over a date range: each old entry becomes one entry per
+ * criterion of that outcome which applies to the entry's grade.
+ */
+function migrateToV2(state) {
+  state.placements = state.placements.flatMap((p) => {
+    if (p.criterionId) return [p];
+    return criteriaFor(state, p.outcomeId)
+      .filter((c) => c.gradeIds.includes(p.gradeId))
+      .map((c) => ({
+        id: newId('plc'), yearId: p.yearId, schoolId: p.schoolId, gradeId: p.gradeId,
+        criterionId: c.id, startDate: p.date, endDate: p.date,
+      }));
+  });
+}
+
+function assignOutcomeColors(state, yearId) {
+  inYear(state, 'outcomes', yearId).forEach((o, i) => {
+    if (!o.color) o.color = PALETTE[i % PALETTE.length];
+  });
+}
+
+/** A color for the next new outcome/instrument in a year that isn't used yet, if possible. */
+export function nextColor(state, collection, yearId) {
+  const used = new Set(inYear(state, collection, yearId).map((r) => r.color));
+  return PALETTE.find((c) => !used.has(c)) ?? PALETTE[used.size % PALETTE.length];
 }
 
 // ---------- generic record helpers ----------
@@ -241,14 +275,19 @@ export function toggleGrade(state, criterionId, gradeId) {
     : [...crit.gradeIds, gradeId];
 }
 
-/** Criteria of an outcome that apply to a grade, with their ordered slides. */
-export function lessonsFor(state, outcomeId, gradeId) {
-  return criteriaFor(state, outcomeId)
-    .filter((c) => c.gradeIds.includes(gradeId))
-    .map((criterion) => ({ criterion, slides: slidesFor(state, criterion.id) }));
+/** Eval criteria of an outcome that apply to a grade. */
+export function criteriaForGrade(state, outcomeId, gradeId) {
+  return criteriaFor(state, outcomeId).filter((c) => c.gradeIds.includes(gradeId));
 }
 
-// ---------- outcome calendar (placements) ----------
+/** The outcome an eval criterion belongs to. */
+export function outcomeOf(state, criterionId) {
+  return find(state, 'outcomes', find(state, 'criteria', criterionId)?.outcomeId);
+}
+
+// ---------- lesson calendar (placements) ----------
+// A placement puts one eval criterion on the calendar for a school + grade,
+// from startDate to endDate (inclusive).
 
 export function placementsFor(state, yearId, schoolId, gradeId) {
   return state.placements.filter(
@@ -256,12 +295,28 @@ export function placementsFor(state, yearId, schoolId, gradeId) {
   );
 }
 
-export function placeOutcome(state, { yearId, schoolId, gradeId, outcomeId, date }) {
-  return add(state, 'placements', { yearId, schoolId, gradeId, outcomeId, date });
+export function placeCriterion(state, { yearId, schoolId, gradeId, criterionId, startDate, endDate = startDate }) {
+  return add(state, 'placements', { yearId, schoolId, gradeId, criterionId, startDate, endDate });
 }
 
-export function movePlacement(state, placementId, date) {
-  return update(state, 'placements', placementId, { date });
+/** Move a placement so it starts on `startDate`, keeping its length. */
+export function movePlacement(state, placementId, startDate) {
+  const p = find(state, 'placements', placementId);
+  if (!p) return null;
+  const length = daysBetween(p.startDate, p.endDate);
+  return update(state, 'placements', placementId, { startDate, endDate: addDays(startDate, length) });
+}
+
+/** Change a placement's first and/or last day (they're swapped if reversed). */
+export function resizePlacement(state, placementId, { startDate, endDate }) {
+  const p = find(state, 'placements', placementId);
+  if (!p) return null;
+  const [a, b] = [startDate ?? p.startDate, endDate ?? p.endDate].sort();
+  return update(state, 'placements', placementId, { startDate: a, endDate: b });
+}
+
+export function coversDate(p, date) {
+  return p.startDate <= date && date <= p.endDate;
 }
 
 // ---------- instrument schedule ----------
@@ -311,38 +366,52 @@ export function toRanges(dates) {
 
 /**
  * Lesson slides in a placement that need an instrument the school does not
- * have on that date. Returns [{ criterion, slide, instrument, blocks }].
+ * have on one or more of its school days.
+ * Returns [{ criterion, slide, instrument, blocks, missingDates }].
  */
 export function placementWarnings(state, placement) {
-  const present = new Set(instrumentsAt(state, placement.yearId, placement.schoolId, placement.date));
+  const { yearId, schoolId, startDate, endDate } = placement;
+  const criterion = find(state, 'criteria', placement.criterionId);
+  const days = weekdaysBetween(startDate, endDate);
   const warnings = [];
-  for (const { criterion, slides } of lessonsFor(state, placement.outcomeId, placement.gradeId)) {
-    for (const slide of slides) {
-      if (!slide.instrumentId || present.has(slide.instrumentId)) continue;
-      const instrument = find(state, 'instruments', slide.instrumentId);
-      const blocks = blocksFor(state, placement.yearId, placement.schoolId, slide.instrumentId);
-      warnings.push({ criterion, slide, instrument, blocks });
-    }
+  for (const slide of slidesFor(state, placement.criterionId)) {
+    if (!slide.instrumentId) continue;
+    const missingDates = days.filter((d) => !instrumentsAt(state, yearId, schoolId, d).includes(slide.instrumentId));
+    if (!missingDates.length) continue;
+    const instrument = find(state, 'instruments', slide.instrumentId);
+    const blocks = blocksFor(state, yearId, schoolId, slide.instrumentId);
+    warnings.push({ criterion, slide, instrument, blocks, missingDates });
   }
   return warnings;
 }
 
 // ---------- templates ----------
 
-/** The values a slide's template fills in automatically for a placement. */
+/**
+ * The values a slide's template fills in automatically for a placement.
+ * `date` is an ISO date, or an ISO interval "start/end" for several days.
+ */
 export function autoFill(state, slide, placement) {
   const template = find(state, 'templates', slide.templateId);
   if (!template) return [];
   const criterion = find(state, 'criteria', slide.criterionId);
   const values = {
-    school: find(state, 'schools', placement?.schoolId)?.name,
-    grade: find(state, 'grades', placement?.gradeId)?.name,
-    date: placement?.date,
+    ...scheduleValues(state, placement),
     instrument: find(state, 'instruments', slide.instrumentId)?.name,
     outcome: outcomeLabel(find(state, 'outcomes', criterion?.outcomeId)),
     criterion: criterion?.title,
   };
   return template.autoFields.map((key) => ({ key, label: AUTO_FIELDS[key], value: values[key] ?? '' }));
+}
+
+function scheduleValues(state, placement) {
+  if (!placement) return {};
+  const { startDate, endDate } = placement;
+  return {
+    school: find(state, 'schools', placement.schoolId)?.name,
+    grade: find(state, 'grades', placement.gradeId)?.name,
+    date: startDate === endDate ? startDate : `${startDate}/${endDate}`,
+  };
 }
 
 /** Templates of a year, alphabetical, grouped by category ('' = no category, listed last). */
