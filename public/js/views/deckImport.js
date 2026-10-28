@@ -1,4 +1,4 @@
-// "+ Add" on the Lesson Decks tab: a new blank deck, decks from the computer
+// "+ Add" on the Lesson Templates tab: a new blank deck, decks from the computer
 // (single files or a whole folder), or from Google Drive. Also keeps watched
 // Drive folders up to date: new decks there are pulled in and marked ❗.
 // Everything happens in the browser; only deck details are saved.
@@ -159,7 +159,7 @@ export async function checkWatchedFolders({ now = false } = {}) {
 function announceNew(added) {
   showNotice({
     id: 'drive-new-decks', tone: 'info', title: 'New lesson decks from Google Drive',
-    message: `${plural(added.length, 'new deck')} ${added.length === 1 ? 'was' : 'were'} added. Follow the ❗ in Lesson Decks to find ${added.length === 1 ? 'it' : 'them'}.`,
+    message: `${plural(added.length, 'new deck')} ${added.length === 1 ? 'was' : 'were'} added. Follow the ❗ in Lesson Templates to find ${added.length === 1 ? 'it' : 'them'}.`,
     actions: [{ label: 'Show me', run: () => { dismissNotice('drive-new-decks'); openFolders(added.map((l) => l.folderId).filter(Boolean)); setUi({ tab: 'lessons', lessonId: added[0].id, lessonSearch: '' }); } }],
     seconds: 30,
   });

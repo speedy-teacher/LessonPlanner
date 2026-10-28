@@ -1,5 +1,5 @@
-// "Outcomes & Lessons": essential outcomes → eval criteria → grades and
-// ordered lessons (slide decks from the Lesson Decks library).
+// "Outcomes, Evals & Lesson Order": essential outcomes → eval criteria → grades and
+// ordered lessons (slide decks from the Lesson Templates library).
 
 import { adder, editable, h, iconButton, toast } from '../dom.js';
 import {

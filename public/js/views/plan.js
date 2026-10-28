@@ -65,7 +65,7 @@ function sidebar(ctx) {
     }),
     h('h3', {}, `Evals for ${grade?.name || 'this grade'}`),
     h('p', { class: 'hint' }, 'Drag onto a day, then drag its end to stretch it. Or click one, then click days.'),
-    groups.length ? null : emptyNote('No eval criteria for this grade yet. Add them on the Outcomes & Lessons tab.'),
+    groups.length ? null : emptyNote('No eval criteria for this grade yet. Add them on the Outcomes, Evals & Lesson Order tab.'),
     h('div', { class: 'palette' }, groups.map(({ outcome, criteria }) => h('section', {
       class: 'palette-group', style: { '--chip': outcomeColor(outcome.id) },
     },
@@ -132,7 +132,7 @@ function detailPanel(p) {
         h('div', { class: 'detail-outcome' }, outcomeLabel(outcomeOf(store.state, p.criterionId))),
         h('h3', {}, criterion?.title)),
       iconButton('×', 'Close', () => setUi({ placementId: null }))),
-    steps.length ? null : emptyNote('No lessons yet. Add them on the Outcomes & Lessons tab.'),
+    steps.length ? null : emptyNote('No lessons yet. Add them on the Outcomes, Evals & Lesson Order tab.'),
     h('div', { class: 'slide-row' }, steps.map((step, i) => lessonPreview(step.lessonId, {
       number: i + 1,
       fields: autoFill(store.state, step, p),

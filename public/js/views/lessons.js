@@ -1,4 +1,4 @@
-// "Lesson Decks": the library of lessons. Each lesson is one slide deck.
+// "Lesson Templates": the library of lessons. Each lesson is one slide deck.
 // Built for dozens of decks: search, categories, and which evals use each one.
 
 import { editable, h, toast } from '../dom.js';
@@ -27,7 +27,7 @@ export function renderLessons() {
   return h('div', { class: 'outcomes-layout templates-layout' },
     h('aside', { class: 'side card deck-side' },
       h('div', { class: 'deck-side-head' },
-        h('h3', {}, 'Lesson decks', h('span', { class: 'count-badge' }, current('lessons').length)),
+        h('h3', {}, 'Lesson templates', h('span', { class: 'count-badge' }, current('lessons').length)),
         addMenu()),
       h('input', {
         class: 'search', type: 'search', placeholder: '🔍 Search lessons…', value: store.ui.lessonSearch || '',
@@ -147,7 +147,7 @@ function usedIn(l) {
   const groups = lessonUsageByGrade(store.state, l.id);
   return h('section', { class: 'used-by' },
     h('h3', {}, 'Used in the following content'),
-    groups.length ? null : emptyNote('Not used yet. Add it to an eval on the Outcomes & Lessons tab.'),
+    groups.length ? null : emptyNote('Not used yet. Add it to an eval on the Outcomes, Evals & Lesson Order tab.'),
     groups.map(({ grade, outcomes }) => h('div', { class: 'usage-grade' },
       h('h4', { class: 'group-head' }, grade ? grade.name : 'No grade chosen yet'),
       h('ul', {}, outcomes.map(({ outcome, evals }) => h('li', {},

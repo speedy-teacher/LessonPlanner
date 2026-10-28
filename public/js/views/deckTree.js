@@ -1,4 +1,4 @@
-// The folder tree on the left of "Lesson Decks": folders open and close,
+// The folder tree on the left of "Lesson Templates": folders open and close,
 // decks and folders can be dragged into other folders, and a ❗ marks decks
 // newly pulled in from Google Drive — on the deck and every folder above it.
 

@@ -63,7 +63,7 @@ Google changes its screens now and then; if a button name is slightly different,
 5. Click **Update**, then **Save** at the bottom.
 
 **Already connected before folders were added?** Do step 5 above, then in the planner click **Sign in again** when it asks
-(Lesson Decks → + Add → From Google Drive). Google shows the new permission once.
+(Lesson Templates → + Add → From Google Drive). Google shows the new permission once.
 
 ## 6. Make the Client ID (code #1)
 

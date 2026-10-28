@@ -15,8 +15,8 @@ import { checkWatchedFolders, startWatchingDrive } from './views/deckImport.js';
 const TABS = [
   { id: 'plan', label: 'Lesson Calendar', icon: '📅', render: renderPlan, keys: planKeys, onShow: showCalendar },
   { id: 'schedule', label: 'Instrument Schedule', icon: '🎶', render: renderSchedule, keys: scheduleKeys, onShow: showCalendar },
-  { id: 'outcomes', label: 'Outcomes & Lessons', icon: '🌱', render: renderOutcomes },
-  { id: 'lessons', label: 'Lesson Decks', icon: '🖼️', render: renderLessons, keys: lessonKeys },
+  { id: 'outcomes', label: 'Outcomes, Evals & Lesson Order', icon: '🌱', render: renderOutcomes },
+  { id: 'lessons', label: 'Lesson Templates', icon: '🖼️', render: renderLessons, keys: lessonKeys },
   { id: 'setup', label: 'Setup', icon: '🧺', render: renderSetup },
 ];
 
