@@ -5,7 +5,7 @@ import {
   add, addStep, autoFill, blocksFor, createYear, criteriaFor, emptyState, find, inYear,
   instrumentsAt, moveStep, normalize, paintInstrument, placeCriterion, placementWarnings,
   movePlacement, resizePlacement, criteriaForGrade, addInstrumentBlock, moveRange, resizeRange,
-  remove, stepsFor, toggleGrade, lessonsByCategory, lessonEvals, lessonUsageByGrade, duplicateLesson, nextColor,
+  remove, stepsFor, toggleGrade, lessonsByCategory, lessonEvals, lessonUsageByGrade, duplicateLesson, nextColor, SCHEMA_VERSION,
 } from '../public/js/model.js';
 import { seedState } from '../public/js/seed.js';
 import { monthWeeks, weekdaysBetween } from '../public/js/dates.js';
@@ -220,7 +220,7 @@ test('saved data from the first version is upgraded: outcome entries become eval
   const old = { ...s, schemaVersion: 1, placements: [{ id: 'p1', yearId: year.id, schoolId: school.id, gradeId: grade.id, outcomeId: outcome.id, date: '2026-09-14' }] };
   delete outcome.color;
   const upgraded = normalize(structuredClone(old));
-  assert.equal(upgraded.schemaVersion, 3);
+  assert.equal(upgraded.schemaVersion, SCHEMA_VERSION);
   assert.equal(upgraded.placements.length, 1);
   assert.deepEqual(
     [upgraded.placements[0].criterionId, upgraded.placements[0].startDate, upgraded.placements[0].endDate],

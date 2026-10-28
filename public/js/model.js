@@ -10,9 +10,9 @@
 //
 // This module is shared by the browser app and the Node tests.
 
-import { addDays, daysBetween, isWeekday, nextWeekday, weekdaysBetween } from './dates.js';
+import { addDays, daysBetween, isWeekday, mondayOf, nextWeekday, weekdaysBetween } from './dates.js';
 
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
 
 /** Default colors handed out to new outcomes and instruments (earthy & royal). */
 export const PALETTE = ['#6b8f5e', '#6a4c93', '#b5654a', '#3f6e8c', '#c49a3a', '#8c4f6b', '#4f7d7a', '#7a6248'];
@@ -24,8 +24,13 @@ export const COLLECTIONS = {
   schools: 'id, yearId, name',
   grades: 'id, yearId, name, short',
   outcomes: 'id, yearId, code, title, color',
+  // Folders that organize the lesson decks (nested by parentId). A folder imported from Google Drive
+  // keeps its Drive id in `source`; `watch` = new decks added to it in Drive are pulled in automatically.
+  deckFolders: 'id, yearId, name, parentId, source, watch',
   // A lesson is one slide deck: what it fills in automatically and which instruments it uses.
-  lessons: 'id, yearId, name, category, autoFields[], instrumentIds[]',
+  // `source` says where the deck's file lives (computer or Drive); `isNew` = pulled in from a watched
+  // Drive folder and not looked at yet.
+  lessons: 'id, yearId, name, category, autoFields[], instrumentIds[], folderId, source, isNew',
   criteria: 'id, outcomeId, title, gradeIds[]',
   // The lessons an eval criterion is taught with, in teaching order (a lesson can be in several evals).
   criterionLessons: 'id, criterionId, lessonId, position',
@@ -34,13 +39,15 @@ export const COLLECTIONS = {
 };
 
 /** Collections that roll over (are copied) when a new year is created. */
-export const ROLLOVER = ['instruments', 'schools', 'grades', 'lessons', 'outcomes'];
+export const ROLLOVER = ['instruments', 'schools', 'grades', 'deckFolders', 'lessons', 'outcomes'];
 
 /** Lesson deck fields that are filled in automatically from the schedule. */
 export const AUTO_FIELDS = {
   school: 'School',
   grade: 'Grade',
   date: 'Date',
+  week: 'Week number',
+  lessonNumber: 'Lesson number',
   instrument: 'Instrument',
   outcome: 'Essential outcome',
   criterion: 'Eval criterion',
@@ -52,7 +59,7 @@ const RELATIONS = {
   years: [
     ['instruments', 'yearId', 'delete'], ['schools', 'yearId', 'delete'],
     ['grades', 'yearId', 'delete'], ['outcomes', 'yearId', 'delete'],
-    ['lessons', 'yearId', 'delete'], ['placements', 'yearId', 'delete'],
+    ['lessons', 'yearId', 'delete'], ['deckFolders', 'yearId', 'delete'], ['placements', 'yearId', 'delete'],
     ['instrumentBlocks', 'yearId', 'delete'],
   ],
   instruments: [['instrumentBlocks', 'instrumentId', 'delete'], ['lessons', 'instrumentIds', 'pull']],
@@ -60,6 +67,7 @@ const RELATIONS = {
   grades: [['placements', 'gradeId', 'delete'], ['criteria', 'gradeIds', 'pull']],
   outcomes: [['criteria', 'outcomeId', 'delete']],
   lessons: [['criterionLessons', 'lessonId', 'delete']],
+  deckFolders: [['deckFolders', 'parentId', 'delete'], ['lessons', 'folderId', 'null']],
   criteria: [['criterionLessons', 'criterionId', 'delete'], ['placements', 'criterionId', 'delete']],
 };
 
@@ -73,7 +81,7 @@ export function newId(prefix) {
 
 const PREFIX = {
   years: 'yr', instruments: 'ins', schools: 'sch', grades: 'gr', outcomes: 'out',
-  lessons: 'les', criteria: 'crit', criterionLessons: 'cl', placements: 'plc', instrumentBlocks: 'blk',
+  lessons: 'les', deckFolders: 'fld', criteria: 'crit', criterionLessons: 'cl', placements: 'plc', instrumentBlocks: 'blk',
 };
 
 export function emptyState() {
@@ -91,6 +99,7 @@ export function normalize(raw) {
   state.criteria.forEach((c) => { if (!Array.isArray(c.gradeIds)) c.gradeIds = []; });
   migrate(state);
   state.lessons.forEach(normalizeLesson);
+  state.deckFolders.forEach(normalizeFolder);
   state.settings = { ...DEFAULT_SETTINGS, ...(state.settings || {}) };
   for (const year of state.years) assignOutcomeColors(state, year.id);
   if (!state.years.some((y) => y.id === state.activeYearId)) {
@@ -111,6 +120,15 @@ function normalizeLesson(lesson) {
   if (!Array.isArray(lesson.autoFields)) lesson.autoFields = [];
   if (!Array.isArray(lesson.instrumentIds)) lesson.instrumentIds = [];
   if (typeof lesson.category !== 'string') lesson.category = '';
+  lesson.folderId ??= null;
+  lesson.source ??= null;
+  lesson.isNew = Boolean(lesson.isNew);
+}
+
+function normalizeFolder(folder) {
+  folder.parentId ??= null;
+  folder.source ??= null;
+  folder.watch = Boolean(folder.watch);
 }
 
 /**
@@ -239,7 +257,9 @@ function copyYearContents(state, fromYearId, toYearId) {
   const mapId = (id) => (id ? idMap[id] ?? null : null);
   for (const lesson of inYear(state, 'lessons', toYearId)) {
     lesson.instrumentIds = lesson.instrumentIds.map(mapId).filter(Boolean);
+    lesson.folderId = mapId(lesson.folderId);
   }
+  for (const folder of inYear(state, 'deckFolders', toYearId)) folder.parentId = mapId(folder.parentId);
   for (const outcomeId of Object.keys(idMap).filter((id) => find(state, 'outcomes', id))) {
     copyCriteria(state, outcomeId, idMap[outcomeId], mapId);
   }
@@ -458,6 +478,8 @@ export function autoFill(state, step, placement) {
   const criterion = find(state, 'criteria', step.criterionId ?? placement?.criterionId);
   const values = {
     ...scheduleValues(state, placement),
+    week: placement ? weekLabel(find(state, 'years', placement.yearId), placement) : '',
+    lessonNumber: placement ? String(lessonNumber(state, placement, step)) : '',
     instrument: lessonInstruments(state, lesson).map((i) => i.name).join(', '),
     outcome: outcomeLabel(find(state, 'outcomes', criterion?.outcomeId)),
     criterion: criterion?.title,
@@ -473,6 +495,38 @@ function scheduleValues(state, placement) {
     grade: find(state, 'grades', placement.gradeId)?.name,
     date: startDate === endDate ? startDate : `${startDate}/${endDate}`,
   };
+}
+
+/** School week of a date: week 1 is the week (Mon–Fri) the school year starts in. */
+export function weekNumber(yearStartDate, date) {
+  return Math.floor(daysBetween(mondayOf(yearStartDate), date) / 7) + 1;
+}
+
+/** "3", or "3–4" when a placement runs over more than one week. */
+function weekLabel(year, { startDate, endDate }) {
+  if (!year) return '';
+  const [a, b] = [weekNumber(year.startDate, startDate), weekNumber(year.startDate, endDate)];
+  return a === b ? String(a) : `${a}–${b}`;
+}
+
+/**
+ * The running lesson number for a class (school + grade) through the year:
+ * the calendar's evals in date order, each eval's lessons in teaching order.
+ */
+export function lessonNumber(state, placement, step) {
+  const { yearId, schoolId, gradeId } = placement;
+  const earlier = placementsFor(state, yearId, schoolId, gradeId)
+    .sort((a, b) => a.startDate.localeCompare(b.startDate))
+    .filter((p, i, list) => list.indexOf(placement) > i);
+  const before = earlier.reduce((sum, p) => sum + stepsFor(state, p.criterionId).length, 0);
+  const steps = stepsFor(state, placement.criterionId);
+  const index = steps.findIndex((s) => (step.id ? s.id === step.id : s.lessonId === step.lessonId));
+  return before + Math.max(0, index) + 1;
+}
+
+/** Change a lesson deck's details. Any change means it's been looked at, so it's no longer "new". */
+export function editLesson(state, lessonId, patch) {
+  return update(state, 'lessons', lessonId, { ...patch, isNew: false });
 }
 
 /** Lessons of a year, alphabetical, grouped by category ('' = no category, listed last). */
@@ -524,7 +578,7 @@ function groupByOutcome(state, evals) {
 
 export function duplicateLesson(state, lessonId) {
   const { id: _id, copiedFromId: _from, ...rest } = find(state, 'lessons', lessonId);
-  return add(state, 'lessons', { ...structuredClone(rest), name: `${rest.name} (copy)` });
+  return add(state, 'lessons', { ...structuredClone(rest), name: `${rest.name} (copy)`, isNew: false });
 }
 
 export function outcomeLabel(outcome) {

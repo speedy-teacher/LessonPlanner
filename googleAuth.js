@@ -97,5 +97,5 @@ export function createGoogleAuth({ dataDir, tokenUrl = GOOGLE_TOKEN_URL, revokeU
 }
 
 function pass(body) {
-  return { accessToken: body.access_token, expiresIn: Number(body.expires_in) || 3600 };
+  return { accessToken: body.access_token, expiresIn: Number(body.expires_in) || 3600, scope: body.scope || '' };
 }

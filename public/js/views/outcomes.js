@@ -3,13 +3,14 @@
 
 import { adder, editable, h, iconButton, toast } from '../dom.js';
 import {
-  add, addStep, autoFill, nextColor, criteriaFor, find, lessonsByCategory, moveStep, remove, stepsFor, toggleGrade, update,
+  add, addStep, autoFill, nextColor, criteriaFor, find, moveStep, remove, stepsFor, toggleGrade, update,
 } from '../model.js';
 import { commit, setUi, store, undo } from '../store.js';
 import { current, emptyNote, pickId, year } from './common.js';
 import { outcomeColor } from './plan.js';
 import { instrumentTags, lessonPreview } from './lessonPreview.js';
 import { newLesson } from './lessons.js';
+import { decksByFolder } from '../library.js';
 
 export function renderOutcomes() {
   const outcomes = current('outcomes');
@@ -127,12 +128,12 @@ function addLessonRow(crit) {
     adder('…or a new lesson deck', (name) => commit((s) => addStep(s, crit.id, newLesson(s, name).id)), `add-lesson-${crit.id}`));
 }
 
-/** Lesson dropdown, grouped by category so dozens of decks stay findable. */
+/** Lesson dropdown, grouped by folder so dozens of decks stay findable. */
 function lessonPicker(value, onPick, label, noneLabel = null) {
-  const groups = lessonsByCategory(store.state, year().id);
+  const groups = decksByFolder(store.state, year().id);
   const option = (l) => h('option', { value: l.id, selected: l.id === value }, l.name);
   return h('label', { class: 'mini-select' }, h('span', {}, label),
     h('select', { onchange: (e) => onPick(e.target.value || null) },
       noneLabel ? h('option', { value: '', selected: true }, noneLabel) : null,
-      groups.map(({ category, lessons }) => h('optgroup', { label: category || 'No category' }, lessons.map(option)))));
+      groups.map(({ label: folder, lessons }) => h('optgroup', { label: folder || 'Top level' }, lessons.map(option)))));
 }

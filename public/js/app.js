@@ -10,6 +10,7 @@ import { renderOutcomes } from './views/outcomes.js';
 import { renderSetup, openNewYear } from './views/setup.js';
 import { renderLessons, lessonKeys } from './views/lessons.js';
 import { installCalendarScrolling, showCalendar } from './views/calendarGrid.js';
+import { checkWatchedFolders, startWatchingDrive } from './views/deckImport.js';
 
 const TABS = [
   { id: 'plan', label: 'Lesson Calendar', icon: '📅', render: renderPlan, keys: planKeys, onShow: showCalendar },
@@ -92,7 +93,9 @@ async function start() {
   subscribe(render);
   try {
     await loadData();
-    setGoogleHandlers({ change: refresh, needsSignIn: showSignInNotice });
+    // Each Drive change redraws; once connected, watched Drive folders are checked for new decks.
+    setGoogleHandlers({ change: () => { refresh(); checkWatchedFolders(); }, needsSignIn: showSignInNotice });
+    startWatchingDrive();
     resumeDrive(store.state.settings.googleClientId);
   } catch (err) {
     document.getElementById('main').replaceChildren(h('p', { class: 'empty-note' },

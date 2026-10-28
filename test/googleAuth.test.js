@@ -64,10 +64,10 @@ test('after signing in once, the planner gets fresh passes without signing in ag
     await call('PUT', 'secret', { clientSecret: SECRET });
     assert.deepEqual((await call('GET', 'status')).body, { hasSecret: true, signedIn: false });
     const first = await call('POST', 'exchange', { clientId: CLIENT, code: 'fake-code' });
-    assert.deepEqual(first.body, { accessToken: 'fake-access-1', expiresIn: 3599 });
+    assert.deepEqual(first.body, { accessToken: 'fake-access-1', expiresIn: 3599, scope: '' });
     assert.deepEqual((await call('GET', 'status')).body, { hasSecret: true, signedIn: true });
     const again = await call('POST', 'refresh', { clientId: CLIENT });
-    assert.deepEqual(again, { status: 200, body: { accessToken: 'fake-access-2', expiresIn: 3599 } });
+    assert.deepEqual(again, { status: 200, body: { accessToken: 'fake-access-2', expiresIn: 3599, scope: '' } });
   });
 });
 

@@ -1,77 +1,43 @@
 // "Lesson Decks": the library of lessons. Each lesson is one slide deck.
 // Built for dozens of decks: search, categories, and which evals use each one.
 
-import { adder, editable, h, toast } from '../dom.js';
+import { editable, h, toast } from '../dom.js';
 import {
-  AUTO_FIELDS, add, duplicateLesson, find, lessonEvals, lessonUsageByGrade, lessonsByCategory, outcomeLabel, remove, update,
+  AUTO_FIELDS, duplicateLesson, editLesson, find, lessonEvals, lessonUsageByGrade, outcomeLabel, remove,
 } from '../model.js';
+import { addDeck, foldersIn, moveDeck } from '../library.js';
 import { commit, setUi, store, undo } from '../store.js';
 import { current, emptyNote, year } from './common.js';
 import { lessonPreview } from './lessonPreview.js';
-
-function matches(lesson, search) {
-  const text = `${lesson.name} ${lesson.category}`.toLowerCase();
-  return search.toLowerCase().split(/\s+/).every((word) => text.includes(word));
-}
-
-/** Category groups after applying the search box. */
-function filteredGroups() {
-  const search = (store.ui.lessonSearch || '').trim();
-  return lessonsByCategory(store.state, year().id)
-    .map((g) => ({ ...g, lessons: g.lessons.filter((l) => !search || matches(l, search)) }))
-    .filter((g) => g.lessons.length);
-}
-
-function visibleLessons() {
-  return filteredGroups().flatMap((g) => g.lessons);
-}
+import { deckTree, openFolders, visibleDecks } from './deckTree.js';
+import { addMenu } from './deckImport.js';
 
 function selectedLesson() {
   const l = find(store.state, 'lessons', store.ui.lessonId);
-  return l && l.yearId === year().id ? l : visibleLessons()[0] || null;
+  return l && l.yearId === year().id ? l : visibleDecks()[0] || null;
 }
 
-/** A new lesson deck with the usual details filled in. */
+/** A new lesson deck with the usual details filled in (used by the Outcomes tab too). */
 export function newLesson(state, name, category = '') {
-  return add(state, 'lessons', {
-    yearId: year().id, name, category, autoFields: ['school', 'grade', 'date'], instrumentIds: [],
-  });
+  return addDeck(state, { yearId: year().id, name, category });
 }
 
 export function renderLessons() {
   const selected = selectedLesson();
   return h('div', { class: 'outcomes-layout templates-layout' },
-    h('aside', { class: 'side card' },
-      h('h3', {}, 'Lesson decks', h('span', { class: 'count-badge' }, current('lessons').length)),
-      adder('New lesson deck…', (name) => {
-        const l = commit((s) => newLesson(s, name, selected?.category || ''));
-        setUi({ lessonId: l.id, lessonSearch: '' });
-      }, 'add-lesson'),
+    h('aside', { class: 'side card deck-side' },
+      h('div', { class: 'deck-side-head' },
+        h('h3', {}, 'Lesson decks', h('span', { class: 'count-badge' }, current('lessons').length)),
+        addMenu()),
       h('input', {
         class: 'search', type: 'search', placeholder: '🔍 Search lessons…', value: store.ui.lessonSearch || '',
         dataset: { key: 'lesson-search' },
         oninput: (e) => setUi({ lessonSearch: e.target.value }),
       }),
-      lessonList(selected)),
+      deckTree(selected)),
     h('section', { class: 'main-col card' },
       selected ? lessonEditor(selected) : emptyNote('Add a lesson deck to get started.')),
   );
-}
-
-function lessonList(selected) {
-  const groups = filteredGroups();
-  if (!groups.length) return emptyNote(store.ui.lessonSearch ? 'No lessons match your search.' : 'No lesson decks yet.');
-  return h('div', { class: 'template-groups' }, groups.map(({ category, lessons }) => h('section', {},
-    h('h4', { class: 'group-head' }, category || 'No category', h('span', { class: 'count-badge' }, lessons.length)),
-    h('ul', { class: 'template-list' }, lessons.map((l) => {
-      const evals = lessonEvals(store.state, l.id).length;
-      return h('li', {}, h('button', {
-        class: `template-row ${l.id === selected?.id ? 'selected' : ''}`,
-        onclick: () => setUi({ lessonId: l.id }),
-      }, h('span', { class: 'template-name' }, l.name),
-      h('span', { class: 'uses', title: evals ? `Taught in ${evals} eval${evals === 1 ? '' : 's'}` : 'Not in any eval yet' },
-        evals ? `${evals} eval${evals === 1 ? '' : 's'}` : '—')));
-    })))));
 }
 
 function lessonEditor(l) {
@@ -80,12 +46,15 @@ function lessonEditor(l) {
   return h('div', { class: 'template-editor' },
     h('div', { class: 'editor-head' },
       h('label', { class: 'field grow' }, h('span', {}, 'Lesson name'),
-        editable(l.name, (name) => commit((s) => update(s, 'lessons', l.id, { name })))),
+        editable(l.name, (name) => commit((s) => editLesson(s, l.id, { name })))),
       h('label', { class: 'field' }, h('span', {}, 'Category'),
-        editable(l.category, (category) => commit((s) => update(s, 'lessons', l.id, { category })), { list: 'lesson-categories', placeholder: 'e.g. Ukulele', allowEmpty: true }),
+        editable(l.category, (category) => commit((s) => editLesson(s, l.id, { category })), { list: 'lesson-categories', placeholder: 'e.g. Ukulele', allowEmpty: true }),
         h('datalist', { id: 'lesson-categories' }, categories.map((c) => h('option', { value: c })))),
+      folderPicker(l),
       h('button', { class: 'btn light', onclick: () => duplicate(l) }, 'Duplicate'),
       h('button', { class: 'btn light danger', onclick: () => deleteLesson(l) }, 'Delete')),
+    newBanner(l),
+    sourceLine(l),
     h('div', { class: 'template-body' },
       h('div', { class: 'template-preview' }, lessonPreview(l.id, { fields })),
       h('div', {},
@@ -99,6 +68,45 @@ function lessonEditor(l) {
   );
 }
 
+/** Which folder the deck is in (decks can also be dragged onto folders on the left). */
+function folderPicker(l) {
+  const options = [];
+  const walk = (parentId, depth) => foldersIn(store.state, year().id, parentId).forEach((f) => {
+    options.push(h('option', { value: f.id, selected: f.id === l.folderId }, `${'  '.repeat(depth)}📁 ${f.name}`));
+    walk(f.id, depth + 1);
+  });
+  walk(null, 0);
+  return h('label', { class: 'field' }, h('span', {}, 'Folder'),
+    h('select', {
+      class: 'inline-edit',
+      onchange: (e) => {
+        const folderId = e.target.value || null;
+        commit((s) => moveDeck(s, l.id, folderId));
+        if (folderId) openFolders([folderId]);
+        setUi({ deckFolderId: folderId });
+      },
+    }, h('option', { value: '', selected: !l.folderId }, 'Top level'), options));
+}
+
+function newBanner(l) {
+  if (!l.isNew) return null;
+  return h('div', { class: 'new-banner' },
+    h('span', { class: 'new-mark' }, '!'),
+    h('span', {}, 'Newly added from a watched Google Drive folder. Change any of its details below — or click “Got it” — to mark it as seen.'),
+    h('button', { class: 'btn small light', onclick: () => commit((s) => editLesson(s, l.id, {})) }, 'Got it'));
+}
+
+/** Where the deck's slides live. */
+function sourceLine(l) {
+  const src = l.source;
+  if (!src) return null;
+  if (src.kind === 'drive') {
+    return h('p', { class: 'deck-source' }, '☁️ From Google Drive',
+      src.url ? [' · ', h('a', { href: src.url, target: '_blank', rel: 'noopener' }, 'Open in Drive ↗')] : null);
+  }
+  return h('p', { class: 'deck-source' }, '💻 From your computer: ', h('code', {}, src.path));
+}
+
 function instrumentToggles(l) {
   const instruments = current('instruments');
   if (!instruments.length) return emptyNote('Add instruments on the Setup tab.');
@@ -109,7 +117,7 @@ function instrumentToggles(l) {
       style: { '--ins': i.color },
       'aria-pressed': on ? 'true' : 'false',
       title: `${on ? 'Remove' : 'Add'} ${i.name}`,
-      onclick: () => commit((s) => update(s, 'lessons', l.id, {
+      onclick: () => commit((s) => editLesson(s, l.id, {
         instrumentIds: on ? l.instrumentIds.filter((x) => x !== i.id) : [...l.instrumentIds, i.id],
       })),
     }, i.name);
@@ -121,7 +129,7 @@ function autoFieldToggle(l, key, label) {
     h('input', {
       type: 'checkbox',
       checked: l.autoFields.includes(key),
-      onchange: (e) => commit((s) => update(s, 'lessons', l.id, {
+      onchange: (e) => commit((s) => editLesson(s, l.id, {
         autoFields: e.target.checked ? [...l.autoFields, key] : l.autoFields.filter((k) => k !== key),
       })),
     }), label);
@@ -162,10 +170,10 @@ function deleteLesson(l) {
 /** ↑ ↓ move through the lesson list. */
 export function lessonKeys(e) {
   if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return false;
-  const list = visibleLessons();
+  const list = visibleDecks();
   const i = list.findIndex((l) => l.id === selectedLesson()?.id);
   const next = list[Math.max(0, Math.min(list.length - 1, i + (e.key === 'ArrowDown' ? 1 : -1)))];
-  if (next) setUi({ lessonId: next.id });
+  if (next) setUi({ lessonId: next.id, deckFolderId: next.folderId });
   return true;
 }
 

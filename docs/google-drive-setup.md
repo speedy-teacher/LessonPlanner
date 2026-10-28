@@ -3,7 +3,8 @@
 About 10 minutes, once. You make a free "Google project" that lets the planner open
 Google's sign-in window. Nothing here costs money, and no IT approval is needed to try.
 
-The planner only asks for **"files you pick, or files it made"** — it can't see the rest of your Drive.
+The planner asks to **change only files you pick or files it made**, and to **look at** (never change) your Drive files —
+that's how it can bring in whole folders of slide decks and notice new decks you add to them.
 
 Google changes its screens now and then; if a button name is slightly different, look for the closest match.
 
@@ -55,7 +56,12 @@ Google changes its screens now and then; if a button name is slightly different,
 2. Click **Add or remove scopes**.
 3. In the filter box type `drive.file`, tick the row ending in **/auth/drive.file**
    ("See, edit, create, and delete only the specific Google Drive files you use with this app").
-4. Click **Update**, then **Save** at the bottom.
+4. Clear the filter, type `drive.readonly`, and tick the row ending in **/auth/drive.readonly**
+   ("See and download all your Google Drive files"). This lets the planner read inside folders you bring in.
+5. Click **Update**, then **Save** at the bottom.
+
+**Already connected before folders were added?** Do step 5 above, then in the planner click **Sign in again** when it asks
+(Lesson Decks → + Add → From Google Drive). Google shows the new permission once.
 
 ## 6. Make the Client ID (code #1)
 

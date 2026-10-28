@@ -33,6 +33,38 @@ export function pills(items, activeId, onPick, { label = (r) => r.name, hint, co
     }, colorOf ? h('span', { class: 'dot', style: { background: colorOf(item) } }) : null, label(item))));
 }
 
+/**
+ * A button that opens a small menu (closes when you pick something or click elsewhere).
+ * The menu floats above everything so a scrolling side panel can't cut it off.
+ */
+export function popMenu({ label, title, summaryClass = 'icon-btn', menuClass = '' }, ...items) {
+  const card = h('div', { class: 'menu-card' }, ...items);
+  const details = h('details', { class: `pop-menu ${menuClass}`, ontoggle: () => placeMenu(details, card) },
+    h('summary', { class: summaryClass, title, 'aria-label': title }, label), card);
+  return details;
+}
+
+function placeMenu(details, card) {
+  if (!details.open) return;
+  const r = details.querySelector('summary').getBoundingClientRect();
+  card.style.left = `${Math.max(8, Math.min(r.left, window.innerWidth - card.offsetWidth - 8))}px`;
+  const below = r.bottom + 6 + card.offsetHeight < window.innerHeight;
+  card.style.top = `${below ? r.bottom + 6 : Math.max(8, r.top - card.offsetHeight - 6)}px`;
+}
+
+/** One choice in a popMenu. */
+export function menuItem(label, run, { icon = null, tip = null } = {}) {
+  return h('button', {
+    class: 'menu-item', title: tip,
+    onclick: (e) => { e.target.closest('details').open = false; run(); },
+  }, icon ? h('span', { class: 'menu-icon', 'aria-hidden': 'true' }, icon) : null, label);
+}
+
+// Clicking anywhere else closes an open menu.
+document.addEventListener('click', (e) => {
+  document.querySelectorAll('details.pop-menu[open]').forEach((d) => { if (!d.contains(e.target)) d.open = false; });
+});
+
 export function emptyNote(text) {
   return h('p', { class: 'empty-note' }, text);
 }

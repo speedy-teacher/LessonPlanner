@@ -1,11 +1,14 @@
 // Google Drive connection. You sign in once through Google's own window;
 // the local server keeps a long-lasting sign-in (see googleAuth.js) and the
-// planner quietly gets fresh one-hour passes from it. The limited
-// "drive.file" permission means the planner only sees Drive files you pick,
-// or files it made itself. Passes are kept in memory only.
+// planner quietly gets fresh one-hour passes from it. Permissions: "drive.file"
+// (change only files you pick or it made) plus "drive.readonly" (look inside
+// your folders, to bring in and watch folders of decks — it never changes them).
+// Passes are kept in memory only.
 
 const GIS_SRC = 'https://accounts.google.com/gsi/client';
-export const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
+export const DRIVE_FILE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
+export const DRIVE_READ_SCOPE = 'https://www.googleapis.com/auth/drive.readonly';
+export const DRIVE_SCOPE = `${DRIVE_FILE_SCOPE} ${DRIVE_READ_SCOPE}`;
 /** The address to add to "Authorized JavaScript origins" in Google's setup. */
 export const APP_ORIGIN = 'http://localhost:5178';
 const REFRESH_EARLY_SECONDS = 300;
@@ -14,7 +17,7 @@ const REFRESH_EARLY_SECONDS = 300;
  * status: 'idle' | 'working' | 'connected' | 'needs-signin' | 'error'
  * hasSecret: the client secret is saved on this computer.
  */
-export const google = { status: 'idle', message: '', userName: '', token: null, hasSecret: false };
+export const google = { status: 'idle', message: '', userName: '', token: null, hasSecret: false, scope: '' };
 
 let onChange = () => {};
 let onNeedsSignIn = () => {};
@@ -110,9 +113,9 @@ function requestCode(clientId) {
   });
 }
 
-async function useToken(clientId, { accessToken, expiresIn }) {
+async function useToken(clientId, { accessToken, expiresIn, scope = '' }) {
   const userName = google.userName || await driveUserName(accessToken);
-  set({ status: 'connected', token: accessToken, userName, message: '' });
+  set({ status: 'connected', token: accessToken, userName, message: '', scope });
   clearTimeout(refreshTimer);
   refreshTimer = setTimeout(() => refreshDrive(clientId), Math.max(60, expiresIn - REFRESH_EARLY_SECONDS) * 1000);
 }
@@ -157,6 +160,11 @@ export async function disconnectDrive() {
   clearTimeout(refreshTimer);
   await api('POST', 'disconnect').catch(() => {});
   set({ status: 'idle', token: null, userName: '', message: '' });
+}
+
+/** The sign-in allows looking inside folders (older sign-ins only had drive.file). */
+export function canReadFolders(scope = google.scope) {
+  return scope.split(/\s+/).includes(DRIVE_READ_SCOPE);
 }
 
 /** A Google OAuth client ID looks like "1234-abc.apps.googleusercontent.com". */

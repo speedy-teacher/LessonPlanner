@@ -21,8 +21,12 @@ Hold a bar's end, or anything you're dragging, near the top or bottom edge to sc
   to its last day. Bars are colored by instrument and labeled `Instrument@School`; "Show" narrows to one school.
   Same moves as the Lesson Calendar (Ctrl to copy, `Shift`+`←` `→`, `Delete`).
 - **Outcomes & Lessons** — essential outcomes → eval criteria → grades and the lesson decks for each eval, in teaching order.
-- **Lesson Decks** — the library of lessons (one slide deck each): search, categories, the instruments it uses,
-  which details it fills in automatically, and which evals teach it. `↑` `↓` move through the list.
+- **Lesson Decks** — the library of lessons (one slide deck each), organized in folders (click to open/close, drag decks
+  and folders onto a folder, `⋯` to rename/delete). **+ Add** makes a new deck or folder, or brings in slide files or a whole
+  folder (folders inside folders too) from the computer or Google Drive. Drive folders are watched: decks added there later
+  appear with a ❗ (also shown on every folder above them) until you change any of their details.
+  Each deck has its instruments, the details it fills in automatically (including week number and the class's lesson number),
+  and which evals teach it. `↑` `↓` move through the list.
 - **Setup** — the year's dates, schools, grades and instruments; start a new year
   (copies last year's lists, lesson decks, outcomes, criteria and lesson order; calendars start empty).
   The **Google Drive** card connects to Drive and stays signed in — see `docs/google-drive-setup.md`.
@@ -32,7 +36,8 @@ The top bar shows a Drive status pill (click to sign in or open settings). Notic
 ## Data model
 
 One JSON file of flat collections linked by id (see `public/js/model.js`):
-`years`, `instruments`, `schools`, `grades`, `outcomes`, `lessons` (slide decks with their `instrumentIds`;
+`years`, `instruments`, `schools`, `grades`, `outcomes`, `deckFolders`, `lessons` (slide decks with their `instrumentIds`,
+`folderId` and `source` file;
 all year-scoped, copied each new year
 with a `copiedFromId` link back), `criteria` (belong to an outcome) → `criterionLessons` (the lessons
 of an eval in teaching order, by `position`), and the calendars

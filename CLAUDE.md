@@ -32,12 +32,17 @@ A browser app for a (non-technical) elementary music teacher to plan a school ye
 - Style: cute and comfy, earthy + royal palette tokens in `public/css/app.css` `:root`. Easy UX first.
 
 ## Google Drive (no IT approval needed — piloted and working)
-- User-owned Google Cloud project in **testing** mode (school email is a test user); scope `drive.file` only; origin `http://localhost:5178`.
+- User-owned Google Cloud project in **testing** mode (school email is a test user); scopes `drive.file` + `drive.readonly`
+  (readonly is needed to list inside picked folders — `drive.file` alone can't); origin `http://localhost:5178`.
+  The token's granted `scope` is passed to the page (`canReadFolders()`); older sign-ins are asked to sign in again.
   Guide: `docs/google-drive-setup.md`.
 - Stay signed in: GIS code flow → `googleAuth.js` keeps the refresh token + client secret in `data/google-auth.json` and serves
   1-hour access tokens. Testing mode ends the sign-in ~weekly → bottom-left "Sign in" notice + top-bar pill.
   The client secret never reaches the page or lesson data.
-- Next on the roadmap: "Choose from Drive" picker per lesson deck → copy decks to a Drive folder and fill `{{School}}`-style
+- Deck import (`library.js` pure + tested, `drive.js` browser-only Drive calls, `views/deckImport.js`, `views/deckTree.js`):
+  all reading of files/Drive happens in the browser; only deck details (name, folder, `source`) are saved, never file contents.
+  Watched Drive folders are re-listed every 10 min while connected; `source.seenIds` stops deleted decks returning.
+- Next on the roadmap: copy decks to a Drive folder and fill `{{School}}`-style
   placeholders via the Slides API → optional data backup to Drive.
 
 ## Working agreements
