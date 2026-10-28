@@ -157,9 +157,11 @@ function entryCard(entry, index, week, placements) {
     style: { '--chip': outcome ? outcomeColor(outcome.id) : NO_EVAL_COLOR }, 'data-tip': tip,
     ondragstart: (e) => e.dataTransfer.setData('text/plain', JSON.stringify({ entryId: entry.id })),
   },
-  h('span', { class: 'slide-num' }, index + 1),
-  missing.length ? h('span', { class: 'warn', 'aria-label': 'Instrument warning' }, '⚠') : null,
-  h('span', { class: 'chip-title' }, lesson?.name),
+  h('div', { class: 'ls-thumb' }, slideCanvas(lesson)),
+  h('div', { class: 'ls-card-caption' },
+    h('span', { class: 'slide-num' }, index + 1),
+    missing.length ? h('span', { class: 'warn', 'aria-label': 'Instrument warning' }, '⚠') : null,
+    h('span', { class: 'chip-title' }, lesson?.name)),
   iconButton('×', 'Take off this week', () => takeOff(entry), 'ls-x'));
 }
 

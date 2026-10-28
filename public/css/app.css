@@ -556,23 +556,24 @@ input:focus, select:focus, button:focus-visible { outline: 3px solid #cdb8ea; ou
 .ins-tag.part { background: #fff; border: 1.5px dashed var(--ins); opacity: .8; }
 .ls-no-ins { font-size: 11px; color: #b9a990; font-style: italic; }
 .ls-zone {
-  display: flex; gap: 6px; align-items: center; min-height: 38px; min-width: 0;
+  display: flex; gap: 6px; align-items: stretch; min-height: 38px; min-width: 0;
   border-radius: 10px; padding: 3px; border: 1.5px dashed transparent;
 }
 .ls-week:hover .ls-zone { border-color: var(--line); }
 .ls-zone.drop-target { border-color: var(--royal); background: var(--royal-soft); }
 .ls-zone.stampable { cursor: copy; }
 .ls-zone.stampable:hover { background: var(--royal-soft); }
-.ls-drop-hint { font-size: 12px; color: #b9a990; font-style: italic; padding-left: 6px; }
+.ls-drop-hint { align-self: center; font-size: 12px; color: #b9a990; font-style: italic; padding-left: 6px; }
 .ls-zone.drop-target .ls-drop-hint { display: none; }
 .ls-marker { width: 4px; align-self: stretch; background: var(--royal); border-radius: 2px; flex: none; }
 /* Cards shrink to share the row when a week is very full. */
 .ls-card {
-  flex: 0 1 180px; min-width: 38px; display: flex; align-items: center; gap: 5px; padding: 5px 6px; position: relative;
+  flex: 0 1 150px; min-width: 44px; display: flex; flex-direction: column; gap: 4px; padding: 5px; position: relative;
   border-radius: 10px; font-size: 13px; cursor: grab; user-select: none;
   background: color-mix(in srgb, var(--chip) 16%, #fff); border: 1.5px solid color-mix(in srgb, var(--chip) 50%, #fff);
 }
 .ls-card:active { cursor: grabbing; }
+.ls-card-caption { display: flex; align-items: center; gap: 4px; min-width: 0; }
 .ls-card .slide-num { background: var(--chip); min-width: 20px; height: 20px; font-size: 11px; }
 .ls-card.has-warn { border-color: var(--gold); box-shadow: 0 0 0 2px var(--gold-soft); }
 .ls-card .ls-x {
