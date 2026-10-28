@@ -62,10 +62,10 @@ function lessonEditor(l) {
       h('div', { class: 'template-preview' }, lessonPreview(l.id, { fields })),
       h('div', {},
         h('h3', {}, 'Instruments this lesson uses'),
-        h('p', { class: 'hint' }, 'The Lesson Calendar warns you if one isn’t at the school that week.'),
+        h('p', { class: 'hint' }, 'The Outcome & Eval Calendar warns you if one isn’t at the school that week.'),
         instrumentToggles(l),
         h('h3', {}, 'Filled in automatically'),
-        h('p', { class: 'hint' }, 'When this lesson is on the Lesson Calendar, these details are added for you.'),
+        h('p', { class: 'hint' }, 'When this lesson is on the Outcome & Eval Calendar, these details are added for you.'),
         h('div', { class: 'auto-fields big' }, Object.entries(AUTO_FIELDS).map(([key, label]) => autoFieldToggle(l, key, label))))),
     usedIn(l),
   );

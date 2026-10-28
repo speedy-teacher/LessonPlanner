@@ -1,4 +1,4 @@
-// A month calendar of stretchable bars, shared by the Lesson Calendar and
+// A month calendar of stretchable bars, shared by the Outcome & Eval Calendar and
 // the Instrument Schedule. Each item has { id, startDate, endDate }.
 // Drop something from a palette onto a day, drag a bar to move it
 // (Ctrl to copy), or drag either end of a bar to stretch it.

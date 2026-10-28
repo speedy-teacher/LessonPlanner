@@ -11,7 +11,7 @@ Everything saves automatically to `data/lesson-planner.json` (with a daily copy 
 Both calendars show the whole school year as one continuous scroll (month buttons jump to a month).
 Hold a bar's end, or anything you're dragging, near the top or bottom edge to scroll into other months.
 
-- **Lesson Calendar** — pick a school and grade, then drag eval criteria (grouped and colored by
+- **Outcome & Eval Calendar** — pick a school and grade, then drag eval criteria (grouped and colored by
   essential outcome) onto a day, and drag either end of the bar to stretch it over several days
   (or click an eval, then click days). Switching school/grade keeps the same month so you can compare.
   ⚠ marks an eval whose lesson needs an instrument that isn't at that school on some of its days — hover to read why.
@@ -19,7 +19,7 @@ Hold a bar's end, or anything you're dragging, near the top or bottom edge to sc
   `Esc` stop placing, `Ctrl+Z` undo.
 - **Instrument Schedule** — drag an instrument for a school onto its first day, then drag the end of the bar
   to its last day. Bars are colored by instrument and labeled `Instrument@School`; "Show" narrows to one school.
-  Same moves as the Lesson Calendar (Ctrl to copy, `Shift`+`←` `→`, `Delete`).
+  Same moves as the Outcome & Eval Calendar (Ctrl to copy, `Shift`+`←` `→`, `Delete`).
 - **Outcomes, Evals & Lesson Order** — essential outcomes → eval criteria → grades and the lesson decks for each eval, in teaching order.
 - **Lesson Templates** — the library of lessons (one slide deck each), organized in folders (click to open/close, drag decks
   and folders onto a folder, `⋯` to rename/delete). **+ Add** makes a new deck or folder, or brings in slide files or a whole

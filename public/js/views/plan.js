@@ -1,4 +1,4 @@
-// "Lesson Calendar": drag eval criteria (grouped by essential outcome) onto
+// "Outcome & Eval Calendar": drag eval criteria (grouped by essential outcome) onto
 // days for a school + grade, and stretch them over several days.
 
 import { h, iconButton, toast } from '../dom.js';

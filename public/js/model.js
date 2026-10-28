@@ -394,7 +394,7 @@ export function outcomeOf(state, criterionId) {
   return find(state, 'outcomes', find(state, 'criteria', criterionId)?.outcomeId);
 }
 
-// ---------- lesson calendar (placements) ----------
+// ---------- outcome & eval calendar (placements) ----------
 // A placement puts one eval criterion on the calendar for a school + grade,
 // from startDate to endDate (inclusive).
 

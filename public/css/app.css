@@ -60,10 +60,10 @@ kbd {
 .save-status[data-status="error"] { color: #ffd2c4; font-weight: 700; }
 .save-status[data-status="error"]::before { content: '! '; }
 
-.tabs { display: flex; gap: 6px; padding: 10px 20px 0; border-bottom: 2px solid var(--line); }
+.tabs { display: flex; gap: 6px; padding: 10px 20px 0; border-bottom: 2px solid var(--line); overflow-x: auto; scrollbar-width: thin; }
 .tab {
   border: 0; background: transparent; padding: 10px 16px; border-radius: 12px 12px 0 0;
-  font-weight: 700; color: var(--ink-soft); cursor: pointer; display: flex; gap: 6px; align-items: center;
+  font-weight: 700; color: var(--ink-soft); cursor: pointer; display: flex; gap: 6px; align-items: center; white-space: nowrap; flex: none;
 }
 .tab:hover { background: var(--card-2); }
 .tab.active { background: var(--card); color: var(--royal); box-shadow: 0 -2px 0 var(--royal) inset; }

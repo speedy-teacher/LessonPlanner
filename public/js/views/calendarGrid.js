@@ -1,6 +1,6 @@
 // The whole school year as one continuous, scrolling Mon–Fri calendar,
 // with a sticky header (month name, month buttons, weekdays) on top.
-// Used by the Lesson Calendar and the Instrument Schedule.
+// Used by the Outcome & Eval Calendar and the Instrument Schedule.
 
 import { h } from '../dom.js';
 import { store } from '../store.js';

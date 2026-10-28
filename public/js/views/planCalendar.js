@@ -1,4 +1,4 @@
-// The month grid of the Lesson Calendar: eval entries as stretchable bars,
+// The month grid of the Outcome & Eval Calendar: eval entries as stretchable bars,
 // with the school's instruments shown at the top of each day.
 
 import { h } from '../dom.js';
