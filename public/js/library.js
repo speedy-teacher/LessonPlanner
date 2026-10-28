@@ -109,13 +109,19 @@ export function moveFolder(state, folderId, parentId) {
   return update(state, 'deckFolders', folderId, { parentId });
 }
 
-/** Delete a folder but keep what's in it: its decks and folders move up one level. */
+/**
+ * Remove a folder from the planner with everything in it: its folders and decks, however deep
+ * (decks also leave the evals that teach them). Files in Drive or on the computer are not touched.
+ * Returns { decks, evalSteps } — how many decks and eval lessons went.
+ */
 export function removeFolder(state, folderId) {
-  const folder = find(state, 'deckFolders', folderId);
-  if (!folder) return;
-  state.lessons.filter((l) => l.folderId === folderId).forEach((l) => { l.folderId = folder.parentId; });
-  state.deckFolders.filter((f) => f.parentId === folderId).forEach((f) => { f.parentId = folder.parentId; });
+  if (!find(state, 'deckFolders', folderId)) return { decks: 0, evalSteps: 0 };
+  const decks = decksInside(state, folderId);
+  const deckIds = new Set(decks.map((l) => l.id));
+  const evalSteps = state.criterionLessons.filter((s) => deckIds.has(s.lessonId)).length;
+  decks.forEach((l) => remove(state, 'lessons', l.id));
   remove(state, 'deckFolders', folderId);
+  return { decks: decks.length, evalSteps };
 }
 
 // ---------- from the computer ----------

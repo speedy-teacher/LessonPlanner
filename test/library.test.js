@@ -52,16 +52,22 @@ test('a folder can move into another folder, but never inside itself', () => {
   assert.equal(find(s, 'deckFolders', inner.id).parentId, other.id);
 });
 
-test('deleting a folder keeps its decks and folders: they move up one level', () => {
+test('removing a folder from the planner removes everything inside it, however deep, and nothing else', () => {
   const { s, yearId } = library();
   const top = addFolder(s, { yearId, name: 'Top' });
   const middle = addFolder(s, { yearId, name: 'Middle', parentId: top.id });
   const bottom = addFolder(s, { yearId, name: 'Bottom', parentId: middle.id });
-  const deck = addDeck(s, { yearId, name: 'Deck', folderId: middle.id });
-  removeFolder(s, middle.id);
-  assert.equal(find(s, 'lessons', deck.id).folderId, top.id);
-  assert.equal(find(s, 'deckFolders', bottom.id).parentId, top.id);
-  assert.equal(find(s, 'deckFolders', middle.id), null);
+  const keep = addDeck(s, { yearId, name: 'Keep', folderId: top.id });
+  addDeck(s, { yearId, name: 'In middle', folderId: middle.id });
+  const deep = addDeck(s, { yearId, name: 'Deep', folderId: bottom.id });
+  const outcome = add(s, 'outcomes', { yearId, code: 'MU1', title: 'Beat' });
+  const crit = add(s, 'criteria', { outcomeId: outcome.id, title: 'A', gradeIds: [] });
+  addStep(s, crit.id, deep.id);
+  assert.deepEqual(removeFolder(s, middle.id), { decks: 2, evalSteps: 1 });
+  assert.deepEqual(names(inYear(s, 'lessons', yearId)), ['Keep']);
+  assert.deepEqual(names(inYear(s, 'deckFolders', yearId)), ['Top']);
+  assert.equal(s.criterionLessons.length, 0, 'removed decks leave their evals');
+  assert.equal(find(s, 'lessons', keep.id).folderId, top.id);
 });
 
 test('folders and the decks in them are copied into a new year', () => {
@@ -340,10 +346,10 @@ test('a Drive folder whose watching is turned off still shows it came from Drive
   assert.equal(driveLink(s, addFolder(s, { yearId, name: 'Planner only' })), null);
 });
 
-test('removing a watched folder from the planner keeps its decks and stops watching', () => {
+test('removing a watched folder from the planner removes its decks and stops watching', () => {
   const { s, yearId, unit } = watchedUnit();
-  const decks = inYear(s, 'lessons', yearId).length;
   removeFolder(s, unit.id);
-  assert.equal(inYear(s, 'lessons', yearId).length, decks);
+  assert.equal(inYear(s, 'lessons', yearId).length, 0);
+  assert.equal(inYear(s, 'deckFolders', yearId).length, 0);
   assert.equal(watchedFolders(s, yearId).length, 0);
 });

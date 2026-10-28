@@ -184,7 +184,7 @@ function folderMenu(folder) {
     menuItem('New folder inside', () => newFolder(folder.id), { icon: '📁' }),
     driveFileId(folder) ? menuItem(folder.watch ? 'Stop watching Drive' : 'Watch Drive for new decks',
       () => commit((s) => { find(s, 'deckFolders', folder.id).watch = !folder.watch; }), { icon: '☁️' }) : null,
-    menuItem('Remove from Planner', () => removeFromPlanner(folder), { icon: '🗑️', tip: 'Only the planner’s folder goes. Your files stay where they are.' }));
+    menuItem('Remove from Planner', () => removeFromPlanner(folder), { icon: '🗑️', tip: 'Removes this folder and everything in it from the planner. Your files stay where they are.' }));
 }
 
 /** Ask for a name in a little dialog. */
@@ -210,9 +210,9 @@ export function newFolder(parentId) {
 }
 
 function removeFromPlanner(folder) {
-  const parent = find(store.state, 'deckFolders', folder.parentId);
-  commit((s) => removeFolder(s, folder.id));
+  const { decks, evalSteps } = commit((s) => removeFolder(s, folder.id));
   setUi({ deckFolderId: folder.parentId });
-  toast(`Removed the folder “${folder.name}” from the planner. What was in it moved to ${parent ? `“${parent.name}”` : 'the top level'}.`,
-    { label: 'Undo', run: undo });
+  const inside = decks ? ` and its ${plural(decks, 'deck')}` : '';
+  const evals = evalSteps ? ` They were taken out of ${plural(evalSteps, 'eval lesson')}.` : '';
+  toast(`Removed “${folder.name}”${inside} from the planner. Your files weren’t touched.${evals}`, { label: 'Undo', run: undo });
 }
