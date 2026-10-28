@@ -39,8 +39,9 @@ Hold a bar's end, or anything you're dragging, near the top or bottom edge to sc
   Each deck has its instruments, the details it fills in automatically (including week number and the class's lesson number)
   with the `{{…}}` text to type in the slides for each (click to copy), and which evals teach it (**+ Add to an eval** right there).
 
-Click any instrument (a bar on the Instrument Schedule, or a tag) for a menu: **Lessons that use …** opens Lesson Templates
-showing only those lessons (**× Show all** to clear). `↑` `↓` move through the list.
+Click any instrument (a bar on the Instrument Schedule, the colored stripe on the Outcome & Eval Calendar, or a tag) for a menu: **Lessons that use …** opens Lesson Templates
+showing only those lessons (**× Show all** to clear). Clicking an eval on the Outcome & Eval Calendar offers its lessons'
+instruments, **Open this eval in Outcomes, Evals & Lesson Order** (its lesson list opened) and **Remove from calendar**. `↑` `↓` move through the list.
 - **Setup ▾** — a menu of three pages: **School Year**, **Outcomes, Evals & Lesson Order** and **Lesson Templates**.
 - **School Year** — the year's dates, schools, grades and instruments; start a new year
   (copies last year's lists, lesson decks, outcomes, criteria and lesson order; calendars start empty).

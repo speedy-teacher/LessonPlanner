@@ -55,10 +55,8 @@ export function renderSchedule() {
           ? addBlock(ctx, b, startDate, addDays(startDate, daysBetween(b.startDate, b.endDate)))
           : commit((s) => moveRange(s, 'instrumentBlocks', b.id, startDate))),
         onResize: (b, edge, date) => commit((s) => resizeRange(s, 'instrumentBlocks', b.id, { [edge]: date })),
-        onSelect: (b, e) => {
-          setUi({ blockId: b?.id ?? null });
-          if (b && e) instrumentMenu(e, instrumentOf(b), [{ icon: '🗑', label: `Remove ${blockName(b)}`, run: () => removeBlock(b) }]);
-        },
+        onSelect: (b) => setUi({ blockId: b?.id ?? null }),
+        onMenu: (e, b) => instrumentMenu(e, instrumentOf(b), [{ icon: '🗑', label: `Remove ${blockName(b)}`, run: () => removeBlock(b) }]),
         onRemove: removeBlock,
         onArmedClick: (date) => addBlock(ctx, store.ui.armedBlock, date),
       })),

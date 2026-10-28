@@ -248,6 +248,8 @@ input:focus, select:focus, button:focus-visible { outline: 3px solid #cdb8ea; ou
 .cal-day.stretch-preview { background: var(--royal-soft); border-color: var(--royal); }
 .detail-outcome { font-size: 13px; font-weight: 800; color: var(--chip); margin-top: 2px; }
 .ins-stripe.empty { height: 15px; }
+.ins-stripe-item { cursor: pointer; }
+.ins-stripe-item:hover { filter: brightness(.9); }
 .color-field { width: 54px; }
 .color-pick.big { width: 44px; height: 36px; }
 .warn {

@@ -83,6 +83,13 @@ function criterionCard(crit) {
 // Lists you open stay open while you work (until the page is reloaded).
 const openLists = new Set();
 
+/** Show an eval on Outcomes, Evals & Lesson Order with its lesson list open (e.g. from the calendar). */
+export function showEval(criterion) {
+  if (!criterion) return;
+  openLists.add(criterion.id);
+  setUi({ tab: 'outcomes', outcomeId: criterion.outcomeId });
+}
+
 function lessonList(crit) {
   const steps = stepsFor(store.state, crit.id);
   return h('details', {

@@ -15,7 +15,7 @@ let resizing = null; // { item, edge, fixed, target, onResize } while stretching
 
 /**
  * cfg: {
- *   gridClass, items, selectedId, armed,
+ *   gridClass, items, selectedId, armed, onMenu(e, item) (a menu when a bar is clicked),
  *   colorOf(item), labelOf(item) -> nodes, titleOf(item),
  *   dayExtras(date)?            extra content at the top of each day
  *   onCreate(data, date)        something from the palette was dropped
@@ -92,7 +92,7 @@ function segment(cfg, item, date, week) {
     style: { '--chip': cfg.colorOf(item) },
     title: `${cfg.titleOf(item)}\nDrag to move (hold Ctrl to copy). Drag an end to stretch.`,
     ondragstart: (e) => e.dataTransfer.setData('text/plain', JSON.stringify({ barId: item.id, grabDate: date })),
-    onclick: (e) => { e.stopPropagation(); cfg.onSelect(selected ? null : item, e); },
+    onclick: (e) => { e.stopPropagation(); cfg.onSelect(selected ? null : item); cfg.onMenu?.(e, item); },
   },
   date === item.startDate ? handle(cfg, item, 'startDate') : null,
   date === rowStart ? segLabel(cfg, item, date, rowEnd) : null,
