@@ -3,7 +3,7 @@
 
 import { adder, editable, h, toast } from '../dom.js';
 import {
-  AUTO_FIELDS, add, duplicateLesson, find, lessonEvals, lessonsByCategory, outcomeLabel, remove, update,
+  AUTO_FIELDS, add, duplicateLesson, find, lessonEvals, lessonUsageByGrade, lessonsByCategory, outcomeLabel, remove, update,
 } from '../model.js';
 import { commit, setUi, store, undo } from '../store.js';
 import { current, emptyNote, year } from './common.js';
@@ -95,7 +95,7 @@ function lessonEditor(l) {
         h('h3', {}, 'Filled in automatically'),
         h('p', { class: 'hint' }, 'When this lesson is on the Lesson Calendar, these details are added for you.'),
         h('div', { class: 'auto-fields big' }, Object.entries(AUTO_FIELDS).map(([key, label]) => autoFieldToggle(l, key, label))))),
-    taughtIn(l),
+    usedIn(l),
   );
 }
 
@@ -127,18 +127,23 @@ function autoFieldToggle(l, key, label) {
     }), label);
 }
 
-function taughtIn(l) {
-  const evals = lessonEvals(store.state, l.id);
+/** Grade → essential outcome → eval, for every eval this deck is part of. */
+function usedIn(l) {
+  const groups = lessonUsageByGrade(store.state, l.id);
   return h('section', { class: 'used-by' },
-    h('h3', {}, 'Taught in these evals'),
-    evals.length ? null : emptyNote('Not in any eval yet. Add it to an eval on the Outcomes & Lessons tab.'),
-    h('ul', {}, evals.map(({ criterion, outcome, positions }) => h('li', {},
-      h('button', {
-        class: 'link-btn',
-        title: 'Open this outcome',
-        onclick: () => setUi({ tab: 'outcomes', outcomeId: outcome?.id }),
-      }, outcomeLabel(outcome)), ` › `, h('strong', {}, criterion?.title),
-      h('span', { class: 'hint' }, ` — lesson ${positions.join(' & ')}`)))));
+    h('h3', {}, 'Used in the following content'),
+    groups.length ? null : emptyNote('Not used yet. Add it to an eval on the Outcomes & Lessons tab.'),
+    groups.map(({ grade, outcomes }) => h('div', { class: 'usage-grade' },
+      h('h4', { class: 'group-head' }, grade ? grade.name : 'No grade chosen yet'),
+      h('ul', {}, outcomes.map(({ outcome, evals }) => h('li', {},
+        h('button', {
+          class: 'link-btn',
+          title: 'Open this outcome',
+          onclick: () => setUi({ tab: 'outcomes', outcomeId: outcome?.id }),
+        }, outcomeLabel(outcome)),
+        h('ul', { class: 'usage-evals' }, evals.map(({ criterion, positions }) => h('li', {},
+          criterion.title,
+          h('span', { class: 'hint' }, ` — lesson ${positions.join(' & ')}`))))))))));
 }
 
 function duplicate(l) {

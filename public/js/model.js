@@ -495,6 +495,29 @@ export function lessonEvals(state, lessonId) {
   });
 }
 
+/**
+ * Where a lesson is used, by grade, following lesson → eval steps → eval
+ * criteria → their grades and essential outcome:
+ * [{ grade, outcomes: [{ outcome, evals: [{ criterion, positions }] }] }].
+ * Grades and outcomes keep their usual order; evals with no grade yet come last (grade null).
+ */
+export function lessonUsageByGrade(state, lessonId) {
+  const evals = lessonEvals(state, lessonId).filter((e) => e.criterion);
+  const groups = state.grades
+    .map((grade) => ({ grade, evals: evals.filter((e) => e.criterion.gradeIds.includes(grade.id)) }))
+    .filter((g) => g.evals.length);
+  const ungraded = evals.filter((e) => !e.criterion.gradeIds.length);
+  if (ungraded.length) groups.push({ grade: null, evals: ungraded });
+  return groups.map(({ grade, evals: list }) => ({ grade, outcomes: groupByOutcome(state, list) }));
+}
+
+function groupByOutcome(state, evals) {
+  const order = (outcome) => state.outcomes.indexOf(outcome);
+  return [...Map.groupBy(evals, (e) => e.outcome).entries()]
+    .sort(([a], [b]) => order(a) - order(b))
+    .map(([outcome, list]) => ({ outcome, evals: list }));
+}
+
 export function duplicateLesson(state, lessonId) {
   const { id: _id, copiedFromId: _from, ...rest } = find(state, 'lessons', lessonId);
   return add(state, 'lessons', { ...structuredClone(rest), name: `${rest.name} (copy)` });

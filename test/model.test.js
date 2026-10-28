@@ -5,7 +5,7 @@ import {
   add, addStep, autoFill, blocksFor, createYear, criteriaFor, emptyState, find, inYear,
   instrumentsAt, moveStep, normalize, paintInstrument, placeCriterion, placementWarnings,
   movePlacement, resizePlacement, criteriaForGrade, addInstrumentBlock, moveRange, resizeRange,
-  remove, stepsFor, toggleGrade, lessonsByCategory, lessonEvals, duplicateLesson, nextColor,
+  remove, stepsFor, toggleGrade, lessonsByCategory, lessonEvals, lessonUsageByGrade, duplicateLesson, nextColor,
 } from '../public/js/model.js';
 import { seedState } from '../public/js/seed.js';
 import { monthWeeks, weekdaysBetween } from '../public/js/dates.js';
@@ -247,6 +247,26 @@ test('a lesson deck shows which evals teach it, and where in the order', () => {
   assert.equal(evals[0].criterion.id, crit.id);
   assert.equal(evals[0].outcome.id, outcome.id);
   assert.deepEqual(evals[0].positions, [1, 3]);
+});
+
+test('a lesson deck lists the grades, essential outcomes and evals it is used in', () => {
+  const { s, year, lesson, crit, grade, outcome } = smallYear();
+  const k = add(s, 'grades', { yearId: year.id, name: 'Kindergarten', short: 'K' });
+  const mu2 = add(s, 'outcomes', { yearId: year.id, code: 'MU2', title: 'Melody' });
+  const sings = add(s, 'criteria', { outcomeId: mu2.id, title: 'Sings', gradeIds: [grade.id, k.id] });
+  const someday = add(s, 'criteria', { outcomeId: mu2.id, title: 'No grades yet', gradeIds: [] });
+  addStep(s, sings.id, lesson.id);
+  addStep(s, someday.id, lesson.id);
+  const view = lessonUsageByGrade(s, lesson.id).map(({ grade: g, outcomes }) => [
+    g?.name ?? null, outcomes.map((o) => [o.outcome.code, o.evals.map((e) => e.criterion.title)]),
+  ]);
+  assert.deepEqual(view, [
+    ['Grade 3', [['MU1', ['Plays the beat']], ['MU2', ['Sings']]]],
+    ['Kindergarten', [['MU2', ['Sings']]]],
+    [null, [['MU2', ['No grades yet']]]],
+  ]);
+  assert.equal(outcome.code, 'MU1');
+  assert.ok(crit.gradeIds.includes(grade.id));
 });
 
 test('duplicating a lesson deck makes an independent copy', () => {
