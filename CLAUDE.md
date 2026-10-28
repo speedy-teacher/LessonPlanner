@@ -20,6 +20,8 @@ A browser app for a (non-technical) elementary music teacher to plan a school ye
   "Used in the following content" traverses deck → steps → criteria → grades/outcome.
 - Calendars: `placements` (criterion for school+grade, date range, colored by outcome) and `instrumentBlocks`
   (instrument@school, date range). Warnings when a placement's decks need an instrument the school lacks that day.
+- Lesson Schedule: `weekLessons` (class = school+grade, `weekStart` Monday, lessonId, optional criterionId, position) —
+  week order only, no days. Pure logic + auto-fill in `weekPlan.js` (tested); view `views/lessonSchedule.js`.
 - `RELATIONS` drives cascading deletes. `settings` = app-wide values. `schemaVersion` + `migrate()` — back up the data file
   to `data/backups/before-<change>.json` before any migration. Design data for expandability and reuse.
 

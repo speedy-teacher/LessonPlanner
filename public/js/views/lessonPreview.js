@@ -24,7 +24,7 @@ export function lessonPreview(lessonId, { number, fields = [], warn = false, sma
 }
 
 /** The first slide's picture, or the deck's name with a note when there's no picture. */
-function slideCanvas(lesson) {
+export function slideCanvas(lesson) {
   const thumb = lesson ? deckThumbnail(lesson) : { status: 'none', reason: 'This lesson deck was removed.' };
   if (thumb.status === 'ready') {
     return h('div', { class: 'slide-canvas has-picture' },

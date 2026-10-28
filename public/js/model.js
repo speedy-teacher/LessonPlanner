@@ -41,6 +41,9 @@ export const COLLECTIONS = {
   criterionLessons: 'id, criterionId, lessonId, position',
   placements: 'id, yearId, schoolId, gradeId, criterionId, startDate, endDate',
   instrumentBlocks: 'id, yearId, schoolId, instrumentId, startDate, endDate',
+  // The Lesson Schedule: lesson decks taught to a class (school + grade) in a school week
+  // (`weekStart` = that week's Monday), in teaching order. `criterionId` = the eval it's taught for, if known.
+  weekLessons: 'id, yearId, schoolId, gradeId, weekStart, lessonId, criterionId, position',
 };
 
 /** Collections that roll over (are copied) when a new year is created. */
@@ -65,15 +68,15 @@ const RELATIONS = {
     ['instruments', 'yearId', 'delete'], ['schools', 'yearId', 'delete'],
     ['grades', 'yearId', 'delete'], ['outcomes', 'yearId', 'delete'],
     ['lessons', 'yearId', 'delete'], ['deckFolders', 'yearId', 'delete'], ['placements', 'yearId', 'delete'],
-    ['instrumentBlocks', 'yearId', 'delete'],
+    ['instrumentBlocks', 'yearId', 'delete'], ['weekLessons', 'yearId', 'delete'],
   ],
   instruments: [['instrumentBlocks', 'instrumentId', 'delete'], ['lessons', 'instrumentIds', 'pull']],
-  schools: [['placements', 'schoolId', 'delete'], ['instrumentBlocks', 'schoolId', 'delete']],
-  grades: [['placements', 'gradeId', 'delete'], ['criteria', 'gradeIds', 'pull']],
+  schools: [['placements', 'schoolId', 'delete'], ['instrumentBlocks', 'schoolId', 'delete'], ['weekLessons', 'schoolId', 'delete']],
+  grades: [['placements', 'gradeId', 'delete'], ['criteria', 'gradeIds', 'pull'], ['weekLessons', 'gradeId', 'delete']],
   outcomes: [['criteria', 'outcomeId', 'delete']],
-  lessons: [['criterionLessons', 'lessonId', 'delete']],
+  lessons: [['criterionLessons', 'lessonId', 'delete'], ['weekLessons', 'lessonId', 'delete']],
   deckFolders: [['deckFolders', 'parentId', 'delete'], ['lessons', 'folderId', 'null']],
-  criteria: [['criterionLessons', 'criterionId', 'delete'], ['placements', 'criterionId', 'delete']],
+  criteria: [['criterionLessons', 'criterionId', 'delete'], ['placements', 'criterionId', 'delete'], ['weekLessons', 'criterionId', 'null']],
 };
 
 /** App-wide settings (not tied to a year). Google ids are public, not passwords. */
@@ -86,7 +89,7 @@ export function newId(prefix) {
 
 const PREFIX = {
   years: 'yr', instruments: 'ins', schools: 'sch', grades: 'gr', outcomes: 'out',
-  lessons: 'les', deckFolders: 'fld', localRoots: 'root', criteria: 'crit', criterionLessons: 'cl', placements: 'plc', instrumentBlocks: 'blk',
+  lessons: 'les', deckFolders: 'fld', localRoots: 'root', criteria: 'crit', criterionLessons: 'cl', placements: 'plc', instrumentBlocks: 'blk', weekLessons: 'wk',
 };
 
 export function emptyState() {
