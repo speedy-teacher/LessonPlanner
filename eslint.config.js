@@ -20,7 +20,7 @@ export default [
       'max-params': ['error', 5],
       'max-lines': ['error', { max: 800, skipBlankLines: false, skipComments: false }],
       'sonarjs/cognitive-complexity': ['error', 14],
-      'no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
+      'no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
     },
   },
 ];

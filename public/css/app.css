@@ -259,6 +259,35 @@ input:focus, select:focus, button:focus-visible { outline: 3px solid #cdb8ea; ou
 .mini-select select { padding: 2px 6px; font-size: 13px; }
 .row-actions { display: flex; }
 
+/* ---------- templates ---------- */
+
+.templates-layout { grid-template-columns: 320px 1fr; }
+.search { width: 100%; margin: 10px 0 6px; border: 1.5px solid var(--line); border-radius: 999px; padding: 7px 14px; background: #fff; }
+.template-groups { display: flex; flex-direction: column; gap: 10px; margin-top: 6px; }
+.group-head {
+  font-size: 12px; text-transform: uppercase; letter-spacing: .5px; color: var(--terracotta);
+  display: flex; align-items: center; gap: 6px; margin: 4px 0;
+}
+.template-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 2px; }
+.template-row {
+  width: 100%; border: 0; background: transparent; border-radius: 10px; padding: 6px 10px; cursor: pointer;
+  display: flex; justify-content: space-between; align-items: center; gap: 8px; text-align: left; font-weight: 600;
+}
+.template-row:hover { background: var(--card-2); }
+.template-row.selected { background: var(--royal); color: #fff; }
+.template-row.selected .uses { color: #e8dcf5; }
+.template-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.uses { font-size: 11px; color: var(--ink-soft); font-weight: 700; flex: none; }
+.template-body { display: grid; grid-template-columns: minmax(240px, 420px) 1fr; gap: 24px; align-items: start; margin-bottom: 20px; }
+.template-body h3, .used-by h3 { color: var(--navy); margin-bottom: 4px; }
+.template-preview .slide-fields { font-size: 13px; }
+.template-preview .slide-template { font-size: 12px; }
+.auto-fields.big { flex-direction: column; gap: 8px; padding: 0; }
+.auto-fields.big .check { font-size: 15px; }
+.used-by { border-top: 1.5px dashed var(--line); padding-top: 14px; }
+.used-by ul { list-style: none; padding: 0; margin: 8px 0; display: flex; flex-direction: column; gap: 6px; font-size: 14px; }
+.link-btn { border: 0; background: none; padding: 0; color: var(--royal); font-weight: 700; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+
 /* ---------- instrument schedule ---------- */
 
 .legend { display: flex; gap: 14px; margin-bottom: 10px; flex-wrap: wrap; }

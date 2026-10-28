@@ -6,11 +6,13 @@ import { renderPlan, planKeys } from './views/plan.js';
 import { renderSchedule, scheduleKeys } from './views/schedule.js';
 import { renderOutcomes } from './views/outcomes.js';
 import { renderSetup, openNewYear } from './views/setup.js';
+import { renderTemplates, templateKeys } from './views/templates.js';
 
 const TABS = [
   { id: 'plan', label: 'Lesson Calendar', icon: '📅', render: renderPlan, keys: planKeys },
   { id: 'schedule', label: 'Instrument Schedule', icon: '🎶', render: renderSchedule, keys: scheduleKeys },
   { id: 'outcomes', label: 'Outcomes & Lessons', icon: '🌱', render: renderOutcomes },
+  { id: 'templates', label: 'Templates', icon: '🖼️', render: renderTemplates, keys: templateKeys },
   { id: 'setup', label: 'Setup', icon: '🧺', render: renderSetup },
 ];
 

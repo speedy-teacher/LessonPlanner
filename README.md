@@ -14,7 +14,9 @@ Everything saves automatically to `data/lesson-planner.json` (with a daily copy 
   Shortcuts: `[` `]` school, `0`–`5` grade, `←` `→` month, `Esc` stop placing, `Ctrl+Z` undo.
 - **Instrument Schedule** — paint which instruments are at which school, color coded.
 - **Outcomes & Lessons** — essential outcomes → eval criteria → grades and ordered lesson slides.
-- **Setup** — the year's dates, schools, grades, instruments and slide templates; start a new year
+- **Templates** — the lesson slide template library: search, categories, which details each template
+  fills in automatically, and which slides use it. `↑` `↓` move through the list.
+- **Setup** — the year's dates, schools, grades and instruments; start a new year
   (copies last year's lists, outcomes, criteria and slides; calendars start empty).
 
 ## Data model

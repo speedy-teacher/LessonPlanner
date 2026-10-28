@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import {
   add, addSlide, autoFill, blocksFor, createYear, criteriaFor, emptyState, find, inYear,
   instrumentsAt, moveSlide, normalize, paintInstrument, placeOutcome, placementWarnings,
-  remove, slidesFor, toggleGrade,
+  remove, slidesFor, toggleGrade, templatesByCategory, templateUsage, duplicateTemplate,
 } from '../public/js/model.js';
 import { seedState } from '../public/js/seed.js';
 import { monthWeeks, weekdaysBetween } from '../public/js/dates.js';
@@ -145,6 +145,38 @@ test('templates fill in school, grade, date and instrument from the calendar', (
   const p = placeOutcome(s, { yearId: year.id, schoolId: school.id, gradeId: grade.id, outcomeId: outcome.id, date: '2026-10-13' });
   const values = Object.fromEntries(autoFill(s, slide, p).map((f) => [f.key, f.value]));
   assert.deepEqual(values, { school: 'Test School', grade: 'Grade 3', date: '2026-10-13', instrument: 'Ukulele' });
+});
+
+test('templates are grouped by category, alphabetically, uncategorized last', () => {
+  const { s, year } = smallYear();
+  add(s, 'templates', { yearId: year.id, name: 'Zebra', category: 'Openers', autoFields: [] });
+  add(s, 'templates', { yearId: year.id, name: 'Apple', category: 'Openers', autoFields: [] });
+  const groups = templatesByCategory(s, year.id);
+  assert.deepEqual(groups.map((g) => g.category), ['Openers', '']);
+  assert.deepEqual(groups[0].templates.map((t) => t.name), ['Apple', 'Zebra']);
+});
+
+test('a template shows which lesson slides use it', () => {
+  const { s, tpl, slide, outcome } = smallYear();
+  const [use] = templateUsage(s, tpl.id);
+  assert.equal(use.slide.id, slide.id);
+  assert.equal(use.outcome.id, outcome.id);
+});
+
+test('duplicating a template makes an independent copy', () => {
+  const { s, tpl } = smallYear();
+  const copy = duplicateTemplate(s, tpl.id);
+  assert.equal(copy.name, 'Main (copy)');
+  copy.autoFields.push('outcome');
+  assert.equal(tpl.autoFields.includes('outcome'), false);
+  assert.equal(templateUsage(s, copy.id).length, 0);
+});
+
+test('deleting a template keeps its slides, just without a template', () => {
+  const { s, tpl, slide } = smallYear();
+  remove(s, 'templates', tpl.id);
+  assert.ok(find(s, 'slides', slide.id));
+  assert.equal(slide.templateId, null);
 });
 
 test('deleting a year removes everything inside it', () => {

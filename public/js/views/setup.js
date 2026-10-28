@@ -1,7 +1,7 @@
 // "Setup": the year's dates and the lists everything else is built from.
 
 import { adder, editable, h, iconButton, openModal, toast } from '../dom.js';
-import { AUTO_FIELDS, add, createYear, remove, suggestNextYear, update } from '../model.js';
+import { add, createYear, remove, suggestNextYear, update } from '../model.js';
 import { commit, store, undo } from '../store.js';
 import { current, year } from './common.js';
 import { OUTCOME_COLORS } from './plan.js';
@@ -10,7 +10,6 @@ const LISTS = [
   { collection: 'schools', title: 'Schools', placeholder: 'New school…', note: 'Removing a school also removes its calendar entries and instrument schedule.' },
   { collection: 'grades', title: 'Grades', placeholder: 'New grade…', note: 'The short label shows on buttons (K, 1, 2…).' },
   { collection: 'instruments', title: 'Instruments', placeholder: 'New instrument…', note: 'Pick a color for the schedule calendar.' },
-  { collection: 'templates', title: 'Lesson slide templates', placeholder: 'New template…', note: 'Tick the fields each template fills in automatically.' },
 ];
 
 export function renderSetup() {
@@ -63,7 +62,6 @@ function newRecord(collection, name, count) {
   const base = { yearId: year().id, name };
   if (collection === 'instruments') return { ...base, color: OUTCOME_COLORS[count % OUTCOME_COLORS.length] };
   if (collection === 'grades') return { ...base, short: name.replace(/^grade\s*/i, '').slice(0, 3) };
-  if (collection === 'templates') return { ...base, autoFields: ['school', 'grade', 'date'] };
   return base;
 }
 
@@ -79,15 +77,7 @@ function extraAfter(collection, item) {
   if (collection === 'grades') {
     return editable(item.short || '', (short) => commit((s) => update(s, 'grades', item.id, { short })), { class: 'inline-edit short-edit', title: 'Short label', placeholder: 'K' });
   }
-  if (collection !== 'templates') return null;
-  return h('div', { class: 'auto-fields' }, Object.entries(AUTO_FIELDS).map(([key, label]) => h('label', { class: 'check' },
-    h('input', {
-      type: 'checkbox',
-      checked: item.autoFields.includes(key),
-      onchange: (e) => commit((s) => update(s, 'templates', item.id, {
-        autoFields: e.target.checked ? [...item.autoFields, key] : item.autoFields.filter((k) => k !== key),
-      })),
-    }), label)));
+  return null;
 }
 
 // ---------- new year / delete year ----------

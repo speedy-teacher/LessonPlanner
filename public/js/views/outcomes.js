@@ -2,7 +2,9 @@
 // ordered lesson slides.
 
 import { adder, editable, h, iconButton, toast } from '../dom.js';
-import { add, addSlide, autoFill, criteriaFor, find, moveSlide, remove, slidesFor, toggleGrade, update } from '../model.js';
+import {
+  add, addSlide, autoFill, criteriaFor, find, moveSlide, remove, slidesFor, templatesByCategory, toggleGrade, update,
+} from '../model.js';
 import { commit, setUi, store, undo } from '../store.js';
 import { current, emptyNote, pickId, year } from './common.js';
 import { outcomeColor } from './plan.js';
@@ -84,7 +86,7 @@ function slideRow(slide, index, total) {
     h('div', { class: 'slide-fields-edit' },
       editable(slide.title, (title) => commit((s) => update(s, 'slides', slide.id, { title }))),
       h('div', { class: 'slide-selects' },
-        picker('Template', current('templates'), slide.templateId, (templateId) => commit((s) => update(s, 'slides', slide.id, { templateId }))),
+        templatePicker(slide),
         picker('Instrument', current('instruments'), slide.instrumentId, (instrumentId) => commit((s) => update(s, 'slides', slide.id, { instrumentId })), 'None'))),
     h('div', { class: 'row-actions' },
       iconButton('↑', 'Move up', () => commit((s) => moveSlide(s, slide.id, index - 1)), index === 0 ? 'invisible' : ''),
@@ -108,6 +110,16 @@ function slideRow(slide, index, total) {
     commit((s) => moveSlide(s, id, index));
   });
   return li;
+}
+
+/** Template dropdown, grouped by category so dozens of templates stay findable. */
+function templatePicker(slide) {
+  const groups = templatesByCategory(store.state, year().id);
+  const option = (t) => h('option', { value: t.id, selected: t.id === slide.templateId }, t.name);
+  return h('label', { class: 'mini-select' }, h('span', {}, 'Template'),
+    h('select', { onchange: (e) => commit((s) => update(s, 'slides', slide.id, { templateId: e.target.value || null })) },
+      h('option', { value: '' }, 'None'),
+      groups.map(({ category, templates }) => h('optgroup', { label: category || 'No category' }, templates.map(option)))));
 }
 
 function picker(label, items, value, onPick, noneLabel = 'None') {

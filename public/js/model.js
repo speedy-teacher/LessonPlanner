@@ -21,7 +21,7 @@ export const COLLECTIONS = {
   schools: 'id, yearId, name',
   grades: 'id, yearId, name, short',
   outcomes: 'id, yearId, code, title',
-  templates: 'id, yearId, name, autoFields[]',
+  templates: 'id, yearId, name, category, autoFields[]',
   criteria: 'id, outcomeId, title, gradeIds[]',
   slides: 'id, criterionId, title, templateId?, instrumentId?, position',
   placements: 'id, yearId, schoolId, gradeId, outcomeId, date',
@@ -81,7 +81,10 @@ export function normalize(raw) {
     if (!Array.isArray(state[name])) state[name] = [];
   }
   state.criteria.forEach((c) => { if (!Array.isArray(c.gradeIds)) c.gradeIds = []; });
-  state.templates.forEach((t) => { if (!Array.isArray(t.autoFields)) t.autoFields = []; });
+  state.templates.forEach((t) => {
+    if (!Array.isArray(t.autoFields)) t.autoFields = [];
+    if (typeof t.category !== 'string') t.category = '';
+  });
   if (!state.years.some((y) => y.id === state.activeYearId)) {
     state.activeYearId = state.years.at(-1)?.id ?? null;
   }
@@ -340,6 +343,31 @@ export function autoFill(state, slide, placement) {
     criterion: criterion?.title,
   };
   return template.autoFields.map((key) => ({ key, label: AUTO_FIELDS[key], value: values[key] ?? '' }));
+}
+
+/** Templates of a year, alphabetical, grouped by category ('' = no category, listed last). */
+export function templatesByCategory(state, yearId) {
+  const sorted = inYear(state, 'templates', yearId)
+    .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+  const groups = Map.groupBy(sorted, (t) => t.category || '');
+  return [...groups.entries()]
+    .sort(([a], [b]) => (a === '') - (b === '') || a.localeCompare(b))
+    .map(([category, templates]) => ({ category, templates }));
+}
+
+/** Where a template is used: [{ slide, criterion, outcome }]. */
+export function templateUsage(state, templateId) {
+  return state.slides
+    .filter((s) => s.templateId === templateId)
+    .map((slide) => {
+      const criterion = find(state, 'criteria', slide.criterionId);
+      return { slide, criterion, outcome: find(state, 'outcomes', criterion?.outcomeId) };
+    });
+}
+
+export function duplicateTemplate(state, templateId) {
+  const { id: _id, copiedFromId: _from, ...rest } = find(state, 'templates', templateId);
+  return add(state, 'templates', { ...structuredClone(rest), name: `${rest.name} (copy)` });
 }
 
 export function outcomeLabel(outcome) {

@@ -10,10 +10,18 @@ const GRADES = [
   ['Grade 3', '3'], ['Grade 4', '4'], ['Grade 5', '5'],
 ];
 const INSTRUMENTS = [['Ukulele', '#b5654a'], ['Recorder', '#6b8f5e'], ['Xylophone', '#6a4c93']];
+// [name, category, auto-filled fields]. The first three are used by the slides below.
 const TEMPLATES = [
-  ['Warm-up', ['school', 'grade', 'date']],
-  ['Main lesson', ['grade', 'date', 'outcome', 'criterion', 'instrument']],
-  ['Exit ticket', ['grade', 'criterion']],
+  ['Warm-up', 'Openers', ['school', 'grade', 'date']],
+  ['Main lesson', 'Lesson', ['grade', 'date', 'outcome', 'criterion', 'instrument']],
+  ['Exit ticket', 'Closers', ['grade', 'criterion']],
+  ['Welcome song', 'Openers', ['school', 'grade', 'date']],
+  ['Agenda', 'Openers', ['date', 'outcome']],
+  ['Listening example', 'Lesson', ['outcome', 'criterion']],
+  ['Instrument demo', 'Lesson', ['instrument', 'criterion']],
+  ['Partner practice', 'Lesson', ['grade', 'instrument']],
+  ['Self check', 'Closers', ['criterion']],
+  ['Goodbye song', 'Closers', ['school', 'grade']],
 ];
 
 // [code, title, [[criterion, grade shorts, [[slide, template#, instrument#?]]]]]
@@ -45,7 +53,7 @@ export function seedState() {
     schools: SCHOOLS.map((name) => add(state, 'schools', { yearId: year.id, name }).id),
     grades: GRADES.map(([name, short]) => add(state, 'grades', { yearId: year.id, name, short })),
     instruments: INSTRUMENTS.map(([name, color]) => add(state, 'instruments', { yearId: year.id, name, color }).id),
-    templates: TEMPLATES.map(([name, autoFields]) => add(state, 'templates', { yearId: year.id, name, autoFields }).id),
+    templates: TEMPLATES.map(([name, category, autoFields]) => add(state, 'templates', { yearId: year.id, name, category, autoFields }).id),
   };
   const outcomes = OUTCOMES.map((o) => seedOutcome(state, year.id, ids, o));
   seedSchedule(state, year.id, ids);

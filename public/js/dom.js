@@ -34,10 +34,10 @@ function appendAll(el, children) {
 }
 
 /** An input that saves when you press Enter or click away. */
-export function editable(value, onSave, props = {}) {
+export function editable(value, onSave, { allowEmpty = false, ...props } = {}) {
   const save = (e) => {
     const next = e.target.value.trim();
-    if (next && next !== value) onSave(next);
+    if ((next || allowEmpty) && next !== value) onSave(next);
     else e.target.value = value;
   };
   return h('input', {
