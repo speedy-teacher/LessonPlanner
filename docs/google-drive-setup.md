@@ -58,6 +58,8 @@ Google changes its screens now and then; if a button name is slightly different,
    ("See, edit, create, and delete only the specific Google Drive files you use with this app").
 4. Clear the filter, type `drive.readonly`, and tick the row ending in **/auth/drive.readonly**
    ("See and download all your Google Drive files"). This lets the planner read inside folders you bring in.
+   Keep **both** rows ticked: `drive.readonly` only adds reading. Saving still comes from `drive.file`, which lets the planner
+   create files (like filled-in copies of your decks) and change the files it made or that you picked.
 5. Click **Update**, then **Save** at the bottom.
 
 **Already connected before folders were added?** Do step 5 above, then in the planner click **Sign in again** when it asks
