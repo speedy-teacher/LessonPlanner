@@ -11,8 +11,9 @@
 // This module is shared by the browser app and the Node tests.
 
 import { addDays, daysBetween, isWeekday, mondayOf, nextWeekday, weekdaysBetween } from './dates.js';
+import { driveLocation, localLocation } from './locations.js';
 
-export const SCHEMA_VERSION = 4;
+export const SCHEMA_VERSION = 5;
 
 /** Default colors handed out to new outcomes and instruments (earthy & royal). */
 export const PALETTE = ['#6b8f5e', '#6a4c93', '#b5654a', '#3f6e8c', '#c49a3a', '#8c4f6b', '#4f7d7a', '#7a6248'];
@@ -24,13 +25,17 @@ export const COLLECTIONS = {
   schools: 'id, yearId, name',
   grades: 'id, yearId, name, short',
   outcomes: 'id, yearId, code, title, color',
-  // Folders that organize the lesson decks (nested by parentId). A folder imported from Google Drive
-  // keeps its Drive id in `source`; `watch` = new decks added to it in Drive are pulled in automatically.
-  deckFolders: 'id, yearId, name, parentId, source, watch',
+  // Folders picked on a computer (not tied to a year). Each computer connects its own copy once;
+  // decks and folders from it point here from their locations (see locations.js).
+  localRoots: 'id, name',
+  // Folders that organize the lesson decks (nested by parentId). `locations[]` = where the folder lives
+  // (Drive and/or computer); `watch` = new decks added to its Drive folder are pulled in automatically;
+  // `seenDriveIds[]` = Drive files already brought in from it, so a deck deleted here isn't pulled in again.
+  deckFolders: 'id, yearId, name, parentId, locations[], watch, seenDriveIds[]',
   // A lesson is one slide deck: what it fills in automatically and which instruments it uses.
-  // `source` says where the deck's file lives (computer or Drive); `isNew` = pulled in from a watched
+  // `locations[]` = where the deck's file lives (see locations.js); `isNew` = pulled in from a watched
   // Drive folder and not looked at yet.
-  lessons: 'id, yearId, name, category, autoFields[], instrumentIds[], folderId, source, isNew',
+  lessons: 'id, yearId, name, category, autoFields[], instrumentIds[], folderId, locations[], isNew',
   criteria: 'id, outcomeId, title, gradeIds[]',
   // The lessons an eval criterion is taught with, in teaching order (a lesson can be in several evals).
   criterionLessons: 'id, criterionId, lessonId, position',
@@ -81,7 +86,7 @@ export function newId(prefix) {
 
 const PREFIX = {
   years: 'yr', instruments: 'ins', schools: 'sch', grades: 'gr', outcomes: 'out',
-  lessons: 'les', deckFolders: 'fld', criteria: 'crit', criterionLessons: 'cl', placements: 'plc', instrumentBlocks: 'blk',
+  lessons: 'les', deckFolders: 'fld', localRoots: 'root', criteria: 'crit', criterionLessons: 'cl', placements: 'plc', instrumentBlocks: 'blk',
 };
 
 export function emptyState() {
@@ -114,6 +119,7 @@ function migrate(state) {
   const version = state.schemaVersion || 1;
   if (version < 2) migrateToV2(state);
   if (version < 3) migrateToV3(state);
+  if (version < 5) migrateToV5(state);
 }
 
 function normalizeLesson(lesson) {
@@ -121,14 +127,57 @@ function normalizeLesson(lesson) {
   if (!Array.isArray(lesson.instrumentIds)) lesson.instrumentIds = [];
   if (typeof lesson.category !== 'string') lesson.category = '';
   lesson.folderId ??= null;
-  lesson.source ??= null;
+  if (!Array.isArray(lesson.locations)) lesson.locations = [];
   lesson.isNew = Boolean(lesson.isNew);
 }
 
 function normalizeFolder(folder) {
   folder.parentId ??= null;
-  folder.source ??= null;
+  if (!Array.isArray(folder.locations)) folder.locations = [];
+  if (!Array.isArray(folder.seenDriveIds)) folder.seenDriveIds = [];
   folder.watch = Boolean(folder.watch);
+}
+
+/**
+ * Version 4 kept one `source` per deck/folder. Version 5 keeps a list of `locations`, and a deck
+ * from a computer folder points at that folder (a `localRoots` record) instead of only its path.
+ */
+function migrateToV5(state) {
+  const roots = new Map();
+  const rootFor = (name) => {
+    if (!roots.has(name)) roots.set(name, add(state, 'localRoots', { name }));
+    return roots.get(name).id;
+  };
+  const localPath = (path) => {
+    const [top, ...rest] = path.split('/');
+    return rest.length ? { rootId: rootFor(top), path: rest.join('/') } : { rootId: null, path };
+  };
+  for (const folder of state.deckFolders) folderToV5(state, folder, rootFor);
+  for (const lesson of state.lessons) {
+    const { source } = lesson;
+    if (source?.kind === 'drive') lesson.locations = [driveLocation(source)];
+    if (source?.kind === 'local') lesson.locations = [localLocation({ ...source, ...localPath(source.path) })];
+  }
+  // Removed last: a folder's path is worked out from the folders above it.
+  [...state.deckFolders, ...state.lessons].forEach((r) => delete r.source);
+}
+
+function folderToV5(state, folder, rootFor) {
+  const { source } = folder;
+  if (source?.kind === 'drive') {
+    folder.locations = [driveLocation(source)];
+    folder.seenDriveIds = source.seenIds ?? [];
+  } else if (source?.kind === 'local') {
+    const [top, ...inside] = localFolderNames(state, folder);
+    folder.locations = [localLocation({ rootId: rootFor(top), path: inside.join('/') })];
+  }
+}
+
+/** A version-4 computer folder's names, from the picked folder down to this one. */
+function localFolderNames(state, folder) {
+  const chain = [];
+  for (let f = folder; f?.source?.kind === 'local' && !chain.includes(f); f = find(state, 'deckFolders', f.parentId)) chain.unshift(f);
+  return chain.map((f) => f.name);
 }
 
 /**

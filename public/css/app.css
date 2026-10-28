@@ -500,7 +500,7 @@ input:focus, select:focus, button:focus-visible { outline: 3px solid #cdb8ea; ou
   border-radius: 12px; padding: 8px 12px; margin: 0 0 12px; font-size: 14px;
 }
 .new-banner span:nth-child(2) { flex: 1; }
-.deck-source { font-size: 13px; color: var(--ink-soft); margin: 0 0 12px; }
+.deck-source { font-size: 13px; color: var(--ink-soft); margin: 0 0 12px; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 2px; }
 .deck-source code { background: var(--card-2); border-radius: 6px; padding: 1px 6px; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
 .modal-input { width: 100%; }

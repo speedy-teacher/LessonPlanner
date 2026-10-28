@@ -40,8 +40,13 @@ A browser app for a (non-technical) elementary music teacher to plan a school ye
   1-hour access tokens. Testing mode ends the sign-in ~weekly → bottom-left "Sign in" notice + top-bar pill.
   The client secret never reaches the page or lesson data.
 - Deck import (`library.js` pure + tested, `drive.js` browser-only Drive calls, `views/deckImport.js`, `views/deckTree.js`):
-  all reading of files/Drive happens in the browser; only deck details (name, folder, `source`) are saved, never file contents.
-  Watched Drive folders are re-listed every 10 min while connected; `source.seenIds` stops deleted decks returning.
+  all reading of files/Drive happens in the browser; only deck details are saved, never file contents.
+  Watched Drive folders are re-listed every 10 min while connected; `seenDriveIds` stops deleted decks returning.
+- Workspace-ready locations (`locations.js`): decks/folders keep `locations[]` (Drive `https://drive.google.com/open?id=…`,
+  computer `local:<rootId>/<path>` pointing at a `localRoots` picked folder). Goal: the whole data file becomes a workspace
+  saved in Drive; each computer reconnects its own copy of a `localRoot` (handle kept in that browser only). Reachability is
+  checked at run time, never saved; unreachable → warning label, never removed. `lastSeenAt` updates at most daily.
+  No Google Drive for Desktop (blocked by IT).
 - Next on the roadmap: copy decks to a Drive folder and fill `{{School}}`-style
   placeholders via the Slides API → optional data backup to Drive.
 

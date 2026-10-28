@@ -54,7 +54,7 @@ function lessonEditor(l) {
       h('button', { class: 'btn light', onclick: () => duplicate(l) }, 'Duplicate'),
       h('button', { class: 'btn light danger', onclick: () => deleteLesson(l) }, 'Delete')),
     newBanner(l),
-    sourceLine(l),
+    locationList(l),
     h('div', { class: 'template-body' },
       h('div', { class: 'template-preview' }, lessonPreview(l.id, { fields })),
       h('div', {},
@@ -96,15 +96,19 @@ function newBanner(l) {
     h('button', { class: 'btn small light', onclick: () => commit((s) => editLesson(s, l.id, {})) }, 'Got it'));
 }
 
-/** Where the deck's slides live. */
-function sourceLine(l) {
-  const src = l.source;
-  if (!src) return null;
-  if (src.kind === 'drive') {
-    return h('p', { class: 'deck-source' }, '☁️ From Google Drive',
-      src.url ? [' · ', h('a', { href: src.url, target: '_blank', rel: 'noopener' }, 'Open in Drive ↗')] : null);
+/** Where the deck's slides live (it can be in more than one place). */
+function locationList(l) {
+  if (!l.locations.length) return null;
+  return h('ul', { class: 'deck-source' }, l.locations.map((loc) => h('li', {}, locationLabel(loc))));
+}
+
+function locationLabel(loc) {
+  if (loc.kind === 'drive') {
+    return ['☁️ Google Drive · ', h('a', { href: loc.uri, target: '_blank', rel: 'noopener' }, 'Open in Drive ↗')];
   }
-  return h('p', { class: 'deck-source' }, '💻 From your computer: ', h('code', {}, src.path));
+  const root = find(store.state, 'localRoots', loc.rootId);
+  const path = root ? [root.name, loc.path].filter(Boolean).join('/') : loc.path;
+  return ['💻 On the computer: ', h('code', {}, path)];
 }
 
 function instrumentToggles(l) {

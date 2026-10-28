@@ -1,13 +1,10 @@
 // The lesson deck library: folders, and bringing decks in from the computer
 // or Google Drive. Only a deck's details (name, folder, where its file lives)
 // are kept — never the file itself. Shared by the browser app and the tests.
-//
-// A deck from the computer:  source { kind: 'local', path: 'Rhythm/Week 1.pptx', size, modifiedTime }
-// A deck from Google Drive:  source { kind: 'drive', fileId, mimeType, url, modifiedTime }
-// A folder from Google Drive: source { kind: 'drive', fileId, seenIds[] } — seenIds are every Drive
-// file already brought in from it, so a deck you delete here isn't pulled in again.
+// Where each deck and folder lives is a list of locations (see locations.js).
 
 import { add, find, inYear, remove, update } from './model.js';
+import { addLocation, driveFileId, driveLocation, hasLocation, localLocation, localUri, markSeen } from './locations.js';
 
 /** File endings that count as slide decks (anything else in a folder is skipped). */
 export const DECK_EXTENSIONS = ['pptx', 'ppt', 'pptm', 'potx', 'odp', 'key', 'pdf'];
@@ -47,14 +44,14 @@ export function decksIn(state, yearId, folderId) {
   return inYear(state, 'lessons', yearId).filter((l) => l.folderId === folderId).sort(byName);
 }
 
-export function addFolder(state, { yearId, name, parentId = null, source = null, watch = false }) {
-  return add(state, 'deckFolders', { yearId, name, parentId, source, watch });
+export function addFolder(state, { yearId, name, parentId = null, locations = [], watch = false }) {
+  return add(state, 'deckFolders', { yearId, name, parentId, locations, watch, seenDriveIds: [] });
 }
 
 /** A new lesson deck with the usual details filled in. */
-export function addDeck(state, { yearId, name, folderId = null, category = '', source = null, isNew = false }) {
+export function addDeck(state, { yearId, name, folderId = null, category = '', locations = [], isNew = false }) {
   return add(state, 'lessons', {
-    yearId, name, category, autoFields: [...DEFAULT_AUTO_FIELDS], instrumentIds: [], folderId, source, isNew,
+    yearId, name, category, autoFields: [...DEFAULT_AUTO_FIELDS], instrumentIds: [], folderId, locations, isNew,
   });
 }
 
@@ -121,33 +118,47 @@ export function removeFolder(state, folderId) {
   remove(state, 'deckFolders', folderId);
 }
 
-/** The folder called `name` inside `parentId`, made if it isn't there yet. */
-function ensureFolder(state, yearId, parentId, name) {
-  return foldersIn(state, yearId, parentId).find((f) => f.name === name)
-    ?? addFolder(state, { yearId, name, parentId, source: { kind: 'local' } });
+// ---------- from the computer ----------
+
+function now() {
+  return new Date().toISOString();
 }
 
-// ---------- from the computer ----------
+/** The computer folder with this name, remembered if it's new. */
+function localRoot(state, name) {
+  return state.localRoots.find((r) => r.name === name) ?? add(state, 'localRoots', { name });
+}
+
+/** The library folder called `name` inside `parentId` (made if needed), linked to its computer folder. */
+function ensureLocalFolder(state, { yearId, parentId, name, location }) {
+  const folder = foldersIn(state, yearId, parentId).find((f) => f.name === name)
+    ?? addFolder(state, { yearId, name, parentId });
+  return addLocation(folder, location);
+}
 
 /**
  * Add decks picked on the computer. `files` are [{ path, size, modifiedTime }] where path is
- * "Deck.pptx" for single files or "Folder/Inner/Deck.pptx" for a picked folder; the folders
- * are made in the library to match. Picking the same file again doesn't add it twice.
+ * "Deck.pptx" for single files or "Folder/Inner/Deck.pptx" for a picked folder; the folders are
+ * made in the library to match, and the picked folder is remembered as a computer folder
+ * (`localRoots`). Picking the same file again doesn't add it twice.
  * Returns { added: [lessons], folders: [new folders], skipped: [paths that aren't decks] }.
  */
-export function importLocalFiles(state, { yearId, parentId = null, files }) {
+export function importLocalFiles(state, { yearId, parentId = null, files, seenAt = now() }) {
   const result = { added: [], folders: [], skipped: [] };
   const before = new Set(state.deckFolders.map((f) => f.id));
   for (const file of files) {
     const parts = file.path.split('/').filter(Boolean);
     const fileName = parts.pop();
     if (!isDeckFile(fileName)) { result.skipped.push(file.path); continue; }
-    const folderId = parts.reduce((parent, name) => ensureFolder(state, yearId, parent, name).id, parentId);
-    const already = inYear(state, 'lessons', yearId)
-      .some((l) => l.folderId === folderId && l.source?.kind === 'local' && l.source.path === file.path);
-    if (already) continue;
-    const source = { kind: 'local', path: file.path, size: file.size ?? null, modifiedTime: file.modifiedTime ?? null };
-    result.added.push(addDeck(state, { yearId, name: deckName(fileName), folderId, source }));
+    const rootId = parts.length ? localRoot(state, parts[0]).id : null;
+    const folderId = parts.reduce((parent, name, i) => ensureLocalFolder(state, {
+      yearId, parentId: parent, name, location: localLocation({ rootId, path: parts.slice(1, i + 1).join('/') }, seenAt),
+    }).id, parentId);
+    const path = [...parts.slice(1), fileName].join('/');
+    const location = localLocation({ rootId, path, size: file.size, modifiedTime: file.modifiedTime }, seenAt);
+    const existing = inYear(state, 'lessons', yearId).find((l) => hasLocation(l, localUri(rootId, path)));
+    if (existing) { addLocation(existing, location); continue; }
+    result.added.push(addDeck(state, { yearId, name: deckName(fileName), folderId, locations: [location] }));
   }
   result.folders = state.deckFolders.filter((f) => !before.has(f.id));
   return result;
@@ -157,13 +168,13 @@ export function importLocalFiles(state, { yearId, parentId = null, files }) {
 
 /**
  * Bring in Drive items. `nodes` are Drive files/folders { id, name, mimeType, modifiedTime,
- * webViewLink, children? } (children = what's inside a folder, already read from Drive).
+ * children? } (children = what's inside a folder, already read from Drive).
  * Folders become library folders (top ones are watched); decks become lessons.
  * `markNew` flags decks as newly added (used when checking watched folders).
  * Returns { added, folders, skipped }.
  */
-export function importDriveItems(state, { yearId, parentId = null, nodes, markNew = false }) {
-  const ctx = { state, yearId, markNew, seen: null, result: { added: [], folders: [], skipped: [] } };
+export function importDriveItems(state, { yearId, parentId = null, nodes, markNew = false, seenAt = now() }) {
+  const ctx = { state, yearId, markNew, seenAt, seen: null, result: { added: [], folders: [], skipped: [] } };
   for (const node of nodes) {
     if (node.mimeType === DRIVE_FOLDER) addDriveFolder(ctx, node, parentId, true);
     else addDriveDeck(ctx, node, parentId);
@@ -172,25 +183,29 @@ export function importDriveItems(state, { yearId, parentId = null, nodes, markNe
 }
 
 function driveRecord(ctx, collection, fileId) {
-  return inYear(ctx.state, collection, ctx.yearId).find((r) => r.source?.kind === 'drive' && r.source.fileId === fileId);
+  return inYear(ctx.state, collection, ctx.yearId).find((r) => r.locations.some((l) => l.kind === 'drive' && l.fileId === fileId));
+}
+
+function seeDrive(ctx, record, fileId) {
+  markSeen(record.locations.find((l) => l.fileId === fileId), ctx.seenAt);
 }
 
 function addDriveFolder(ctx, node, parentId, top) {
   let folder = driveRecord(ctx, 'deckFolders', node.id);
-  if (!folder) {
-    folder = addFolder(ctx.state, {
-      yearId: ctx.yearId, name: node.name, parentId, watch: top, source: { kind: 'drive', fileId: node.id, seenIds: [] },
-    });
+  if (folder) seeDrive(ctx, folder, node.id);
+  else {
+    const location = driveLocation({ fileId: node.id, mimeType: DRIVE_FOLDER }, ctx.seenAt);
+    folder = addFolder(ctx.state, { yearId: ctx.yearId, name: node.name, parentId, watch: top, locations: [location] });
     ctx.result.folders.push(folder);
   }
   const outer = ctx.seen;
-  if (top) ctx.seen = new Set(folder.source.seenIds ?? []);
+  if (top) ctx.seen = new Set(folder.seenDriveIds);
   for (const child of node.children ?? []) {
     if (child.mimeType === DRIVE_FOLDER) addDriveFolder(ctx, child, folder.id, false);
     else addDriveDeck(ctx, child, folder.id);
   }
   if (top) {
-    folder.source.seenIds = [...ctx.seen];
+    folder.seenDriveIds = [...ctx.seen];
     ctx.seen = outer;
   }
 }
@@ -199,30 +214,32 @@ function addDriveDeck(ctx, node, folderId) {
   if (!DRIVE_DECK_TYPES.includes(node.mimeType)) { ctx.result.skipped.push(node.name); return; }
   const seenBefore = ctx.seen?.has(node.id);
   ctx.seen?.add(node.id);
-  if (seenBefore || driveRecord(ctx, 'lessons', node.id)) return;
-  const source = { kind: 'drive', fileId: node.id, mimeType: node.mimeType, url: node.webViewLink ?? '', modifiedTime: node.modifiedTime ?? null };
+  const existing = driveRecord(ctx, 'lessons', node.id);
+  if (existing) seeDrive(ctx, existing, node.id);
+  if (seenBefore || existing) return;
+  const location = driveLocation({ fileId: node.id, mimeType: node.mimeType, modifiedTime: node.modifiedTime }, ctx.seenAt);
   ctx.result.added.push(addDeck(ctx.state, {
-    yearId: ctx.yearId, name: deckName(node.name), folderId, source, isNew: ctx.markNew,
+    yearId: ctx.yearId, name: deckName(node.name), folderId, locations: [location], isNew: ctx.markNew,
   }));
 }
 
 /** Folders whose Google Drive folder is checked for new decks. */
 export function watchedFolders(state, yearId) {
-  return inYear(state, 'deckFolders', yearId).filter((f) => f.watch && f.source?.kind === 'drive');
+  return inYear(state, 'deckFolders', yearId).filter((f) => f.watch && driveFileId(f));
 }
 
 /**
  * Add the decks that appeared in watched Drive folders since last time.
  * `trees` maps a watched folder's id to its Drive contents read just now.
- * New decks are marked ❗ new. Returns the decks added.
+ * New decks are marked ❗ new. Nothing is ever removed. Returns the decks added.
  */
-export function syncWatchedFolders(state, yearId, trees) {
+export function syncWatchedFolders(state, yearId, trees, seenAt = now()) {
   const added = [];
   for (const folder of watchedFolders(state, yearId)) {
     const tree = trees[folder.id];
     if (!tree) continue;
-    const node = { id: folder.source.fileId, name: folder.name, mimeType: DRIVE_FOLDER, children: tree };
-    added.push(...importDriveItems(state, { yearId, parentId: folder.parentId, nodes: [node], markNew: true }).added);
+    const node = { id: driveFileId(folder), name: folder.name, mimeType: DRIVE_FOLDER, children: tree };
+    added.push(...importDriveItems(state, { yearId, parentId: folder.parentId, nodes: [node], markNew: true, seenAt }).added);
   }
   return added;
 }

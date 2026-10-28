@@ -37,7 +37,7 @@ The top bar shows a Drive status pill (click to sign in or open settings). Notic
 
 One JSON file of flat collections linked by id (see `public/js/model.js`):
 `years`, `instruments`, `schools`, `grades`, `outcomes`, `deckFolders`, `lessons` (slide decks with their `instrumentIds`,
-`folderId` and `source` file;
+`folderId` and the `locations` of its file — Drive and/or a picked computer folder in `localRoots`;
 all year-scoped, copied each new year
 with a `copiedFromId` link back), `criteria` (belong to an outcome) → `criterionLessons` (the lessons
 of an eval in teaching order, by `position`), and the calendars

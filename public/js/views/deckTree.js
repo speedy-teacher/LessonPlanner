@@ -7,6 +7,7 @@ import { find, lessonEvals } from '../model.js';
 import {
   addFolder, decksIn, folderAndInside, folderPath, foldersIn, hasNewInside, moveDeck, moveFolder, removeFolder,
 } from '../library.js';
+import { driveFileId } from '../locations.js';
 import { commit, setUi, store, undo } from '../store.js';
 import { current, emptyNote, menuItem, popMenu, year } from './common.js';
 
@@ -158,7 +159,7 @@ function folderMenu(folder) {
   return popMenu({ label: '⋯', title: `Options for ${folder.name}`, menuClass: 'folder-menu' },
     menuItem('Rename', () => askName('Rename folder', folder.name, (name) => commit((s) => { find(s, 'deckFolders', folder.id).name = name; })), { icon: '✏️' }),
     menuItem('New folder inside', () => newFolder(folder.id), { icon: '📁' }),
-    folder.source?.kind === 'drive' ? menuItem(folder.watch ? 'Stop watching Drive' : 'Watch Drive for new decks',
+    driveFileId(folder) ? menuItem(folder.watch ? 'Stop watching Drive' : 'Watch Drive for new decks',
       () => commit((s) => { find(s, 'deckFolders', folder.id).watch = !folder.watch; }), { icon: '☁️' }) : null,
     menuItem('Delete folder', () => deleteFolder(folder), { icon: '🗑️' }));
 }

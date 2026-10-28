@@ -7,6 +7,7 @@ import { h } from '../dom.js';
 import { addDeck, DECK_EXTENSIONS, DRIVE_FOLDER, importDriveItems, importLocalFiles, syncWatchedFolders, watchedFolders } from '../library.js';
 import { canReadFolders, connectDrive, google } from '../google.js';
 import { listFolderTree, pickFromDrive } from '../drive.js';
+import { driveFileId } from '../locations.js';
 import { dismissNotice, showNotice } from '../notices.js';
 import { commit, setUi, store } from '../store.js';
 import { menuItem, popMenu, year } from './common.js';
@@ -145,7 +146,7 @@ export async function checkWatchedFolders({ now = false } = {}) {
   lastCheck = Date.now();
   try {
     const trees = {};
-    for (const f of folders) trees[f.id] = await listFolderTree(google.token, f.source.fileId);
+    for (const f of folders) trees[f.id] = await listFolderTree(google.token, driveFileId(f));
     const added = commit((s) => syncWatchedFolders(s, y.id, trees));
     if (added.length) announceNew(added);
   } catch (err) {

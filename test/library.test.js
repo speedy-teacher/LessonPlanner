@@ -10,8 +10,10 @@ import {
   importLocalFiles, moveDeck, moveFolder, removeFolder, syncWatchedFolders, watchedFolders,
 } from '../public/js/library.js';
 import { listFolderTree, projectNumber } from '../public/js/drive.js';
+import { addLocation, driveLocation, findLocation } from '../public/js/locations.js';
 
 const SLIDES = 'application/vnd.google-apps.presentation';
+const NOW = '2026-10-28T15:00:00.000Z';
 const PDF = 'application/pdf';
 
 function library() {
@@ -21,7 +23,7 @@ function library() {
 }
 
 const names = (list) => list.map((r) => r.name);
-const driveFile = (id, name, mimeType = SLIDES) => ({ id, name, mimeType, webViewLink: `https://example.test/${id}` });
+const driveFile = (id, name, mimeType = SLIDES) => ({ id, name, mimeType });
 const driveFolder = (id, name, children) => ({ id, name, mimeType: DRIVE_FOLDER, children });
 
 // ---------- folders ----------
@@ -80,7 +82,7 @@ test('saved data from before folders still loads: decks sit at the top level', (
   delete old.deckFolders;
   const loaded = normalize(old);
   assert.deepEqual(loaded.deckFolders, []);
-  assert.deepEqual([loaded.lessons[0].folderId, loaded.lessons[0].source, loaded.lessons[0].isNew], [null, null, false]);
+  assert.deepEqual([loaded.lessons[0].folderId, loaded.lessons[0].locations, loaded.lessons[0].isNew], [null, [], false]);
 });
 
 test('deleting a year deletes its folders', () => {
@@ -95,11 +97,13 @@ test('deleting a year deletes its folders', () => {
 test('picking slide files from the computer adds one deck each, named without the file ending', () => {
   const { s, yearId } = library();
   const target = addFolder(s, { yearId, name: 'Target' });
-  const result = importLocalFiles(s, { yearId, parentId: target.id, files: [{ path: 'Beat Hunt.pptx', size: 10 }, { path: 'Song.pdf' }, { path: 'notes.docx' }] });
+  const result = importLocalFiles(s, { yearId, parentId: target.id, seenAt: NOW, files: [{ path: 'Beat Hunt.pptx', size: 10 }, { path: 'Song.pdf' }, { path: 'notes.docx' }] });
   assert.deepEqual(names(result.added), ['Beat Hunt', 'Song']);
   assert.deepEqual(result.skipped, ['notes.docx']);
   assert.deepEqual(names(decksIn(s, yearId, target.id)), ['Beat Hunt', 'Song']);
-  assert.deepEqual(result.added[0].source, { kind: 'local', path: 'Beat Hunt.pptx', size: 10, modifiedTime: null });
+  assert.deepEqual(result.added[0].locations, [{
+    kind: 'local', uri: 'local:/Beat%20Hunt.pptx', rootId: null, path: 'Beat Hunt.pptx', size: 10, modifiedTime: null, lastSeenAt: NOW,
+  }], 'a file picked on its own has no computer folder');
   assert.deepEqual(result.added[0].autoFields, ['school', 'grade', 'date']);
 });
 
@@ -146,7 +150,8 @@ test('picking Drive decks adds them; picking a Drive folder adds a watched folde
   const [unit] = foldersIn(s, yearId, null);
   assert.equal(unit.name, 'Unit 1');
   assert.deepEqual(watchedFolders(s, yearId).map((f) => f.name), ['Unit 1'], 'only the picked folder is watched');
-  assert.equal(result.added[0].source.url, 'https://example.test/d1');
+  assert.deepEqual(result.added[0].locations.map((l) => l.uri), ['https://drive.google.com/open?id=d1']);
+  assert.equal(unit.locations[0].uri, 'https://drive.google.com/open?id=f1');
   assert.equal(importDriveItems(s, { yearId, nodes }).added.length, 0, 'picking again adds nothing twice');
 });
 
@@ -260,4 +265,65 @@ test('lesson numbers follow the calendar order, not the order evals were placed 
   const p = place(critB, '2026-09-01');
   place(critA, '2026-09-21');
   assert.equal(autoFill(s, b1, p).find((f) => f.key === 'lessonNumber').value, '1');
+});
+
+// ---------- where files live (workspace-ready) ----------
+
+test('a picked computer folder is remembered once, and its decks point at it with their path inside it', () => {
+  const { s, yearId } = library();
+  importLocalFiles(s, { yearId, files: [{ path: 'Rhythm/Week 1/Ta.pptx' }] });
+  importLocalFiles(s, { yearId, files: [{ path: 'Rhythm/Ti.pptx' }] });
+  assert.deepEqual(s.localRoots.map((r) => r.name), ['Rhythm']);
+  const rootId = s.localRoots[0].id;
+  const ta = inYear(s, 'lessons', yearId).find((l) => l.name === 'Ta');
+  assert.deepEqual([findLocation(ta, 'local').rootId, findLocation(ta, 'local').path], [rootId, 'Week 1/Ta.pptx']);
+  assert.equal(findLocation(ta, 'local').uri, `local:${rootId}/Week%201/Ta.pptx`);
+  const [rhythm] = foldersIn(s, yearId, null);
+  assert.deepEqual([findLocation(rhythm, 'local').rootId, findLocation(rhythm, 'local').path], [rootId, '']);
+});
+
+test('a deck can live in several places, and adding the same place again just refreshes it', () => {
+  const { s, yearId } = library();
+  const [deck] = importDriveItems(s, { yearId, nodes: [driveFile('d1', 'Beat')] }).added;
+  importLocalFiles(s, { yearId, files: [{ path: 'Beat.pptx' }] }); // a different file, so a second deck
+  addLocation(deck, driveLocation({ fileId: 'd1', mimeType: SLIDES, modifiedTime: '2026-10-01' }));
+  assert.equal(deck.locations.length, 1);
+  assert.equal(deck.locations[0].modifiedTime, '2026-10-01');
+});
+
+test('decks that disappear from a watched Drive folder stay in the library, and decks still there are marked seen', () => {
+  const { s, yearId, unit } = watchedUnit();
+  const nextDay = '2099-01-02T08:00:00.000Z';
+  syncWatchedFolders(s, yearId, { [unit.id]: [driveFile('d1', 'Old deck')] }, nextDay);
+  assert.deepEqual(names(inYear(s, 'lessons', yearId)).sort(), ['Old deck', 'Older deck']);
+  const old = inYear(s, 'lessons', yearId).find((l) => l.name === 'Old deck');
+  assert.equal(findLocation(old, 'drive').lastSeenAt, nextDay);
+});
+
+test('saved data with one file per deck is upgraded to a list of places, keeping computer folders', () => {
+  const { s, yearId } = library();
+  const v4 = {
+    ...structuredClone(s), schemaVersion: 4,
+    deckFolders: [
+      { id: 'fld_r', yearId, name: 'Rhythm', parentId: null, source: { kind: 'local' }, watch: false },
+      { id: 'fld_w', yearId, name: 'Week 1', parentId: 'fld_r', source: { kind: 'local' }, watch: false },
+      { id: 'fld_d', yearId, name: 'Drive Unit', parentId: null, source: { kind: 'drive', fileId: 'f1', seenIds: ['d1'] }, watch: true },
+    ],
+    lessons: [
+      { id: 'les_l', yearId, name: 'Ta', category: '', autoFields: [], instrumentIds: [], folderId: 'fld_w', source: { kind: 'local', path: 'Rhythm/Week 1/Ta.pptx', size: 5, modifiedTime: null }, isNew: false },
+      { id: 'les_d', yearId, name: 'Beat', category: '', autoFields: [], instrumentIds: [], folderId: 'fld_d', source: { kind: 'drive', fileId: 'd1', mimeType: SLIDES, url: 'x', modifiedTime: null }, isNew: true },
+    ],
+  };
+  delete v4.localRoots;
+  const up = normalize(v4);
+  const rootId = up.localRoots[0].id;
+  assert.deepEqual(up.localRoots.map((r) => r.name), ['Rhythm']);
+  const byId = (c, id) => up[c].find((r) => r.id === id);
+  assert.deepEqual([findLocation(byId('lessons', 'les_l'), 'local').rootId, findLocation(byId('lessons', 'les_l'), 'local').path], [rootId, 'Week 1/Ta.pptx']);
+  assert.equal(findLocation(byId('deckFolders', 'fld_w'), 'local').path, 'Week 1');
+  assert.equal(findLocation(byId('deckFolders', 'fld_r'), 'local').path, '');
+  assert.equal(findLocation(byId('lessons', 'les_d'), 'drive').uri, 'https://drive.google.com/open?id=d1');
+  assert.deepEqual(byId('deckFolders', 'fld_d').seenDriveIds, ['d1']);
+  assert.ok([...up.lessons, ...up.deckFolders].every((r) => !('source' in r)));
+  assert.ok(byId('lessons', 'les_d').isNew);
 });

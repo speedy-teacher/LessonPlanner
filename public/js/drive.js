@@ -6,7 +6,7 @@ import { DRIVE_DECK_TYPES, DRIVE_FOLDER } from './library.js';
 
 const FILES_URL = 'https://www.googleapis.com/drive/v3/files';
 const PICKER_SRC = 'https://apis.google.com/js/api.js';
-const FILE_FIELDS = 'id,name,mimeType,modifiedTime,webViewLink';
+const FILE_FIELDS = 'id,name,mimeType,modifiedTime';
 const MAX_DEPTH = 12;
 
 /** Thrown with message 'needs_folder_access' when the sign-in can't look inside folders yet. */
@@ -76,7 +76,7 @@ export function projectNumber(clientId) {
 
 /**
  * Open Google's picker for slide decks and folders (several at once).
- * Resolves to the picked items [{ id, name, mimeType, webViewLink }], or [] if closed.
+ * Resolves to the picked items [{ id, name, mimeType }], or [] if closed.
  */
 export async function pickFromDrive({ token, apiKey, clientId }) {
   await loadPicker();
@@ -104,5 +104,5 @@ export async function pickFromDrive({ token, apiKey, clientId }) {
 }
 
 function pickedItem(doc) {
-  return { id: doc.id, name: doc.name, mimeType: doc.mimeType, webViewLink: doc.url, modifiedTime: null };
+  return { id: doc.id, name: doc.name, mimeType: doc.mimeType, modifiedTime: null };
 }
