@@ -2,15 +2,21 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { normalize, emptyState } from '../public/js/model.js';
-import { looksLikeClientId, DRIVE_SCOPE, canReadFolders } from '../public/js/google.js';
-import { deviceSettingsIn, toWorkspaceFile } from '../public/js/workspaceFile.js';
+import { looksLikeClientId, DRIVE_SCOPE, canReadFolders, configProblems } from '../public/js/google.js';
+import { toWorkspaceFile } from '../public/js/workspaceFile.js';
+import { configScript } from '../scripts/write-config.js';
 
-test('the Google codes stay on each computer and are never written into a plan file', () => {
+test('the Google codes are built into the website, and never written into a plan file', () => {
   assert.deepEqual(emptyState().settings, {});
+  // Older planner files kept the codes inside them; plan files leave them out.
   const old = { ...emptyState(), settings: { googleClientId: 'fake-123.apps.googleusercontent.com', googleApiKey: 'AIzaFake' } };
-  assert.deepEqual(deviceSettingsIn(normalize(old)), { googleClientId: 'fake-123.apps.googleusercontent.com', googleApiKey: 'AIzaFake' });
-  const file = toWorkspaceFile(normalize(old));
-  assert.doesNotMatch(file, /fake-123|AIzaFake/);
+  assert.doesNotMatch(toWorkspaceFile(normalize(old)), /fake-123|AIzaFake/);
+  // The website gets them from config.js, made when it's published.
+  const script = configScript({ googleClientId: ' fake-123.apps.googleusercontent.com  ', googleApiKey: 'AIzaFake' });
+  const sandbox = {};
+  new Function('window', script)(sandbox);
+  assert.deepEqual(sandbox.PLANNER_CONFIG, { googleClientId: 'fake-123.apps.googleusercontent.com', googleApiKey: 'AIzaFake' });
+  assert.deepEqual(new Function('window', `${configScript({})}; return window.PLANNER_CONFIG;`)({}), { googleClientId: '', googleApiKey: '' });
 });
 
 test('the Connect button only accepts something shaped like a Google Client ID', () => {
@@ -30,4 +36,14 @@ test('an older sign-in without folder reading is noticed, so you can be asked to
   assert.ok(!canReadFolders('https://www.googleapis.com/auth/drive.file'));
   assert.ok(!canReadFolders(''));
   assert.ok(canReadFolders('https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.readonly'));
+});
+
+test('missing or wrong Google app info is reported, so whoever publishes the site knows to fix it', () => {
+  const good = { googleClientId: 'fake-123abc.apps.googleusercontent.com', googleApiKey: 'AIzaFakeFakeFakeFakeFakeFakeFakeFake123' };
+  assert.deepEqual(configProblems(good), []);
+  assert.equal(configProblems({}).length, 2);
+  assert.match(configProblems({ ...good, googleClientId: '' })[0], /Client ID is missing.*GOOGLE_CLIENT_ID/);
+  assert.match(configProblems({ ...good, googleClientId: 'GOCSPX-oops' })[0], /Client ID doesn’t look right/);
+  assert.match(configProblems({ ...good, googleApiKey: '' })[0], /API key is missing.*GOOGLE_API_KEY/);
+  assert.match(configProblems({ ...good, googleApiKey: 'not-a-key' })[0], /API key doesn’t look right/);
 });

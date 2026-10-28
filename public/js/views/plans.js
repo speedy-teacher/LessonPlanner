@@ -4,10 +4,9 @@
 
 import { h, openModal, toast } from '../dom.js';
 import { suggestNextYear } from '../model.js';
-import { setUi, store } from '../store.js';
-import { apiKey, clientId } from '../deviceSettings.js';
+import { store } from '../store.js';
+import { apiKey, clientId, driveAvailable } from '../deviceSettings.js';
 import { connectDrive, google } from '../google.js';
-import { googleCard } from './googleCard.js';
 import { pickPlanFromDrive } from '../drive.js';
 import { listPlanFiles } from '../driveFiles.js';
 import { fromWorkspaceFile, newYearPlan } from '../workspaceFile.js';
@@ -77,7 +76,7 @@ function plansPanel(close) {
     computerPlanList(close),
     h('div', { class: 'plans-actions' },
       h('button', { class: 'btn', onclick: () => { close(); openNewYear(); } }, '🌱 Start a new school year'),
-      h('button', { class: 'btn light', onclick: done(openShared), disabled: !driveConnected() || !apiKey(), title: apiKey() ? '' : 'Needs the API key (Setup › School Year › Google Drive)' }, '🤝 Open a plan shared with me'),
+      h('button', { class: 'btn light', onclick: done(openShared), disabled: !driveConnected() || !apiKey(), title: driveConnected() ? '' : 'Connect Google Drive first' }, '🤝 Open a plan shared with me'),
       fileButton(close)),
     oldPlannerOffer(close));
 }
@@ -95,13 +94,15 @@ function thisPlan(done) {
 
 function drivePlans(close) {
   const box = h('div', { class: 'plans-section' }, h('h3', {}, '☁ In Google Drive'));
+  if (!driveAvailable()) {
+    box.append(h('p', { class: 'google-status error' }, 'Google Drive isn’t set up for this website yet — see the error in the bottom-left corner.'));
+    return box;
+  }
   if (!driveConnected()) {
-    // With no plan open yet (the welcome), the Google codes can be filled in right here.
-    box.append(!current ? googleCard() : h('div', {},
-      h('p', { class: 'hint' }, 'Connect Google Drive to see your plans there.'),
-      clientId()
-        ? h('button', { class: 'btn small', onclick: () => connectDrive(clientId()) }, 'Connect Google Drive')
-        : h('button', { class: 'btn small', onclick: () => { close(); setUi({ tab: 'setup' }); } }, 'Set up Google Drive (Setup › School Year)')));
+    box.append(h('p', { class: 'hint' }, 'Connect Google Drive to see your plans there, and to use them on any computer.'),
+      h('button', { class: 'btn', disabled: google.status === 'working', onclick: () => connectDrive(clientId()) },
+        google.status === 'working' ? 'Connecting…' : 'Connect Google Drive'),
+      google.message ? h('p', { class: `google-status ${google.status === 'error' ? 'error' : ''}` }, google.message) : null);
     return box;
   }
   const list = h('ul', { class: 'plan-list' }, h('li', { class: 'hint' }, 'Looking in your Drive…'));

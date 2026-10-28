@@ -1,38 +1,42 @@
 // The "Google Drive" card (Setup › School Year), and the bottom-left reminder that
 // appears when the one-hour Google pass runs out with no click to renew it.
-// The Google codes are kept on this computer only (deviceSettings.js).
+// The Google codes are built into the website (deviceSettings.js), so this is just connect/disconnect.
 
-import { editable, h, toast } from '../dom.js';
-import { refresh, setUi } from '../store.js';
-import { apiKey, clientId, setDevice, setupLink } from '../deviceSettings.js';
-import {
-  appAddress, canSignIn, connectDrive, disconnectDrive, google, prepareDrive,
-} from '../google.js';
+import { h } from '../dom.js';
+import { setUi } from '../store.js';
+import { canSignIn, configProblems, connectDrive, disconnectDrive, google } from '../google.js';
+import { clientId, driveAvailable, googleConfig } from '../deviceSettings.js';
 import { dismissNotice, showNotice } from '../notices.js';
 
 const SIGN_IN_NOTICE = 'google-sign-in';
 
 export function googleCard() {
-  const setCode = (key) => (value) => {
-    setDevice({ [key]: value.trim() });
-    if (key === 'googleClientId') prepareDrive(clientId());
-    refresh();
-  };
   return h('section', { class: 'card setup-card google-card' },
     h('h3', {}, 'Google Drive'),
-    h('p', { class: 'hint' }, 'Paste the codes from your Google project (see the setup guide), then connect. They’re kept on this computer only.'),
-    h('div', { class: 'google-origin' },
-      h('span', {}, 'Your planner’s address for Google: '),
-      h('code', {}, appAddress()),
-      h('button', { class: 'btn small light', onclick: () => copyText(appAddress()) }, 'Copy')),
-    h('label', { class: 'field' }, h('span', {}, 'Client ID'),
-      editable(clientId(), setCode('googleClientId'), { placeholder: '…apps.googleusercontent.com', allowEmpty: true, spellcheck: 'false' })),
-    h('label', { class: 'field' }, h('span', {}, 'API key (for picking files)'),
-      editable(apiKey(), setCode('googleApiKey'), { placeholder: 'AIza…', allowEmpty: true, spellcheck: 'false' })),
-    connectRow(),
-    clientId() ? h('p', { class: 'hint' }, 'Using another computer? ',
-      h('button', { class: 'btn small light', onclick: () => copyText(setupLink()), 'data-tip': 'Open this link on the other computer and the codes fill themselves in.' }, 'Copy a setup link')) : null,
-  );
+    h('p', { class: 'hint' }, 'Your plans are saved in a “Lesson Planner” folder in your Google Drive, and lesson decks can come from Drive.'),
+    setupProblems(),
+    driveAvailable() ? connectRow() : null);
+}
+
+function setupProblems() {
+  const problems = configProblems(googleConfig());
+  if (!problems.length) return null;
+  return h('div', { class: 'google-status error' },
+    h('strong', {}, 'The Google app info for this website needs fixing:'),
+    h('ul', {}, problems.map((p) => h('li', {}, p))),
+    h('span', {}, 'Fix it in the GitHub repository’s secrets, then publish again (see docs/hosting.md).'));
+}
+
+/** When the planner opens: a lasting error if the Google codes built into the website are missing or wrong. */
+export function warnIfGoogleNotSetUp() {
+  const problems = configProblems(googleConfig());
+  if (!problems.length) return;
+  showNotice({
+    id: 'google-config', tone: 'error', title: 'Google Drive isn’t set up for this website',
+    message: `${problems.join(' ')} Fix it in the GitHub repository’s secrets, then publish again (docs/hosting.md).`,
+    actions: [{ label: 'Details', run: () => setUi({ tab: 'setup' }) }],
+    seconds: null,
+  });
 }
 
 function connectRow() {
@@ -45,7 +49,7 @@ function connectRow() {
   return h('div', {},
     h('button', {
       class: 'btn', disabled: !ready || google.status === 'working',
-      title: ready ? 'Opens Google’s sign-in window' : 'Paste the Client ID first',
+      title: 'Opens Google’s sign-in window',
       onclick: () => signIn(),
     }, google.status === 'working' ? 'Connecting…' : 'Connect Google Drive'),
     google.message ? h('p', { class: `google-status ${google.status === 'error' ? 'error' : ''}` }, google.message) : null);
@@ -69,10 +73,6 @@ export function showSignInNotice() {
   });
 }
 
-function copyText(text) {
-  navigator.clipboard?.writeText(text).then(() => toast('Copied!'), () => toast(`Copy this: ${text}`));
-}
-
 // ---------- top bar status pill ----------
 
 const PILLS = {
@@ -81,12 +81,12 @@ const PILLS = {
   'needs-signin': { tone: 'warn', text: 'Drive: click to reconnect', tip: () => 'Click anywhere to reconnect Google Drive.' },
   error: { tone: 'warn', text: 'Drive: not connected', tip: () => google.message || 'Click to connect.' },
   idle: { tone: 'off', text: 'Drive: not connected', tip: () => 'Click to connect Google Drive.' },
+  'not-set-up': { tone: 'warn', text: 'Drive: not set up', tip: () => configProblems(googleConfig()).join(' ') },
 };
 
 /** Always-visible Drive status in the top bar (hidden until a Client ID is entered). */
 export function drivePill() {
-  if (!clientId()) return null;
-  const pill = PILLS[google.status] || PILLS.idle;
+  const pill = configProblems(googleConfig()).length ? PILLS['not-set-up'] : PILLS[google.status] || PILLS.idle;
   const offerSignIn = google.status !== 'connected' && google.status !== 'working' && canSignIn(clientId());
   return h('button', {
     class: `drive-pill ${pill.tone}`,

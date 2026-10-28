@@ -188,6 +188,19 @@ export function canReadFolders(scope = google.scope) {
   return scope.split(/\s+/).includes(DRIVE_READ_SCOPE);
 }
 
+/**
+ * What's wrong with the Google codes built into the website (empty list = fine).
+ * Shown as an error, so whoever publishes the site knows to fix them.
+ */
+export function configProblems({ googleClientId = '', googleApiKey = '' } = {}) {
+  const problems = [];
+  if (!googleClientId.trim()) problems.push('The Client ID is missing (GitHub secret GOOGLE_CLIENT_ID).');
+  else if (!looksLikeClientId(googleClientId)) problems.push('The Client ID doesn’t look right — it should end in “.apps.googleusercontent.com” (GitHub secret GOOGLE_CLIENT_ID).');
+  if (!googleApiKey.trim()) problems.push('The API key is missing (GitHub secret GOOGLE_API_KEY).');
+  else if (!/^AIza[\w-]{30,}$/.test(googleApiKey.trim())) problems.push('The API key doesn’t look right — it should start with “AIza” (GitHub secret GOOGLE_API_KEY).');
+  return problems;
+}
+
 /** A Google OAuth client ID looks like "1234-abc.apps.googleusercontent.com". */
 export function looksLikeClientId(text) {
   return /^[\w-]+\.apps\.googleusercontent\.com$/.test(text.trim());

@@ -12,7 +12,7 @@ import { google } from './google.js';
 import { allPlans, deletePlan, getPlan, putPlan, rescue } from './localCache.js';
 import { createPlanFile, keepRevision, planFileInfo, readPlanFile, savePlanFile } from './driveFiles.js';
 import {
-  deviceSettingsIn, forgetPlan, fromWorkspaceFile, rememberPlan, shouldKeepRevision, splitYears, syncAction, toWorkspaceFile,
+  forgetPlan, fromWorkspaceFile, rememberPlan, shouldKeepRevision, splitYears, syncAction, toWorkspaceFile,
 } from './workspaceFile.js';
 import { showNotice } from './notices.js';
 
@@ -103,8 +103,6 @@ export async function createPlan({ name, state }, { open = true } = {}) {
  * each year becomes its own plan. Opens the year that was open in it. Returns the new plans.
  */
 export async function importPlannerData(state) {
-  const codes = deviceSettingsIn(state);
-  setDevice(Object.fromEntries(Object.entries(codes).filter(([key]) => !device[key])));
   const made = [];
   for (const plan of splitYears(state)) {
     made.push(await createPlan(plan, { open: false }));

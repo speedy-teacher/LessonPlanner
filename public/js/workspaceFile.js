@@ -3,8 +3,8 @@
 //
 // A plan file is the usual planner data holding exactly one year, plus a
 // `kind` marker so the planner can tell its files apart from other JSON.
-// Settings that belong to one computer (the Google codes) are never written
-// into a plan file — each computer keeps its own (see deviceSettings.js).
+// The Google codes older planner files kept inside them are left out — the
+// website has them built in (see deviceSettings.js).
 //
 // Pure logic, shared by the browser app and the Node tests.
 
@@ -14,7 +14,7 @@ export const WORKSPACE_KIND = 'lesson-planner-workspace';
 export const WORKSPACE_MIME = 'application/json';
 /** Extra label on Drive files, so the planner can find its own plan files. */
 export const WORKSPACE_PROPERTY = { key: 'lessonPlanner', value: 'workspace' };
-/** Settings kept per computer, never inside a plan file. */
+/** Settings older planner files kept that never go into a plan file. */
 export const DEVICE_SETTINGS = ['googleClientId', 'googleApiKey'];
 
 // Collections without a yearId belong to the year of the record they hang off.
@@ -82,15 +82,6 @@ export function fromWorkspaceFile(text) {
 export function looksLikePlannerData(raw) {
   return Boolean(raw) && typeof raw === 'object' && !Array.isArray(raw)
     && Number.isInteger(raw.schemaVersion) && Array.isArray(raw.years);
-}
-
-/** The Google codes an older planner file kept inside it (to move them to this computer). */
-export function deviceSettingsIn(state) {
-  const found = {};
-  for (const key of DEVICE_SETTINGS) {
-    if (state?.settings?.[key]) found[key] = state.settings[key];
-  }
-  return found;
 }
 
 function withoutDeviceSettings(settings = {}) {

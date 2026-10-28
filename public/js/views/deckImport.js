@@ -79,9 +79,8 @@ function pickLocal(folder) {
 function driveReady({ needFolders }) {
   const googleClientId = clientId();
   const googleApiKey = apiKey();
-  const goSetup = { label: 'Open School Year', run: () => setUi({ tab: 'setup' }) };
   if (!googleClientId || !googleApiKey) {
-    showNotice({ id: 'drive-import', tone: 'warn', title: 'Google Drive isn’t set up yet', message: 'Fill in the Google Drive card under Setup › School Year first (including the API key).', actions: [goSetup] });
+    showNotice({ id: 'drive-import', tone: 'warn', title: 'Google Drive isn’t switched on', message: 'This website was published without the Google codes (see docs/hosting.md).' });
     return false;
   }
   if (google.status !== 'connected') {

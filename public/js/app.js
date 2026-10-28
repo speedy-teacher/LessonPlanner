@@ -3,9 +3,9 @@
 import { h, installTooltips } from './dom.js';
 import { redo, refresh, setUi, store, subscribe, undo } from './store.js';
 import { google, prepareDrive, setGoogleHandlers } from './google.js';
-import { applySetupLink, clientId } from './deviceSettings.js';
+import { clientId } from './deviceSettings.js';
 import { openLastPlan, syncNow } from './workspace.js';
-import { drivePill, showSignInNotice } from './views/googleCard.js';
+import { drivePill, showSignInNotice, warnIfGoogleNotSetUp } from './views/googleCard.js';
 import { planButton, welcome } from './views/plans.js';
 import { renderPlan, planKeys } from './views/plan.js';
 import { renderSchedule, scheduleKeys } from './views/schedule.js';
@@ -115,7 +115,6 @@ async function start() {
   document.getElementById('redo').addEventListener('click', redo);
   document.addEventListener('keydown', onKey);
   subscribe(render);
-  applySetupLink();
   // Each Drive change redraws; once connected, the plan is synced and watched Drive folders are checked for new decks.
   let wasConnected = false;
   setGoogleHandlers({
@@ -135,6 +134,7 @@ async function start() {
     render();
   }
   startWatchingDrive();
+  warnIfGoogleNotSetUp();
   prepareDrive(clientId());
 }
 

@@ -1,3 +1,5 @@
 node_modules/
 data/
 *.tmp
+# Google codes, built in when published (scripts/write-config.js)
+public/config.js

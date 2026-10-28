@@ -2,9 +2,13 @@
 
 Organize music lesson slides by academic year, school, grade and instrument schedule.
 
-**To open it:** double-click `Start Lesson Planner.bat`. Your browser opens the planner.
-Keep the black window open while you work; close it when you're done.
-Everything saves automatically to `data/lesson-planner.json` (with a daily copy in `data/backups/`).
+**To open it:** go to the planner's website (see `docs/hosting.md`), or on this computer double-click
+`Start Lesson Planner.bat`.
+
+Each school year is one **plan**: a file in a **Lesson Planner** folder in your Google Drive (or kept on one computer only).
+The 📒 plan button at the top switches plans, starts a new school year, opens a plan shared with you, brings in a file,
+and downloads a copy. Changes save on the computer at once and to Drive a moment later; if the plan changed on another
+computer meanwhile, the planner asks which to keep. Drive keeps one version per day.
 
 ## Screens
 
@@ -36,7 +40,7 @@ Hold a bar's end, or anything you're dragging, near the top or bottom edge to sc
 - **Setup ▾** — a menu of three pages: **School Year**, **Outcomes, Evals & Lesson Order** and **Lesson Templates**.
 - **School Year** — the year's dates, schools, grades and instruments; start a new year
   (copies last year's lists, lesson decks, outcomes, criteria and lesson order; calendars start empty).
-  The **Google Drive** card connects to Drive and stays signed in — see `docs/google-drive-setup.md`.
+  The **Google Drive** card connects to Drive — see `docs/google-drive-setup.md`.
 
 The top bar shows a Drive status pill (click to sign in or open settings). Notices pop up in the bottom-left corner (`public/js/notices.js` — reusable: message, buttons, auto-hide).
 
@@ -54,6 +58,9 @@ Older saved files are upgraded automatically when loaded (`schemaVersion`).
 
 ## For developers
 
-- `npm start` — run the server (http://localhost:5178)
+The planner is a static website (`public/`). Published to GitHub Pages by `.github/workflows/pages.yml`,
+with the Google codes built in from repository secrets (`scripts/write-config.js` → `public/config.js`, not in git).
+
+- `npm start` — build `public/config.js` and serve the site locally (http://localhost:5178)
 - `npm test` — behavior tests (data rules, save/load, quality check)
 - `npm run lint` — ESLint limits + the function-length rule in `scripts/quality.js`
