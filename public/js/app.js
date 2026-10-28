@@ -7,10 +7,11 @@ import { renderSchedule, scheduleKeys } from './views/schedule.js';
 import { renderOutcomes } from './views/outcomes.js';
 import { renderSetup, openNewYear } from './views/setup.js';
 import { renderTemplates, templateKeys } from './views/templates.js';
+import { installCalendarScrolling, showCalendar } from './views/calendarGrid.js';
 
 const TABS = [
-  { id: 'plan', label: 'Lesson Calendar', icon: '📅', render: renderPlan, keys: planKeys },
-  { id: 'schedule', label: 'Instrument Schedule', icon: '🎶', render: renderSchedule, keys: scheduleKeys },
+  { id: 'plan', label: 'Lesson Calendar', icon: '📅', render: renderPlan, keys: planKeys, onShow: showCalendar },
+  { id: 'schedule', label: 'Instrument Schedule', icon: '🎶', render: renderSchedule, keys: scheduleKeys, onShow: showCalendar },
   { id: 'outcomes', label: 'Outcomes & Lessons', icon: '🌱', render: renderOutcomes },
   { id: 'templates', label: 'Templates', icon: '🖼️', render: renderTemplates, keys: templateKeys },
   { id: 'setup', label: 'Setup', icon: '🧺', render: renderSetup },
@@ -20,17 +21,25 @@ function activeTab() {
   return TABS.find((t) => t.id === store.ui.tab) || TABS[0];
 }
 
+function restoreFocus(key) {
+  if (key) document.querySelector(`[data-key="${CSS.escape(key)}"]`)?.focus();
+}
+
 function render() {
   const focusKey = document.activeElement?.dataset?.key;
   const main = document.getElementById('main');
   const tab = activeTab();
-  const scroll = main.dataset.tab === tab.id ? main.scrollTop : 0;
+  const hasYear = store.state.years.length > 0;
+  // Redrawing the same screen keeps its scroll position; a new tab or year starts fresh.
+  const sameView = main.dataset.view === `${tab.id}/${store.state.activeYearId}`;
+  const scroll = sameView ? main.scrollTop : 0;
   renderHeader();
   document.getElementById('tooltip').classList.remove('show');
-  main.replaceChildren(store.state.years.length ? tab.render() : h('p', { class: 'empty-note' }, 'No years yet.'));
-  main.dataset.tab = tab.id;
+  main.replaceChildren(hasYear ? tab.render() : h('p', { class: 'empty-note' }, 'No years yet.'));
+  main.dataset.view = `${tab.id}/${store.state.activeYearId}`;
   main.scrollTop = scroll;
-  if (focusKey) document.querySelector(`[data-key="${CSS.escape(focusKey)}"]`)?.focus();
+  if (!sameView && hasYear && tab.onShow) tab.onShow();
+  restoreFocus(focusKey);
 }
 
 function renderHeader() {
@@ -73,6 +82,7 @@ function onKey(e) {
 
 async function start() {
   installTooltips();
+  installCalendarScrolling();
   document.getElementById('undo').addEventListener('click', undo);
   document.getElementById('redo').addEventListener('click', redo);
   document.addEventListener('keydown', onKey);

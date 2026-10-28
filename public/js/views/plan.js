@@ -8,7 +8,8 @@ import {
 } from '../model.js';
 import { commit, setUi, store, undo } from '../store.js';
 import { formatDate, formatRange } from '../dates.js';
-import { current, emptyNote, monthNav, pickId, pills, stepMonth, year } from './common.js';
+import { current, emptyNote, pickId, pills, year } from './common.js';
+import { calendarHeader, stepMonth } from './calendarGrid.js';
 import { planCalendar } from './planCalendar.js';
 import { slidePreview } from './slides.js';
 
@@ -40,8 +41,7 @@ export function renderPlan() {
   return h('div', { class: `plan-layout ${showDetail ? 'with-detail' : ''}` },
     sidebar(ctx),
     h('section', { class: 'main-col card' },
-      monthNav(),
-      armedBanner(),
+      calendarHeader(armedBanner()),
       planCalendar(ctx),
     ),
     showDetail ? detailPanel(selected) : null,

@@ -134,7 +134,14 @@ input:focus, select:focus, button:focus-visible { outline: 3px solid #cdb8ea; ou
 
 /* ---------- month calendar ---------- */
 
-.month-nav { display: flex; align-items: center; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }
+/* Sticky top of the scrolling calendar: month name, month buttons, weekdays. */
+.cal-sticky {
+  position: sticky; top: -16px; z-index: 6; background: var(--card);
+  margin: -16px -16px 6px; padding: 14px 16px 6px; border-radius: var(--radius) var(--radius) 0 0;
+  box-shadow: 0 6px 8px -8px rgba(90, 64, 40, .25);
+}
+.cal-weekdays { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; margin-top: 4px; }
+.month-nav { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; flex-wrap: wrap; }
 .month-title { min-width: 170px; text-align: center; font-size: 20px; color: var(--navy); }
 .month-strip { display: flex; gap: 3px; margin-left: auto; flex-wrap: wrap; }
 .month-chip {
@@ -148,8 +155,12 @@ input:focus, select:focus, button:focus-visible { outline: 3px solid #cdb8ea; ou
   background: #fff; border: 1.5px solid var(--line); border-radius: 12px; min-height: 104px;
   padding: 4px 6px 6px; display: flex; flex-direction: column; transition: border-color .1s, background .1s;
 }
-.cal-day.other-month { background: #fbf7ef; }
-.cal-day.other-month .day-num { opacity: .45; }
+.cal-day.month-even { background: #fdf9f2; }
+.cal-month {
+  grid-column: 1 / -1; font-size: 15px; font-weight: 800; color: var(--navy);
+  padding: 12px 4px 2px; border-bottom: 2px dashed var(--line); margin-bottom: 2px;
+}
+.cal-month:first-child { padding-top: 0; }
 .cal-day.out-of-year { background: repeating-linear-gradient(45deg, #f4ede1, #f4ede1 6px, #efe6d6 6px, #efe6d6 12px); }
 .cal-day.today { border-color: var(--gold); box-shadow: 0 0 0 2px var(--gold-soft); }
 .cal-day.today .day-num { background: var(--gold); color: #fff; border-radius: 999px; padding: 0 7px; }

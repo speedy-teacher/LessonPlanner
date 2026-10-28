@@ -8,6 +8,9 @@ Everything saves automatically to `data/lesson-planner.json` (with a daily copy 
 
 ## Screens
 
+Both calendars show the whole school year as one continuous scroll (month buttons jump to a month).
+Hold a bar's end, or anything you're dragging, near the top or bottom edge to scroll into other months.
+
 - **Lesson Calendar** — pick a school and grade, then drag eval criteria (grouped and colored by
   essential outcome) onto a day, and drag either end of the bar to stretch it over several days
   (or click an eval, then click days). Switching school/grade keeps the same month so you can compare.

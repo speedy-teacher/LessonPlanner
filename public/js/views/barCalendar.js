@@ -5,7 +5,7 @@
 
 import { h, iconButton } from '../dom.js';
 import { addDays, daysBetween, isWeekday, mondayOf, weekdaysBetween } from '../dates.js';
-import { monthGrid } from './common.js';
+import { calendarGrid, edgeScroll } from './calendarGrid.js';
 
 // Space between the content of two neighbouring day cells
 // (cell padding 6 + border 1.5, twice, plus the 6px grid gap).
@@ -30,7 +30,7 @@ export function barCalendar(cfg) {
     if (!lanesByWeek.has(monday)) lanesByWeek.set(monday, weekLanes(cfg.items, monday));
     return lanesByWeek.get(monday);
   };
-  return monthGrid((date, info) => dayCell(cfg, date, info, lanesFor(date)), `bar-grid ${cfg.gridClass}`);
+  return calendarGrid((date, info) => dayCell(cfg, date, info, lanesFor(date)), `bar-grid ${cfg.gridClass}`);
 }
 
 /**
@@ -115,29 +115,42 @@ function handle(cfg, item, edge) {
 }
 
 // ---------- stretching ----------
+// While an end is held, the bar follows the pointer; holding near the top or
+// bottom edge scrolls the calendar so a bar can reach into other months.
 
 function startResize(e, cfg, item, edge) {
   e.preventDefault();
   e.stopPropagation();
   const fixed = edge === 'startDate' ? item.endDate : item.startDate;
-  resizing = { item, edge, fixed, target: item[edge], onResize: cfg.onResize };
-  document.addEventListener('mouseover', trackResize);
+  resizing = { item, edge, fixed, target: item[edge], onResize: cfg.onResize, x: e.clientX, y: e.clientY };
+  document.addEventListener('mousemove', trackPointer);
   window.addEventListener('mouseup', finishResize, { once: true });
   document.body.classList.add('is-resizing');
+  requestAnimationFrame(resizeTick);
 }
 
-function trackResize(e) {
-  const cell = e.target.closest('.bar-grid .cal-day:not(.out-of-year)');
-  if (!cell || !resizing) return;
-  resizing.target = cell.dataset.date;
-  const [a, b] = [resizing.fixed, resizing.target].sort();
-  document.querySelectorAll('.bar-grid .cal-day').forEach((c) => {
-    c.classList.toggle('stretch-preview', c.dataset.date >= a && c.dataset.date <= b);
-  });
+function trackPointer(e) {
+  if (!resizing) return;
+  resizing.x = e.clientX;
+  resizing.y = e.clientY;
+}
+
+function resizeTick() {
+  if (!resizing) return;
+  edgeScroll(resizing.y);
+  const cell = document.elementFromPoint(resizing.x, resizing.y)?.closest('.bar-grid .cal-day:not(.out-of-year)');
+  if (cell && cell.dataset.date !== resizing.target) {
+    resizing.target = cell.dataset.date;
+    const [a, b] = [resizing.fixed, resizing.target].sort();
+    document.querySelectorAll('.bar-grid .cal-day').forEach((c) => {
+      c.classList.toggle('stretch-preview', c.dataset.date >= a && c.dataset.date <= b);
+    });
+  }
+  requestAnimationFrame(resizeTick);
 }
 
 function finishResize() {
-  document.removeEventListener('mouseover', trackResize);
+  document.removeEventListener('mousemove', trackPointer);
   document.body.classList.remove('is-resizing');
   const r = resizing;
   resizing = null;

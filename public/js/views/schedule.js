@@ -6,7 +6,8 @@ import { h, toast } from '../dom.js';
 import { addInstrumentBlock, find, inYear, moveRange, remove, resizeRange, shiftSchoolDay } from '../model.js';
 import { commit, setUi, store, undo } from '../store.js';
 import { addDays, daysBetween } from '../dates.js';
-import { current, emptyNote, monthNav, pills, stepMonth, year } from './common.js';
+import { current, emptyNote, pills, year } from './common.js';
+import { calendarHeader, stepMonth } from './calendarGrid.js';
 import { barCalendar } from './barCalendar.js';
 
 const ALL = 'all';
@@ -40,8 +41,7 @@ export function renderSchedule() {
   return h('div', { class: 'schedule-layout' },
     sidebar(ctx),
     h('section', { class: 'main-col card' },
-      monthNav(),
-      armedBanner(),
+      calendarHeader(armedBanner()),
       barCalendar({
         gridClass: 'schedule-grid',
         items,
