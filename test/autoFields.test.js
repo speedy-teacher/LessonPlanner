@@ -8,8 +8,11 @@ test('every automatic detail has its own {{…}} text to type in the slides', ()
   assert.deepEqual(Object.keys(AUTO_FIELD_PLACEHOLDERS).sort(), Object.keys(AUTO_FIELDS).sort());
   const texts = Object.values(AUTO_FIELD_PLACEHOLDERS);
   assert.equal(new Set(texts.map((t) => t.toLowerCase())).size, texts.length, 'no two are the same');
-  for (const text of texts) assert.match(text, /^\{\{[A-Z][a-z ]+\}\}$/);
-  assert.equal(AUTO_FIELD_PLACEHOLDERS.school, '{{School}}');
+  // The same style as the teacher's decks: lowercase words joined by underscores.
+  for (const text of texts) assert.match(text, /^\{\{[a-z]+(_[a-z]+)*\}\}$/);
+  assert.equal(AUTO_FIELD_PLACEHOLDERS.lessonNumber, '{{lesson_number}}');
+  assert.equal(AUTO_FIELD_PLACEHOLDERS.week, '{{week_number}}');
+  assert.equal(AUTO_FIELD_PLACEHOLDERS.school, '{{school}}');
 });
 
 test('a lesson deck added to an eval goes last in its lesson order', () => {

@@ -62,19 +62,20 @@ export const AUTO_FIELDS = {
 };
 
 /**
- * What to type in a slide deck where each automatic detail goes, e.g. "{{School}}".
- * Kept separate from the labels so renaming a label never breaks decks already written.
- * (When copies of decks are made, these are swapped for the real details; capitals don't matter.)
+ * What to type in a slide deck where each automatic detail goes, e.g. "{{school}}" — the same
+ * style the teacher's decks already use ({{lesson_number}}, {{week_number}}): lowercase words
+ * joined by underscores. Kept separate from the labels so renaming a label never breaks decks.
+ * (When copies of decks are made, these are swapped for the real details.)
  */
 export const AUTO_FIELD_PLACEHOLDERS = {
-  school: '{{School}}',
-  grade: '{{Grade}}',
-  date: '{{Date}}',
-  week: '{{Week number}}',
-  lessonNumber: '{{Lesson number}}',
-  instrument: '{{Instrument}}',
-  outcome: '{{Essential outcome}}',
-  criterion: '{{Eval criterion}}',
+  school: '{{school}}',
+  grade: '{{grade}}',
+  date: '{{date}}',
+  week: '{{week_number}}',
+  lessonNumber: '{{lesson_number}}',
+  instrument: '{{instrument}}',
+  outcome: '{{essential_outcome}}',
+  criterion: '{{eval_criterion}}',
 };
 
 // What happens to related records when a record is removed:

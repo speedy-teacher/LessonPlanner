@@ -76,7 +76,7 @@ function lessonEditor(l) {
         h('p', { class: 'hint' }, 'The Outcome & Eval Calendar warns you if one isn’t at the school that week.'),
         instrumentToggles(l),
         h('h3', {}, 'Filled in automatically'),
-        h('p', { class: 'hint' }, 'When this lesson is on the Outcome & Eval Calendar, these details are added for you. In the slides, type the text on the right (e.g. {{School}}) where each detail goes — click it to copy.'),
+        h('p', { class: 'hint' }, 'When this lesson is on the Outcome & Eval Calendar, these details are added for you. In the slides, type the text on the right (e.g. {{school}}) where each detail goes — click it to copy.'),
         h('div', { class: 'auto-fields big' }, Object.entries(AUTO_FIELDS).map(([key, label]) => autoFieldToggle(l, key, label))))),
     usedIn(l),
   );

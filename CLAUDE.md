@@ -65,7 +65,7 @@ A browser app for a (non-technical) elementary music teacher to plan a school ye
   No Google Drive for Desktop (blocked by IT).
 - Previews (`thumbnails.js`): first slide only, for Drive decks, via Drive `thumbnailLink` in an <img> (Google blocks fetch/CORS);
   addresses kept in memory per visit, never saved. Other decks show "Preview not available".
-- Next on the roadmap: copy decks to a Drive folder and fill `{{School}}`-style placeholders via the Slides API.
+- Next on the roadmap: copy decks to a Drive folder and fill the `{{lesson_number}}`-style placeholders (`AUTO_FIELD_PLACEHOLDERS`, matching the teacher's decks) via the Slides API.
 
 ## Working agreements
 - Feature work on a `feature/...` branch, commit at milestones, then recommend merging to `main` (fast-forward, delete branch).
