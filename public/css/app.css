@@ -89,6 +89,7 @@ kbd {
 }
 .icon-btn:hover:not(:disabled) { background: var(--card-2); color: var(--ink); }
 .icon-btn:disabled { opacity: .35; cursor: default; }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
 .icon-btn.invisible { visibility: hidden; }
 .hint { color: var(--ink-soft); font-size: 13px; margin: 4px 0 10px; }
 .mini-label { font-size: 12px; font-weight: 700; color: var(--ink-soft); text-transform: uppercase; letter-spacing: .4px; }
@@ -407,3 +408,11 @@ input:focus, select:focus, button:focus-visible { outline: 3px solid #cdb8ea; ou
   .plan-layout, .plan-layout.with-detail, .schedule-layout, .outcomes-layout { grid-template-columns: 1fr; }
   .side, .detail { position: static; max-height: none; }
 }
+
+/* ---------- Google Drive (setup) ---------- */
+.google-card .field { margin-bottom: 10px; }
+.google-origin { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13px; color: var(--ink-soft); margin-bottom: 12px; }
+.google-origin code { background: var(--card-2); padding: 2px 8px; border-radius: 8px; color: var(--navy); font-weight: 700; }
+.google-status { font-size: 14px; margin-top: 10px; }
+.google-status.ok { display: flex; align-items: center; gap: 10px; color: var(--sage); font-weight: 800; }
+.google-status.error { color: var(--terracotta); font-weight: 700; }

@@ -73,6 +73,11 @@ export function subscribe(fn) {
   store.listeners.add(fn);
 }
 
+/** Redraw the page without changing any data (e.g. after a Google sign-in). */
+export function refresh() {
+  notify();
+}
+
 function notify() {
   store.listeners.forEach((fn) => fn());
 }

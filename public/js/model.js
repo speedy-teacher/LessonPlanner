@@ -63,6 +63,9 @@ const RELATIONS = {
   criteria: [['criterionLessons', 'criterionId', 'delete'], ['placements', 'criterionId', 'delete']],
 };
 
+/** App-wide settings (not tied to a year). Google ids are public, not passwords. */
+export const DEFAULT_SETTINGS = { googleClientId: '', googleApiKey: '' };
+
 export function newId(prefix) {
   const rand = Math.random().toString(36).slice(2, 8);
   return `${prefix}_${Date.now().toString(36)}${rand}`;
@@ -74,7 +77,7 @@ const PREFIX = {
 };
 
 export function emptyState() {
-  const state = { schemaVersion: SCHEMA_VERSION, activeYearId: null };
+  const state = { schemaVersion: SCHEMA_VERSION, activeYearId: null, settings: { ...DEFAULT_SETTINGS } };
   for (const name of Object.keys(COLLECTIONS)) state[name] = [];
   return state;
 }
@@ -88,6 +91,7 @@ export function normalize(raw) {
   state.criteria.forEach((c) => { if (!Array.isArray(c.gradeIds)) c.gradeIds = []; });
   migrate(state);
   state.lessons.forEach(normalizeLesson);
+  state.settings = { ...DEFAULT_SETTINGS, ...(state.settings || {}) };
   for (const year of state.years) assignOutcomeColors(state, year.id);
   if (!state.years.some((y) => y.id === state.activeYearId)) {
     state.activeYearId = state.years.at(-1)?.id ?? null;
