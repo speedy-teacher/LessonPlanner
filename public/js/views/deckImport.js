@@ -28,7 +28,7 @@ export function addMenu() {
     menuItem('Slide files…', () => pickLocal(false), { icon: '📄', tip: 'Pick one or more slide decks' }),
     menuItem('A folder of slides…', () => pickLocal(true), { icon: '🗂️', tip: 'Brings in every deck, including folders inside folders' }),
     h('div', { class: 'menu-group' }, 'From Google Drive'),
-    menuItem('Decks or folders…', importFromDrive, { icon: '☁️', tip: 'Folders are watched: new decks added there show up here' }));
+    menuItem('Files or folders…', importFromDrive, { icon: '☁️', tip: 'Any kind of Drive file (Docs, Sheets, Slides, PDFs…). Folders are watched: new files added there show up here' }));
 }
 
 function newDeck() {
@@ -46,7 +46,7 @@ function showResult(result, where) {
   if (added[0]) setUi({ lessonId: added[0].id, lessonSearch: '' });
   const parts = [`Added ${plural(added.length, 'lesson deck')}`];
   if (folders.length) parts.push(`and ${plural(folders.length, 'folder')}`);
-  const skippedNote = skipped.length ? ` Skipped ${plural(skipped.length, 'file')} that ${skipped.length === 1 ? 'isn’t a slide deck' : 'aren’t slide decks'}.` : '';
+  const skippedNote = skipped.length ? ` Skipped ${plural(skipped.length, 'file')} of a kind the planner doesn’t add (${skipped.slice(0, 3).join(', ')}${skipped.length > 3 ? '…' : ''}).` : '';
   const nothing = !added.length && !folders.length;
   showNotice({
     id: 'deck-import', tone: nothing ? 'info' : 'success', title: where,
@@ -158,7 +158,7 @@ export async function checkWatchedFolders({ now = false } = {}) {
 
 function announceNew(added) {
   showNotice({
-    id: 'drive-new-decks', tone: 'info', title: 'New lesson decks from Google Drive',
+    id: 'drive-new-decks', tone: 'info', title: 'New lesson files from Google Drive',
     message: `${plural(added.length, 'new deck')} ${added.length === 1 ? 'was' : 'were'} added. Follow the ❗ in Lesson Templates to find ${added.length === 1 ? 'it' : 'them'}.`,
     actions: [{ label: 'Show me', run: () => { dismissNotice('drive-new-decks'); openFolders(added.map((l) => l.folderId).filter(Boolean)); setUi({ tab: 'lessons', lessonId: added[0].id, lessonSearch: '' }); } }],
     seconds: 30,

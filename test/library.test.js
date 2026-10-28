@@ -142,16 +142,19 @@ test('picking the same computer folder again adds only the new decks', () => {
 
 // ---------- from Google Drive ----------
 
-test('picking Drive decks adds them; picking a Drive folder adds a watched folder with everything inside', () => {
+test('picking Drive files adds them (any kind); picking a Drive folder adds a watched folder with everything inside', () => {
   const { s, yearId } = library();
   const nodes = [
     driveFile('d1', 'Loose deck'),
     driveFolder('f1', 'Unit 1', [driveFile('d2', 'Lesson A.pptx', 'application/vnd.openxmlformats-officedocument.presentationml.presentation'),
-      driveFolder('f2', 'Extras', [driveFile('d3', 'Lesson B', PDF), driveFile('d4', 'Sheet', 'application/vnd.google-apps.spreadsheet')])]),
+      driveFolder('f2', 'Extras', [driveFile('d3', 'Lesson B', PDF), driveFile('d4', 'Sheet', 'application/vnd.google-apps.spreadsheet'),
+        driveFile('d5', 'Song sheet', 'application/vnd.google-apps.document'), driveFile('d6', 'Recording.mp3', 'audio/mpeg'),
+        driveFile('d7', 'Shortcut to deck', 'application/vnd.google-apps.shortcut'),
+        { id: 'd8', name: 'Music Plans 2026–2027', mimeType: 'application/json', properties: { lessonPlanner: 'workspace' } }])]),
   ];
   const result = importDriveItems(s, { yearId, nodes });
-  assert.deepEqual(names(result.added), ['Loose deck', 'Lesson A', 'Lesson B']);
-  assert.deepEqual(result.skipped, ['Sheet']);
+  assert.deepEqual(names(result.added), ['Loose deck', 'Lesson A', 'Lesson B', 'Sheet', 'Song sheet', 'Recording.mp3']);
+  assert.deepEqual(result.skipped, ['Shortcut to deck', 'Music Plans 2026–2027'], 'shortcuts and plan files are not lessons');
   assert.ok(result.added.every((l) => !l.isNew), 'decks you pick yourself are not marked new');
   const [unit] = foldersIn(s, yearId, null);
   assert.equal(unit.name, 'Unit 1');
@@ -212,7 +215,8 @@ test('a folder that is no longer watched is not checked', () => {
 
 test('reading a Drive folder follows folders inside folders and every page of results', async () => {
   const drive = {
-    root: [[driveFile('a', 'Deck A'), { id: 'x', name: 'Doc', mimeType: 'application/vnd.google-apps.document' }], [driveFolder('sub', 'Sub')]],
+    root: [[driveFile('a', 'Deck A'), { id: 'x', name: 'Doc', mimeType: 'application/vnd.google-apps.document' },
+      { id: 'y', name: 'Shortcut', mimeType: 'application/vnd.google-apps.shortcut' }], [driveFolder('sub', 'Sub')]],
     sub: [[driveFile('b', 'Deck B', PDF)]],
   };
   const calls = [];
@@ -225,8 +229,8 @@ test('reading a Drive folder follows folders inside folders and every page of re
     return { ok: true, status: 200, json: async () => ({ files: pages[page].map(({ children: _c, ...f }) => f), nextPageToken: page + 1 < pages.length ? String(page + 1) : undefined }) };
   };
   const tree = await listFolderTree('fake-token', 'root', { fetchFn });
-  assert.deepEqual(tree.map((n) => n.name), ['Deck A', 'Sub'], 'non-deck files are left out');
-  assert.deepEqual(tree[1].children.map((n) => n.name), ['Deck B']);
+  assert.deepEqual(tree.map((n) => n.name), ['Deck A', 'Doc', 'Sub'], 'every kind of file, but not shortcuts');
+  assert.deepEqual(tree.find((n) => n.name === 'Sub').children.map((n) => n.name), ['Deck B']);
   assert.ok(calls.every((c) => c === 'Bearer fake-token'));
 });
 
@@ -375,7 +379,7 @@ test('the first-slide picture is asked for at a size that looks sharp', () => {
   assert.equal(sizedThumbnail('https://example.test/pic', 640), 'https://example.test/pic');
 });
 
-test('"Open in Google Slides" goes straight to the deck’s edit page (PDFs open in Drive’s viewer)', async () => {
+test('"Open in …" goes straight to each file’s Google editor (others open in Drive’s viewer)', async () => {
   const { driveOpenUrl, driveLocation } = await import('../public/js/locations.js');
   const slides = driveLocation({ fileId: 'fakeSlides1', mimeType: 'application/vnd.google-apps.presentation' });
   assert.equal(driveOpenUrl(slides), 'https://docs.google.com/presentation/d/fakeSlides1/edit');
@@ -383,4 +387,36 @@ test('"Open in Google Slides" goes straight to the deck’s edit page (PDFs open
   assert.equal(driveOpenUrl(pptx), 'https://docs.google.com/presentation/d/fakePptx1/edit');
   assert.equal(driveOpenUrl(driveLocation({ fileId: 'fakeOld1' })), 'https://docs.google.com/presentation/d/fakeOld1/edit', 'older decks without a type');
   assert.equal(driveOpenUrl(driveLocation({ fileId: 'fakePdf1', mimeType: 'application/pdf' })), 'https://drive.google.com/file/d/fakePdf1/view');
+});
+
+test('each kind of Drive file opens in its own editor, named on the link', async () => {
+  const { driveOpenUrl, driveOpenLabel, driveLocation } = await import('../public/js/locations.js');
+  const open = (mimeType) => {
+    const loc = driveLocation({ fileId: 'fake1', mimeType });
+    return [driveOpenUrl(loc), driveOpenLabel(loc)];
+  };
+  assert.deepEqual(open('application/vnd.google-apps.document'), ['https://docs.google.com/document/d/fake1/edit', 'Open in Google Docs']);
+  assert.deepEqual(open('application/vnd.google-apps.spreadsheet'), ['https://docs.google.com/spreadsheets/d/fake1/edit', 'Open in Google Sheets']);
+  assert.deepEqual(open('application/vnd.google-apps.form'), ['https://docs.google.com/forms/d/fake1/edit', 'Open in Google Forms']);
+  assert.deepEqual(open('application/vnd.openxmlformats-officedocument.wordprocessingml.document'), ['https://docs.google.com/document/d/fake1/edit', 'Open in Google Docs']);
+  assert.deepEqual(open('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'), ['https://docs.google.com/spreadsheets/d/fake1/edit', 'Open in Google Sheets']);
+  assert.deepEqual(open('audio/mpeg'), ['https://drive.google.com/file/d/fake1/view', 'Open in Google Drive']);
+});
+
+test('details are filled in automatically only for Google Docs, Sheets and Slides', async () => {
+  const { canFillIn, driveLocation, localLocation } = await import('../public/js/locations.js');
+  const { autoFill, add, emptyState } = await import('../public/js/model.js');
+  const lessonWith = (locations) => ({ locations });
+  const drive = (mimeType) => lessonWith([driveLocation({ fileId: 'fake1', mimeType })]);
+  assert.ok(canFillIn(drive('application/vnd.google-apps.presentation')));
+  assert.ok(canFillIn(drive('application/vnd.google-apps.document')));
+  assert.ok(canFillIn(drive('application/vnd.google-apps.spreadsheet')));
+  assert.ok(!canFillIn(drive(PDF)));
+  assert.ok(!canFillIn(drive('application/vnd.openxmlformats-officedocument.presentationml.presentation')), 'PowerPoint files can’t be filled in');
+  assert.ok(!canFillIn(lessonWith([localLocation({ path: 'Beat.pptx' })])), 'files on the computer can’t be filled in');
+  assert.ok(canFillIn(lessonWith([])), 'a lesson with no file yet still can');
+  // A PDF lesson gets no filled-in details, even if some were ticked before.
+  const s = emptyState();
+  const pdf = add(s, 'lessons', { yearId: 'y', name: 'Handout', autoFields: ['school'], instrumentIds: [], locations: drive(PDF).locations });
+  assert.deepEqual(autoFill(s, { lessonId: pdf.id }), []);
 });

@@ -9,13 +9,12 @@ import { addLocation, driveFileId, driveLocation, hasLocation, localLocation, lo
 /** File endings that count as slide decks (anything else in a folder is skipped). */
 export const DECK_EXTENSIONS = ['pptx', 'ppt', 'pptm', 'potx', 'odp', 'key', 'pdf'];
 export const DRIVE_FOLDER = 'application/vnd.google-apps.folder';
-export const DRIVE_DECK_TYPES = [
-  'application/vnd.google-apps.presentation',
-  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-  'application/vnd.ms-powerpoint',
-  'application/vnd.oasis.opendocument.presentation',
-  'application/pdf',
-];
+const DRIVE_SHORTCUT = 'application/vnd.google-apps.shortcut';
+
+/** Any kind of Drive file can be a lesson — except folders, shortcuts, and the planner's own plan files. */
+export function isDriveLessonFile(file) {
+  return file.mimeType !== DRIVE_FOLDER && file.mimeType !== DRIVE_SHORTCUT && !file.properties?.lessonPlanner;
+}
 export const DEFAULT_AUTO_FIELDS = ['school', 'grade', 'date'];
 
 const byName = (a, b) => a.name.localeCompare(b.name, undefined, { numeric: true });
@@ -217,7 +216,7 @@ function addDriveFolder(ctx, node, parentId, top) {
 }
 
 function addDriveDeck(ctx, node, folderId) {
-  if (!DRIVE_DECK_TYPES.includes(node.mimeType)) { ctx.result.skipped.push(node.name); return; }
+  if (!isDriveLessonFile(node)) { ctx.result.skipped.push(node.name); return; }
   const seenBefore = ctx.seen?.has(node.id);
   ctx.seen?.add(node.id);
   const existing = driveRecord(ctx, 'lessons', node.id);

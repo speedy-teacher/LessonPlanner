@@ -6,7 +6,7 @@ import {
   addStep, AUTO_FIELD_PLACEHOLDERS, AUTO_FIELDS, criteriaFor, duplicateLesson, editLesson, find, lessonEvals, lessonUsageByGrade, outcomeLabel, remove,
 } from '../model.js';
 import { addDeck, foldersIn, moveDeck } from '../library.js';
-import { driveOpenUrl } from '../locations.js';
+import { canFillIn, driveOpenLabel, driveOpenUrl } from '../locations.js';
 import { commit, setUi, store, undo } from '../store.js';
 import { current, emptyNote, year } from './common.js';
 import { lessonPreview } from './lessonPreview.js';
@@ -54,7 +54,8 @@ function instrumentFilterChip() {
 
 function lessonEditor(l) {
   const categories = [...new Set(current('lessons').filter((x) => x.category).map((x) => x.category))].sort();
-  const fields = l.autoFields.map((key) => ({ key, label: AUTO_FIELDS[key], value: '' }));
+  const fillable = canFillIn(l);
+  const fields = fillable ? l.autoFields.map((key) => ({ key, label: AUTO_FIELDS[key], value: '' })) : [];
   return h('div', { class: 'template-editor' },
     h('div', { class: 'editor-head' },
       h('label', { class: 'field grow' }, h('span', {}, 'Lesson name'),
@@ -76,9 +77,7 @@ function lessonEditor(l) {
         h('h3', {}, 'Instruments this lesson uses'),
         h('p', { class: 'hint' }, 'The Outcome & Eval Calendar warns you if one isn’t at the school that week.'),
         instrumentToggles(l),
-        h('h3', {}, 'Filled in automatically'),
-        h('p', { class: 'hint' }, 'When this lesson is on the Outcome & Eval Calendar, these details are added for you. In the slides, type the text on the right (e.g. {{school}}) where each detail goes — click it to copy.'),
-        h('div', { class: 'auto-fields big' }, Object.entries(AUTO_FIELDS).map(([key, label]) => autoFieldToggle(l, key, label))))),
+        fillable ? autoFieldsSection(l) : null)),
     usedIn(l),
   );
 }
@@ -119,7 +118,7 @@ function locationList(l) {
 
 function locationLabel(loc) {
   if (loc.kind === 'drive') {
-    return ['☁️ Google Drive · ', h('a', { href: driveOpenUrl(loc), target: '_blank', rel: 'noopener', title: 'Opens the slides in a new tab' }, 'Open in Google Slides ↗')];
+    return ['☁️ Google Drive · ', h('a', { href: driveOpenUrl(loc), target: '_blank', rel: 'noopener', title: 'Opens the file in a new tab' }, `${driveOpenLabel(loc)} ↗`)];
   }
   const root = find(store.state, 'localRoots', loc.rootId);
   const path = root ? [root.name, loc.path].filter(Boolean).join('/') : loc.path;
@@ -141,6 +140,15 @@ function instrumentToggles(l) {
       })),
     }, i.name);
   }));
+}
+
+/** Only for Google Docs, Sheets and Slides (and lessons with no file yet) — other files can't be filled in. */
+function autoFieldsSection(l) {
+  return [
+    h('h3', {}, 'Filled in automatically'),
+    h('p', { class: 'hint' }, 'When this lesson is on the Outcome & Eval Calendar, these details are added for you. In the file, type the text on the right (e.g. {{school}}) where each detail goes — click it to copy.'),
+    h('div', { class: 'auto-fields big' }, Object.entries(AUTO_FIELDS).map(([key, label]) => autoFieldToggle(l, key, label))),
+  ];
 }
 
 function autoFieldToggle(l, key, label) {

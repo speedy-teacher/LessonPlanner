@@ -11,7 +11,7 @@
 // This module is shared by the browser app and the Node tests.
 
 import { addDays, daysBetween, isWeekday, mondayOf, nextWeekday, weekdaysBetween } from './dates.js';
-import { driveLocation, localLocation } from './locations.js';
+import { canFillIn, driveLocation, localLocation } from './locations.js';
 
 export const SCHEMA_VERSION = 5;
 
@@ -543,7 +543,7 @@ export function lessonInstruments(state, lesson) {
  */
 export function autoFill(state, step, placement) {
   const lesson = find(state, 'lessons', step.lessonId);
-  if (!lesson) return [];
+  if (!lesson || !canFillIn(lesson)) return [];
   const criterion = find(state, 'criteria', step.criterionId ?? placement?.criterionId);
   const values = {
     ...scheduleValues(state, placement),

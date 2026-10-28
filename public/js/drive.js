@@ -2,11 +2,11 @@
 // listing what's inside a folder (and its folders). Nothing goes through the
 // planner's server — only the deck details end up in your planner data.
 
-import { DRIVE_DECK_TYPES, DRIVE_FOLDER } from './library.js';
+import { DRIVE_FOLDER, isDriveLessonFile } from './library.js';
 
 const FILES_URL = 'https://www.googleapis.com/drive/v3/files';
 const PICKER_SRC = 'https://apis.google.com/js/api.js';
-const FILE_FIELDS = 'id,name,mimeType,modifiedTime';
+const FILE_FIELDS = 'id,name,mimeType,modifiedTime,properties';
 const MAX_DEPTH = 12;
 
 /** Thrown with message 'needs_folder_access' when the sign-in can't look inside folders yet. */
@@ -42,12 +42,12 @@ async function listChildren(token, folderId, fetchFn) {
 
 /**
  * A folder's contents as a tree: [{ id, name, mimeType, …, children? }].
- * Folders inside folders are read too. Only folders and slide decks are kept.
+ * Folders inside folders are read too. Folders and lesson files are kept (not shortcuts or plan files).
  */
 export async function listFolderTree(token, folderId, { fetchFn = fetch, depth = 0, visited = new Set() } = {}) {
   visited.add(folderId);
   const items = (await listChildren(token, folderId, fetchFn))
-    .filter((f) => f.mimeType === DRIVE_FOLDER || DRIVE_DECK_TYPES.includes(f.mimeType));
+    .filter((f) => f.mimeType === DRIVE_FOLDER || isDriveLessonFile(f));
   for (const item of items) {
     if (item.mimeType !== DRIVE_FOLDER || visited.has(item.id) || depth >= MAX_DEPTH) continue;
     item.children = await listFolderTree(token, item.id, { fetchFn, depth: depth + 1, visited });
@@ -90,12 +90,12 @@ export function projectNumber(clientId) {
 }
 
 /**
- * Open Google's picker for slide decks and folders (several at once).
+ * Open Google's picker for lesson files (any kind) and folders (several at once).
  * Resolves to the picked items [{ id, name, mimeType }], or [] if closed.
  */
 export function pickFromDrive({ token, apiKey, clientId }) {
   return openPicker({ token, apiKey, clientId }, {
-    mimeTypes: [...DRIVE_DECK_TYPES, DRIVE_FOLDER], folders: true, multiple: true, title: 'Pick slide decks or folders',
+    mimeTypes: null, folders: true, multiple: true, title: 'Pick lesson files or folders',
   });
 }
 
@@ -109,16 +109,15 @@ export function pickFolderFromDrive({ token, apiKey, clientId }) {
   return openPicker({ token, apiKey, clientId }, { mimeTypes: [DRIVE_FOLDER], folders: true, title: 'Pick a folder for the plan' });
 }
 
+/** `mimeTypes` = the kinds of file to show (null = every kind). */
 async function openPicker({ token, apiKey, clientId }, { mimeTypes, folders = false, multiple = false, title }) {
   await loadPicker();
   const { picker } = window.google;
-  const view = new picker.DocsView(picker.ViewId.DOCS)
-    .setIncludeFolders(true)
-    .setSelectFolderEnabled(folders)
-    .setMimeTypes((folders ? mimeTypes : [...mimeTypes, DRIVE_FOLDER]).join(','));
+  const view = new picker.DocsView(picker.ViewId.DOCS).setIncludeFolders(true).setSelectFolderEnabled(folders);
+  if (mimeTypes) view.setMimeTypes((folders ? mimeTypes : [...mimeTypes, DRIVE_FOLDER]).join(','));
   const builder = new picker.PickerBuilder().addView(view);
   if (multiple) builder.enableFeature(picker.Feature.MULTISELECT_ENABLED);
-  if (!multiple) builder.addView(new picker.DocsView(picker.ViewId.DOCS).setMimeTypes(mimeTypes.join(',')).setOwnedByMe(false));
+  if (!multiple && mimeTypes) builder.addView(new picker.DocsView(picker.ViewId.DOCS).setMimeTypes(mimeTypes.join(',')).setOwnedByMe(false));
   return new Promise((resolve) => {
     builder
       .setOAuthToken(token)
