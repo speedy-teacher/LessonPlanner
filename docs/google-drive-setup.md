@@ -1,4 +1,4 @@
-# Connect the Lesson Planner to Google Drive (pilot)
+# Connect the Lesson Planner to Google Drive
 
 About 10 minutes, once. You make a free "Google project" that lets the planner open
 Google's sign-in window. Nothing here costs money, and no IT approval is needed to try.
@@ -70,7 +70,8 @@ Google changes its screens now and then; if a button name is slightly different,
    (The planner's Setup tab has a **Copy** button for this.) Leave "redirect URIs" empty.
 4. Click **Create**.
 5. Copy the **Client ID** — it ends in `.apps.googleusercontent.com`.
-   You do **not** need the "client secret"; don't share it with anyone.
+6. Copy the **Client secret** too (starts with `GOCSPX-`). If you closed the window: **Clients** → **Lesson Planner**,
+   it's on the right. This one *is* private: paste it only into the planner, never send it to anyone.
 
 ## 7. Make the API key (code #2)
 
@@ -85,10 +86,17 @@ Google changes its screens now and then; if a button name is slightly different,
 
 1. Open the planner (double-click **Start Lesson Planner**). It opens at `http://localhost:5178`.
 2. Go to the **Setup** tab → **Google Drive** card.
-3. Paste the **Client ID** and the **API key** into their boxes (click outside each box to save it).
+3. Paste the **Client ID**, **Client secret** and **API key** into their boxes (click outside each box to save it).
+   The client secret is kept in a separate file on this computer (`data/google-auth.json`), never in your lesson data.
 4. Click **Connect Google Drive**. Google's window opens:
    sign in with your **school account** and click **Continue** / **Allow**.
-5. You should see **✓ Connected to Google Drive as …**. That's the pilot passing!
+5. You should see **✓ Connected to Google Drive as …**.
+
+You stay signed in: each time the planner opens it reconnects by itself.
+
+**About once a week**, while the Google project is in *testing* mode, Google ends the sign-in. A note pops up in the
+bottom-left corner — **"Google Drive signed you out"** — click **Sign in**, pick your account, click **Allow**. Same codes, nothing to redo.
+(The **Sign in again** button on the Setup tab does the same.)
 
 ---
 
@@ -100,5 +108,6 @@ Google changes its screens now and then; if a button name is slightly different,
 | **"Error 400: origin_mismatch"** | The address in step 6 doesn't match. | Check step 6 says exactly `http://localhost:5178` (no slash at the end). Changes can take 5 minutes to work. |
 | **"Access blocked: … has not completed the Google verification process"** / **"access_denied"** | Using a personal-Gmail project and your school email isn't a test user. | Do step 4 #7 (add your school email as a test user). |
 | **"Google Drive API isn't turned on"** (in the planner) | Step 3 was skipped. | Enable **Google Drive API**, wait a minute, connect again. |
+| **"Google didn't accept the Client ID or client secret"** | One of them was copied incompletely. | Copy both again from **Clients** → **Lesson Planner**. |
 | **The Google window doesn't open** | Pop-ups are blocked. | Allow pop-ups for `localhost:5178` (icon at the right of the address bar). |
 | **"Google only works when the planner is opened at http://localhost:5178"** | The planner was opened at a different address. | Click the link shown, or close it and double-click **Start Lesson Planner**. |

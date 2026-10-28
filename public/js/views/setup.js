@@ -2,9 +2,9 @@
 
 import { adder, editable, h, iconButton, openModal, toast } from '../dom.js';
 import { add, createYear, nextColor, remove, suggestNextYear, update } from '../model.js';
-import { commit, refresh, store, undo } from '../store.js';
+import { commit, store, undo } from '../store.js';
 import { current, year } from './common.js';
-import { APP_ORIGIN, connectDrive, disconnectDrive, google, looksLikeClientId } from '../google.js';
+import { googleCard } from './googleCard.js';
 
 const LISTS = [
   { collection: 'schools', title: 'Schools', placeholder: 'New school…', note: 'Removing a school also removes its calendar entries and instrument schedule.' },
@@ -79,49 +79,6 @@ function extraAfter(collection, item) {
     return editable(item.short || '', (short) => commit((s) => update(s, 'grades', item.id, { short })), { class: 'inline-edit short-edit', title: 'Short label', placeholder: 'K' });
   }
   return null;
-}
-
-// ---------- Google Drive (pilot) ----------
-
-function googleCard() {
-  const { googleClientId, googleApiKey } = store.state.settings;
-  const setSetting = (key) => (value) => commit((s) => { s.settings[key] = value; });
-  return h('section', { class: 'card setup-card google-card' },
-    h('h3', {}, 'Google Drive', h('span', { class: 'count-badge' }, 'pilot')),
-    h('p', { class: 'hint' }, 'Paste the two codes from your Google project (see the setup guide), then connect.'),
-    h('div', { class: 'google-origin' },
-      h('span', {}, 'Your planner’s address for Google: '),
-      h('code', {}, APP_ORIGIN),
-      h('button', { class: 'btn small light', onclick: () => copyText(APP_ORIGIN) }, 'Copy')),
-    h('label', { class: 'field' }, h('span', {}, 'Client ID'),
-      editable(googleClientId, setSetting('googleClientId'), { placeholder: '…apps.googleusercontent.com', allowEmpty: true, spellcheck: 'false' })),
-    h('label', { class: 'field' }, h('span', {}, 'API key (for picking files later)'),
-      editable(googleApiKey, setSetting('googleApiKey'), { placeholder: 'AIza…', allowEmpty: true, spellcheck: 'false' })),
-    connectRow(googleClientId),
-  );
-}
-
-function connectRow(clientId) {
-  if (location.origin !== APP_ORIGIN) {
-    return h('p', { class: 'google-status error' }, 'Google only works when the planner is opened at ', h('a', { href: APP_ORIGIN }, APP_ORIGIN), '.');
-  }
-  if (google.status === 'connected') {
-    return h('div', { class: 'google-status ok' },
-      h('span', {}, `✓ Connected to Google Drive${google.userName ? ` as ${google.userName}` : ''}`),
-      h('button', { class: 'btn small light', onclick: () => disconnectDrive(refresh) }, 'Disconnect'));
-  }
-  const ready = looksLikeClientId(clientId);
-  return h('div', {},
-    h('button', {
-      class: 'btn', disabled: !ready || google.status === 'working',
-      title: ready ? 'Opens Google’s sign-in window' : 'Paste a Client ID first',
-      onclick: () => connectDrive(clientId.trim(), refresh),
-    }, google.status === 'working' ? 'Connecting…' : 'Connect Google Drive'),
-    google.message ? h('p', { class: `google-status ${google.status === 'error' ? 'error' : ''}` }, google.message) : null);
-}
-
-function copyText(text) {
-  navigator.clipboard?.writeText(text).then(() => toast('Copied!'), () => toast(`Copy this: ${text}`));
 }
 
 // ---------- new year / delete year ----------

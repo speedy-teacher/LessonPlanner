@@ -6,12 +6,15 @@
 //
 // Data is written to data/lesson-planner.json. A copy is also kept per day
 // in data/backups/ so an accidental change can always be recovered.
+//
+//   /api/google/*    -> staying signed in to Google Drive (see googleAuth.js)
 
 import { createServer } from 'node:http';
 import { mkdir, readFile, rename, writeFile, copyFile, access } from 'node:fs/promises';
 import { join, extname, normalize, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { exec } from 'node:child_process';
+import { createGoogleAuth } from './googleAuth.js';
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = join(ROOT, 'public');
@@ -27,7 +30,7 @@ const TYPES = {
   '.json': 'application/json',
 };
 
-export function createApp({ dataDir = join(ROOT, 'data') } = {}) {
+export function createApp({ dataDir = join(ROOT, 'data'), google = {} } = {}) {
   const dataFile = join(dataDir, 'lesson-planner.json');
 
   async function loadState() {
@@ -49,8 +52,10 @@ export function createApp({ dataDir = join(ROOT, 'data') } = {}) {
     if (!exists) await copyFile(dataFile, backup);
   }
 
+  const handleGoogle = createGoogleAuth({ dataDir, ...google });
+
   return createServer((req, res) => {
-    handle(req, res, { loadState, saveState }).catch((err) => {
+    handle(req, res, { loadState, saveState, handleGoogle }).catch((err) => {
       console.error(err);
       send(res, 500, { error: 'Something went wrong on the server.' });
     });
@@ -60,6 +65,11 @@ export function createApp({ dataDir = join(ROOT, 'data') } = {}) {
 async function handle(req, res, store) {
   const url = new URL(req.url, 'http://localhost');
   if (url.pathname === '/api/state') return handleState(req, res, store);
+  if (url.pathname.startsWith('/api/google/')) {
+    const readJson = async () => JSON.parse((await readBody(req)) || '{}');
+    const [status, body] = await store.handleGoogle(req, url.pathname.slice('/api/google/'.length), readJson);
+    return send(res, status, body);
+  }
   if (req.method !== 'GET') return send(res, 405, { error: 'Method not allowed' });
   return serveStatic(url.pathname, res);
 }

@@ -25,7 +25,9 @@ Hold a bar's end, or anything you're dragging, near the top or bottom edge to sc
   which details it fills in automatically, and which evals teach it. `↑` `↓` move through the list.
 - **Setup** — the year's dates, schools, grades and instruments; start a new year
   (copies last year's lists, lesson decks, outcomes, criteria and lesson order; calendars start empty).
-  The **Google Drive** card (pilot) connects to Drive — see `docs/google-drive-setup.md`.
+  The **Google Drive** card connects to Drive and stays signed in — see `docs/google-drive-setup.md`.
+
+Notices pop up in the bottom-left corner (`public/js/notices.js` — reusable: message, buttons, auto-hide).
 
 ## Data model
 

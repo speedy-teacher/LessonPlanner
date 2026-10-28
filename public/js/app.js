@@ -1,7 +1,9 @@
 // App shell: header, year picker, tabs, keyboard shortcuts.
 
 import { h, installTooltips } from './dom.js';
-import { commit, loadData, redo, setUi, store, subscribe, undo } from './store.js';
+import { commit, loadData, redo, refresh, setUi, store, subscribe, undo } from './store.js';
+import { resumeDrive, setGoogleHandlers } from './google.js';
+import { showSignInNotice } from './views/googleCard.js';
 import { renderPlan, planKeys } from './views/plan.js';
 import { renderSchedule, scheduleKeys } from './views/schedule.js';
 import { renderOutcomes } from './views/outcomes.js';
@@ -89,6 +91,8 @@ async function start() {
   subscribe(render);
   try {
     await loadData();
+    setGoogleHandlers({ change: refresh, needsSignIn: showSignInNotice });
+    resumeDrive(store.state.settings.googleClientId);
   } catch (err) {
     document.getElementById('main').replaceChildren(h('p', { class: 'empty-note' },
       'The planner couldn’t load. Please close this tab and double-click “Start Lesson Planner” again.'));
