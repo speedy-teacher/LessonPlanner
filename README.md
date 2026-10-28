@@ -14,7 +14,9 @@ Everything saves automatically to `data/lesson-planner.json` (with a daily copy 
   ⚠ marks an eval whose lesson needs an instrument that isn't at that school on some of its days — hover to read why.
   Shortcuts: `[` `]` school, `0`–`5` grade, `←` `→` month, `Shift`+`←` `→` shorten/lengthen the selected bar,
   `Esc` stop placing, `Ctrl+Z` undo.
-- **Instrument Schedule** — paint which instruments are at which school, color coded.
+- **Instrument Schedule** — drag an instrument for a school onto its first day, then drag the end of the bar
+  to its last day. Bars are colored by instrument and labeled `Instrument@School`; "Show" narrows to one school.
+  Same moves as the Lesson Calendar (Ctrl to copy, `Shift`+`←` `→`, `Delete`).
 - **Outcomes & Lessons** — essential outcomes → eval criteria → grades and ordered lesson slides.
 - **Templates** — the lesson slide template library: search, categories, which details each template
   fills in automatically, and which slides use it. `↑` `↓` move through the list.

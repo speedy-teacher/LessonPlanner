@@ -185,7 +185,7 @@ input:focus, select:focus, button:focus-visible { outline: 3px solid #cdb8ea; ou
 .palette-outcome { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 800; color: var(--chip); margin-top: 4px; }
 
 /* Calendar entries: one bar per eval, drawn as connected pieces across days. */
-.plan-grid .cal-day { overflow: visible; }
+.bar-grid .cal-day { overflow: visible; }
 .seg-spacer, .seg { height: 24px; flex: none; }
 .seg {
 
@@ -329,25 +329,24 @@ input:focus, select:focus, button:focus-visible { outline: 3px solid #cdb8ea; ou
 
 /* ---------- instrument schedule ---------- */
 
-.legend { display: flex; gap: 14px; margin-bottom: 10px; flex-wrap: wrap; }
-.legend-schools { margin-left: auto; display: flex; gap: 10px; flex-wrap: wrap; font-size: 12px; color: var(--ink-soft); }
-.legend-schools b { color: var(--royal); }
+.palette-school { margin-bottom: 12px; }
+.palette-school-name { font-size: 13px; font-weight: 800; color: var(--navy); margin-bottom: 5px; }
+.instrument-chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.instrument-chip {
+  background: var(--chip); color: #fff; border-radius: 999px; padding: 4px 11px; font-size: 12px;
+  font-weight: 800; cursor: grab; user-select: none; border: 2px solid transparent;
+}
+.instrument-chip:hover { filter: brightness(1.08); box-shadow: 0 2px 8px rgba(0, 0, 0, .12); }
+.instrument-chip.armed { border-color: var(--ink); box-shadow: 0 0 0 2px #fff inset; }
+/* Instrument bars are solid in the instrument's color. */
+.schedule-grid .seg { background: var(--chip); border-color: var(--chip); }
+.schedule-grid .seg.starts { border-left-color: color-mix(in srgb, var(--chip) 70%, #000); }
+.schedule-grid .seg.selected { border-color: var(--ink); filter: brightness(1.1); }
+.schedule-grid .seg-label .chip-title { color: #fff; }
+.schedule-grid .chip-x { color: #fff; }
+.schedule-grid .stretch::after { background: #fff; }
+
 .cal-day { min-width: 0; overflow: hidden; }
-.legend-item { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; font-size: 13px; }
-.schedule-grid .cal-day { min-height: 96px; }
-.day-body.paintable { cursor: crosshair; user-select: none; border-radius: 8px; }
-.day-body.paint-on { background: var(--royal-soft); }
-.day-body.paint-off { background: #f7e1da; }
-.school-row { display: flex; align-items: center; gap: 4px; opacity: .7; }
-.school-row.painting { opacity: 1; }
-.school-row.painting .school-initial { color: var(--royal); }
-.school-initial { font-size: 10px; font-weight: 800; width: 18px; color: var(--ink-soft); flex: none; }
-.school-bar { flex: 1; height: 10px; border-radius: 4px; display: flex; overflow: hidden; gap: 1px; background: var(--card-2); }
-.school-row.painting .school-bar { height: 14px; box-shadow: 0 0 0 1.5px var(--royal); }
-.school-bar span { flex: 1; }
-.summary { margin-top: 16px; border-top: 1.5px dashed var(--line); padding-top: 12px; }
-.summary ul { list-style: none; padding: 0; margin: 8px 0; display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
-.summary li { display: flex; align-items: center; gap: 6px; }
 
 /* ---------- setup ---------- */
 

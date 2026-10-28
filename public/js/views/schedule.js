@@ -1,131 +1,142 @@
-// "Instrument Schedule": paint which instruments are at which school on
-// which days. Every school is shown in each day, color coded.
+// "Instrument Schedule": drag an instrument for a school onto a day, then
+// stretch it over the dates it's there. Bars are colored by instrument and
+// labeled "Instrument@School".
 
-import { h } from '../dom.js';
-import { blocksFor, find, instrumentsAt, paintInstrument } from '../model.js';
-import { commit, setUi, store } from '../store.js';
-import { formatRange, isWeekday, weekdaysBetween } from '../dates.js';
-import { current, emptyNote, monthGrid, monthNav, pickId, pills, stepMonth, year } from './common.js';
+import { h, toast } from '../dom.js';
+import { addInstrumentBlock, find, inYear, moveRange, remove, resizeRange, shiftSchoolDay } from '../model.js';
+import { commit, setUi, store, undo } from '../store.js';
+import { addDays, daysBetween } from '../dates.js';
+import { current, emptyNote, monthNav, pills, stepMonth, year } from './common.js';
+import { barCalendar } from './barCalendar.js';
 
-let drag = null; // { on, dates:Set } while painting with the mouse
+const ALL = 'all';
 
 function context() {
   const schools = current('schools');
-  const instruments = current('instruments');
+  const filter = schools.some((s) => s.id === store.ui.scheduleFilter) ? store.ui.scheduleFilter : ALL;
   return {
     yearId: year().id,
     schools,
-    instruments,
-    schoolId: pickId(schools, store.ui.paintSchoolId),
-    instrumentId: pickId(instruments, store.ui.brushId),
+    instruments: current('instruments'),
+    filter,
+    shownSchools: filter === ALL ? schools : schools.filter((s) => s.id === filter),
   };
 }
+
+const instrumentOf = (b) => find(store.state, 'instruments', b.instrumentId);
+const schoolOf = (b) => find(store.state, 'schools', b.schoolId);
+const blockName = (b) => `${instrumentOf(b)?.name}@${schoolOf(b)?.name}`;
 
 export function renderSchedule() {
   const ctx = context();
   if (!ctx.schools.length || !ctx.instruments.length) {
     return emptyNote('Add at least one school and one instrument on the Setup tab first.');
   }
+  // Order by school so each school's bars sit in the same row week to week.
+  const schoolOrder = new Map(ctx.shownSchools.map((s, i) => [s.id, i]));
+  const items = inYear(store.state, 'instrumentBlocks', ctx.yearId)
+    .filter((b) => schoolOrder.has(b.schoolId))
+    .sort((a, b) => schoolOrder.get(a.schoolId) - schoolOrder.get(b.schoolId));
   return h('div', { class: 'schedule-layout' },
-    h('aside', { class: 'side card' },
-      h('h3', {}, 'Painting for'),
-      pills(ctx.schools, ctx.schoolId, (id) => setUi({ paintSchoolId: id })),
-      h('h3', {}, 'Instrument'),
-      pills(ctx.instruments, ctx.instrumentId, (id) => setUi({ brushId: id }), { colorOf: (i) => i.color }),
-      h('p', { class: 'hint' }, 'Click or drag across days to add the instrument. Start on a day that already has it to erase instead.'),
-      summary(ctx)),
+    sidebar(ctx),
     h('section', { class: 'main-col card' },
       monthNav(),
-      legend(ctx),
-      monthGrid((date, info) => dayCell(ctx, date, info), 'schedule-grid')),
+      armedBanner(),
+      barCalendar({
+        gridClass: 'schedule-grid',
+        items,
+        selectedId: store.ui.blockId,
+        armed: Boolean(store.ui.armedBlock),
+        colorOf: (b) => instrumentOf(b)?.color,
+        titleOf: blockName,
+        labelOf: (b) => h('span', { class: 'chip-title' }, blockName(b)),
+        onCreate: (data, date) => { if (data.instrumentId) addBlock(ctx, data, date); },
+        onMove: (b, startDate, copy) => (copy
+          ? addBlock(ctx, b, startDate, addDays(startDate, daysBetween(b.startDate, b.endDate)))
+          : commit((s) => moveRange(s, 'instrumentBlocks', b.id, startDate))),
+        onResize: (b, edge, date) => commit((s) => resizeRange(s, 'instrumentBlocks', b.id, { [edge]: date })),
+        onSelect: (b) => setUi({ blockId: b?.id ?? null }),
+        onRemove: removeBlock,
+        onArmedClick: (date) => addBlock(ctx, store.ui.armedBlock, date),
+      })),
   );
 }
 
-function legend(ctx) {
-  return h('div', { class: 'legend' },
-    ctx.instruments.map((i) => h('span', { class: 'legend-item' }, h('span', { class: 'dot', style: { background: i.color } }), i.name)),
-    h('span', { class: 'legend-schools' }, ctx.schools.map((s) => h('span', {}, h('b', {}, initials(s.name)), ` ${s.name}`))));
+function addBlock(ctx, { schoolId, instrumentId }, startDate, endDate = startDate) {
+  const block = commit((s) => addInstrumentBlock(s, { yearId: ctx.yearId, schoolId, instrumentId, startDate, endDate }));
+  setUi({ blockId: block.id });
 }
 
-/** Each day lists every school with the colors of its instruments that day. */
-function dayCell(ctx, date, info) {
-  const rows = ctx.schools.map((school) => {
-    const here = instrumentsAt(store.state, ctx.yearId, school.id, date)
-      .map((id) => find(store.state, 'instruments', id)).filter(Boolean);
-    const names = here.map((i) => i.name).join(' + ') || 'No instrument';
-    return h('div', {
-      class: `school-row ${school.id === ctx.schoolId ? 'painting' : ''}`,
-      'data-tip': `${school.name}: ${names}`,
-    },
-    h('span', { class: 'school-initial' }, initials(school.name)),
-    h('span', { class: 'school-bar' }, here.map((i) => h('span', { style: { background: i.color } }))));
-  });
-  const body = h('div', { class: 'day-body' }, rows);
-  if (info.inYear && isWeekday(date)) {
-    body.classList.add('paintable');
-    body.addEventListener('mousedown', (e) => { e.preventDefault(); startPaint(ctx, date); });
-    body.addEventListener('mouseenter', () => continuePaint(date));
-  }
-  return body;
+function removeBlock(b) {
+  commit((s) => remove(s, 'instrumentBlocks', b.id));
+  toast(`Removed ${blockName(b)}.`, { label: 'Undo', run: undo });
 }
 
-function initials(name) {
-  return name.split(/\s+/).filter((w) => !/^(elementary|school|es)$/i.test(w)).map((w) => w[0]).join('').slice(0, 2).toUpperCase();
+// ---------- left side ----------
+
+function sidebar(ctx) {
+  return h('aside', { class: 'side card' },
+    h('h3', {}, 'Show'),
+    pills([{ id: ALL, name: 'All schools' }, ...ctx.schools], ctx.filter, (id) => setUi({ scheduleFilter: id })),
+    h('h3', {}, 'Instruments'),
+    h('p', { class: 'hint' }, 'Drag onto the first day, then drag the end of the bar to the last day. Or click one, then click days.'),
+    ctx.shownSchools.map((school) => h('section', { class: 'palette-school' },
+      h('div', { class: 'palette-school-name' }, school.name),
+      h('div', { class: 'instrument-chips' }, ctx.instruments.map((ins) => instrumentChip(school, ins))))),
+  );
 }
 
-// Dragging paints every school day between the first and the current day.
-function dragDates() {
-  const [a, b] = [drag.start, drag.end].sort();
-  return weekdaysBetween(a, b).filter((d) => d >= year().startDate && d <= year().endDate);
+function instrumentChip(school, instrument) {
+  const armed = store.ui.armedBlock?.schoolId === school.id && store.ui.armedBlock?.instrumentId === instrument.id;
+  const data = { schoolId: school.id, instrumentId: instrument.id };
+  return h('div', {
+    class: `instrument-chip ${armed ? 'armed' : ''}`,
+    draggable: 'true',
+    style: { '--chip': instrument.color },
+    title: `${instrument.name}@${school.name} — drag onto the calendar, or click to place on several days`,
+    ondragstart: (e) => e.dataTransfer.setData('text/plain', JSON.stringify(data)),
+    onclick: () => setUi({ armedBlock: armed ? null : data }),
+  }, instrument.name);
 }
 
-function highlightDrag() {
-  const dates = new Set(dragDates());
-  document.querySelectorAll('.cal-day').forEach((cell) => {
-    const body = cell.querySelector('.day-body.paintable');
-    body?.classList.toggle(drag.on ? 'paint-on' : 'paint-off', dates.has(cell.dataset.date));
-  });
+function armedBanner() {
+  const armed = store.ui.armedBlock;
+  if (!armed) return null;
+  return h('div', { class: 'armed-banner' },
+    `Click days to add ${blockName(armed)}.`,
+    h('button', { class: 'btn small light', onclick: () => setUi({ armedBlock: null }) }, 'Done (Esc)'));
 }
 
-function startPaint(ctx, date) {
-  const has = instrumentsAt(store.state, ctx.yearId, ctx.schoolId, date).includes(ctx.instrumentId);
-  drag = { ctx, on: !has, start: date, end: date };
-  highlightDrag();
-  window.addEventListener('mouseup', finishPaint, { once: true });
+// ---------- keyboard ----------
+
+function selectedBlock() {
+  return find(store.state, 'instrumentBlocks', store.ui.blockId);
 }
 
-function continuePaint(date) {
-  if (!drag) return;
-  drag.end = date;
-  highlightDrag();
+/** Shift+→ adds a school day to the selected bar, Shift+← takes one away. */
+function stretchSelected(direction) {
+  const b = selectedBlock();
+  if (!b) return stepMonth(direction);
+  const endDate = shiftSchoolDay(b.endDate, direction);
+  if (endDate < b.startDate) return null;
+  return commit((s) => resizeRange(s, 'instrumentBlocks', b.id, { endDate }));
 }
 
-function finishPaint() {
-  if (!drag) return;
-  const { ctx, on } = drag;
-  const dates = dragDates();
-  drag = null;
-  commit((s) => paintInstrument(s, {
-    yearId: ctx.yearId, schoolId: ctx.schoolId, instrumentId: ctx.instrumentId, dates, on,
-  }));
+function removeSelected() {
+  const b = selectedBlock();
+  if (b) removeBlock(b);
 }
 
-/** Year at a glance for the selected school. */
-function summary(ctx) {
-  const school = find(store.state, 'schools', ctx.schoolId);
-  const items = ctx.instruments.flatMap((ins) => blocksFor(store.state, ctx.yearId, ctx.schoolId, ins.id)
-    .map((b) => ({ ins, b })))
-    .sort((a, b) => a.b.startDate.localeCompare(b.b.startDate));
-  return h('div', { class: 'summary' },
-    h('h3', {}, `${school.name} this year`),
-    items.length ? null : emptyNote('Nothing scheduled yet.'),
-    h('ul', {}, items.map(({ ins, b }) => h('li', {},
-      h('span', { class: 'dot', style: { background: ins.color } }),
-      h('strong', {}, ins.name), ' ', formatRange(b.startDate, b.endDate)))));
-}
+const KEYS = {
+  ArrowLeft: (e) => (e.shiftKey ? stretchSelected(-1) : stepMonth(-1)),
+  ArrowRight: (e) => (e.shiftKey ? stretchSelected(1) : stepMonth(1)),
+  Escape: () => setUi({ armedBlock: null, blockId: null }),
+  Delete: removeSelected,
+  Backspace: removeSelected,
+};
 
 export function scheduleKeys(e) {
-  if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return false;
-  stepMonth(e.key === 'ArrowRight' ? 1 : -1);
+  if (!KEYS[e.key]) return false;
+  KEYS[e.key](e);
   return true;
 }

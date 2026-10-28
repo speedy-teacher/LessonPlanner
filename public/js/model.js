@@ -299,20 +299,30 @@ export function placeCriterion(state, { yearId, schoolId, gradeId, criterionId, 
   return add(state, 'placements', { yearId, schoolId, gradeId, criterionId, startDate, endDate });
 }
 
-/** Move a placement so it starts on `startDate`, keeping its length. */
-export function movePlacement(state, placementId, startDate) {
-  const p = find(state, 'placements', placementId);
-  if (!p) return null;
-  const length = daysBetween(p.startDate, p.endDate);
-  return update(state, 'placements', placementId, { startDate, endDate: addDays(startDate, length) });
+// ---------- date ranges (placements and instrument blocks) ----------
+
+/** Move a dated record so it starts on `startDate`, keeping its length. */
+export function moveRange(state, collection, id, startDate) {
+  const r = find(state, collection, id);
+  if (!r) return null;
+  const length = daysBetween(r.startDate, r.endDate);
+  return update(state, collection, id, { startDate, endDate: addDays(startDate, length) });
 }
 
-/** Change a placement's first and/or last day (they're swapped if reversed). */
-export function resizePlacement(state, placementId, { startDate, endDate }) {
-  const p = find(state, 'placements', placementId);
-  if (!p) return null;
-  const [a, b] = [startDate ?? p.startDate, endDate ?? p.endDate].sort();
-  return update(state, 'placements', placementId, { startDate: a, endDate: b });
+/** Change a dated record's first and/or last day (they're swapped if reversed). */
+export function resizeRange(state, collection, id, { startDate, endDate }) {
+  const r = find(state, collection, id);
+  if (!r) return null;
+  const [a, b] = [startDate ?? r.startDate, endDate ?? r.endDate].sort();
+  return update(state, collection, id, { startDate: a, endDate: b });
+}
+
+export function movePlacement(state, placementId, startDate) {
+  return moveRange(state, 'placements', placementId, startDate);
+}
+
+export function resizePlacement(state, placementId, dates) {
+  return resizeRange(state, 'placements', placementId, dates);
 }
 
 export function coversDate(p, date) {
@@ -325,6 +335,11 @@ export function blocksFor(state, yearId, schoolId, instrumentId) {
   return state.instrumentBlocks
     .filter((b) => b.yearId === yearId && b.schoolId === schoolId && b.instrumentId === instrumentId)
     .sort((a, b) => a.startDate.localeCompare(b.startDate));
+}
+
+/** Put an instrument at a school from startDate to endDate (inclusive). */
+export function addInstrumentBlock(state, { yearId, schoolId, instrumentId, startDate, endDate = startDate }) {
+  return add(state, 'instrumentBlocks', { yearId, schoolId, instrumentId, startDate, endDate });
 }
 
 /** Ids of instruments scheduled at a school on a date. */

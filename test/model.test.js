@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import {
   add, addSlide, autoFill, blocksFor, createYear, criteriaFor, emptyState, find, inYear,
   instrumentsAt, moveSlide, normalize, paintInstrument, placeCriterion, placementWarnings,
-  movePlacement, resizePlacement, criteriaForGrade,
+  movePlacement, resizePlacement, criteriaForGrade, addInstrumentBlock, moveRange, resizeRange,
   remove, slidesFor, toggleGrade, templatesByCategory, templateUsage, duplicateTemplate, nextColor,
 } from '../public/js/model.js';
 import { seedState } from '../public/js/seed.js';
@@ -124,6 +124,28 @@ test('painting school days makes merged ranges across weekends; erasing splits t
     [['2026-09-14', '2026-09-16'], ['2026-09-18', '2026-09-25']]);
   assert.deepEqual(instrumentsAt(s, year.id, school.id, '2026-09-18'), [uke.id]);
   assert.deepEqual(instrumentsAt(s, year.id, school.id, '2026-09-17'), []);
+});
+
+test('an instrument is dropped on a school for one day, then stretched to a date range', () => {
+  const { s, year, school, uke } = smallYear();
+  const b = addInstrumentBlock(s, { yearId: year.id, schoolId: school.id, instrumentId: uke.id, startDate: '2026-09-14' });
+  assert.deepEqual(instrumentsAt(s, year.id, school.id, '2026-09-14'), [uke.id]);
+  assert.deepEqual(instrumentsAt(s, year.id, school.id, '2026-09-15'), []);
+  resizeRange(s, 'instrumentBlocks', b.id, { endDate: '2026-10-30' });
+  assert.deepEqual(instrumentsAt(s, year.id, school.id, '2026-10-30'), [uke.id]);
+  resizeRange(s, 'instrumentBlocks', b.id, { startDate: '2026-09-21' });
+  assert.deepEqual(instrumentsAt(s, year.id, school.id, '2026-09-18'), []);
+});
+
+test('moving an instrument range keeps its length and updates lesson warnings', () => {
+  const ctx = smallYear();
+  const { s, year, school, uke } = ctx;
+  const b = addInstrumentBlock(s, { yearId: year.id, schoolId: school.id, instrumentId: uke.id, startDate: '2026-09-14', endDate: '2026-09-18' });
+  const p = place(ctx, '2026-10-05', '2026-10-09');
+  assert.equal(placementWarnings(s, p).length, 1);
+  moveRange(s, 'instrumentBlocks', b.id, '2026-10-05');
+  assert.deepEqual([b.startDate, b.endDate], ['2026-10-05', '2026-10-09']);
+  assert.equal(placementWarnings(s, p).length, 0);
 });
 
 test('warns when an eval needs an instrument the school does not have on some of its days', () => {
