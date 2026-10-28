@@ -30,7 +30,8 @@ Hold a bar's end, or anything you're dragging, near the top or bottom edge to sc
   and instruments (dashed = part of the week); ⚠ = a deck's instrument isn't there that week.
   "✨ Fill from Outcome & Eval Calendar" spreads each eval's lessons, in order, over the weeks it's on the calendar.
   The ✨ at the top right of a week fills just that week.
-- **Outcomes, Evals & Lesson Order** — essential outcomes → eval criteria → grades and the lesson decks for each eval, in teaching order.
+- **Outcomes, Evals & Lesson Order** — essential outcomes → eval criteria → grades and the lesson decks for each eval, in teaching order
+  (each eval's lesson list starts closed — click its heading to open it).
 - **Lesson Templates** — the library of lessons (one slide deck each), organized in folders (click to open/close, drag decks
   and folders onto a folder, `⋯` to rename/delete). **+ Add** makes a new deck or folder, or brings in slide files or a whole
   folder (folders inside folders too) from the computer or Google Drive. Drive folders are watched: decks added there later

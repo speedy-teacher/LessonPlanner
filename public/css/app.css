@@ -647,3 +647,11 @@ input:focus, select:focus, button:focus-visible { outline: 3px solid #cdb8ea; ou
 .plan-open:hover:not(:disabled) { background: var(--card-2); }
 .plan-open:disabled { cursor: default; border-color: var(--royal); }
 .plan-open .hint { margin: 0; font-weight: 600; }
+
+/* An eval's lesson list: closed until you click its heading */
+.crit-lessons > summary { cursor: pointer; list-style: none; display: inline-flex; align-items: center; gap: 6px; padding: 2px 0; }
+.crit-lessons > summary::-webkit-details-marker { display: none; }
+.crit-lessons > summary::before { content: '▸'; color: var(--royal); transition: transform .15s; }
+.crit-lessons[open] > summary::before { transform: rotate(90deg); }
+.crit-lessons > summary:hover { color: var(--royal); }
+.crit-lessons > .hint { margin: 2px 0 6px; }

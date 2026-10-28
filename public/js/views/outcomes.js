@@ -75,10 +75,24 @@ function criterionCard(crit) {
         'aria-pressed': crit.gradeIds.includes(g.id) ? 'true' : 'false',
         onclick: () => commit((s) => toggleGrade(s, crit.id, g.id)),
       }, g.short || g.name))),
-    h('div', { class: 'mini-label' }, 'Lessons, in teaching order (drag ⠿ to reorder):'),
-    h('ol', { class: 'slide-list' }, stepsFor(store.state, crit.id).map((s, i, all) => stepRow(s, i, all.length))),
-    addLessonRow(crit),
+    lessonList(crit),
   );
+}
+
+// Eval lesson lists start closed, so all the evals are easy to scroll through.
+// Lists you open stay open while you work (until the page is reloaded).
+const openLists = new Set();
+
+function lessonList(crit) {
+  const steps = stepsFor(store.state, crit.id);
+  return h('details', {
+    class: 'crit-lessons', open: openLists.has(crit.id),
+    ontoggle: (e) => { if (e.target.open) openLists.add(crit.id); else openLists.delete(crit.id); },
+  },
+    h('summary', { class: 'mini-label' }, `Lessons, in teaching order (${steps.length})`),
+    h('p', { class: 'hint' }, 'Drag ⠿ to reorder.'),
+    h('ol', { class: 'slide-list' }, steps.map((s, i, all) => stepRow(s, i, all.length))),
+    addLessonRow(crit));
 }
 
 function stepRow(step, index, total) {
