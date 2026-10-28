@@ -487,7 +487,9 @@ input:focus, select:focus, button:focus-visible { outline: 3px solid #cdb8ea; ou
 .folder-icon { flex: none; }
 .folder-menu > summary { width: 26px; height: 26px; }
 .folder-menu .menu-card { min-width: 210px; }
-.watch-mark { color: var(--navy); font-size: 13px; flex: none; }
+.watch-mark { flex: none; display: inline-flex; width: 18px; height: 15px; color: var(--navy); }
+.watch-mark svg { width: 100%; height: 100%; }
+.watch-mark.not-watching { color: var(--terracotta); opacity: .75; }
 .new-mark {
   flex: none; display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%;
   background: var(--gold); color: #fff; font-weight: 900; font-size: 12px; line-height: 1;

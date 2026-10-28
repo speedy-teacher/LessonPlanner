@@ -52,7 +52,10 @@ function lessonEditor(l) {
         h('datalist', { id: 'lesson-categories' }, categories.map((c) => h('option', { value: c })))),
       folderPicker(l),
       h('button', { class: 'btn light', onclick: () => duplicate(l) }, 'Duplicate'),
-      h('button', { class: 'btn light danger', onclick: () => deleteLesson(l) }, 'Delete')),
+      h('button', {
+        class: 'btn light danger', onclick: () => deleteLesson(l),
+        title: l.locations.length ? 'Only the planner’s deck goes. The slide file stays where it is.' : null,
+      }, l.locations.length ? 'Remove from Planner' : 'Delete')),
     newBanner(l),
     locationList(l),
     h('div', { class: 'template-body' },
@@ -167,7 +170,8 @@ function deleteLesson(l) {
   const evals = lessonEvals(store.state, l.id).length;
   commit((s) => remove(s, 'lessons', l.id));
   setUi({ lessonId: null });
-  toast(evals ? `Deleted “${l.name}” and took it out of ${evals} eval${evals === 1 ? '' : 's'}.` : `Deleted “${l.name}”.`,
+  const done = l.locations.length ? `Removed “${l.name}” from the planner` : `Deleted “${l.name}”`;
+  toast(evals ? `${done} and took it out of ${evals} eval${evals === 1 ? '' : 's'}.` : `${done}.`,
     { label: 'Undo', run: undo });
 }
 

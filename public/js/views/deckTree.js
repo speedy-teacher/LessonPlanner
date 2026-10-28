@@ -5,7 +5,7 @@
 import { h, openModal, toast } from '../dom.js';
 import { find, lessonEvals } from '../model.js';
 import {
-  addFolder, decksIn, folderAndInside, folderPath, foldersIn, hasNewInside, moveDeck, moveFolder, removeFolder,
+  addFolder, decksIn, driveLink, folderAndInside, folderPath, foldersIn, hasNewInside, moveDeck, moveFolder, removeFolder,
 } from '../library.js';
 import { driveFileId } from '../locations.js';
 import { commit, setUi, store, undo } from '../store.js';
@@ -88,6 +88,29 @@ function branch(folderId, depth, ctx) {
   return [...folders.map((f) => folderItem(f, depth, ctx)), ...decks.map((l) => deckItem(l, depth, ctx.selected))];
 }
 
+// A cloud for folders from Google Drive; a cracked one when watching is turned off.
+const CLOUD_PATH = 'M5.5 14h10a3.5 3.5 0 0 0 .4-7A5 5 0 0 0 6.3 6.2 4 4 0 0 0 5.5 14z';
+const CLOUD_ICONS = {
+  watching: {
+    tip: 'Watching this Google Drive folder for new decks',
+    svg: `<svg viewBox="0 0 20 16" aria-hidden="true"><path d="${CLOUD_PATH}" fill="currentColor"/></svg>`,
+  },
+  'not-watching': {
+    tip: 'From Google Drive, but not watching for new decks. Turn watching back on in the ⋯ menu.',
+    svg: `<svg viewBox="0 0 20 16" aria-hidden="true"><mask id="cloud-crack"><rect width="20" height="16" fill="#fff"/>
+      <polyline points="11.5,2 9,7.5 12,9.5 9.5,15" fill="none" stroke="#000" stroke-width="1.8" stroke-linejoin="round"/></mask>
+      <path d="${CLOUD_PATH}" fill="currentColor" mask="url(#cloud-crack)"/></svg>`,
+  },
+};
+
+function cloudMark(link) {
+  if (!link) return null;
+  const { tip, svg } = CLOUD_ICONS[link];
+  const el = h('span', { class: `watch-mark ${link}`, 'data-tip': tip, role: 'img', 'aria-label': tip });
+  el.innerHTML = svg;
+  return el;
+}
+
 function newMark(tip) {
   return h('span', { class: 'new-mark', 'data-tip': tip, 'aria-label': tip }, '!');
 }
@@ -107,7 +130,7 @@ function folderItem(folder, depth, ctx) {
       h('span', { class: 'folder-icon', 'aria-hidden': 'true' }, open ? '📂' : '📁'),
       h('span', { class: 'template-name' }, folder.name),
       hasNewInside(store.state, folder.id) ? newMark('Newly added decks are in here') : null,
-      folder.watch ? h('span', { class: 'watch-mark', 'data-tip': 'Watching this Google Drive folder for new decks' }, '☁') : null),
+      cloudMark(driveLink(store.state, folder))),
     h('span', { class: 'count-badge' }, count),
     folderMenu(folder)),
   open ? h('ul', { class: 'tree-list' }, branch(folder.id, depth + 1, ctx)) : null);
@@ -161,7 +184,7 @@ function folderMenu(folder) {
     menuItem('New folder inside', () => newFolder(folder.id), { icon: '📁' }),
     driveFileId(folder) ? menuItem(folder.watch ? 'Stop watching Drive' : 'Watch Drive for new decks',
       () => commit((s) => { find(s, 'deckFolders', folder.id).watch = !folder.watch; }), { icon: '☁️' }) : null,
-    menuItem('Delete folder', () => deleteFolder(folder), { icon: '🗑️' }));
+    menuItem('Remove from Planner', () => removeFromPlanner(folder), { icon: '🗑️', tip: 'Only the planner’s folder goes. Your files stay where they are.' }));
 }
 
 /** Ask for a name in a little dialog. */
@@ -186,10 +209,10 @@ export function newFolder(parentId) {
   }, 'e.g. Rhythm unit');
 }
 
-function deleteFolder(folder) {
+function removeFromPlanner(folder) {
   const parent = find(store.state, 'deckFolders', folder.parentId);
   commit((s) => removeFolder(s, folder.id));
   setUi({ deckFolderId: folder.parentId });
-  toast(`Deleted the folder “${folder.name}”. What was in it moved to ${parent ? `“${parent.name}”` : 'the top level'}.`,
+  toast(`Removed the folder “${folder.name}” from the planner. What was in it moved to ${parent ? `“${parent.name}”` : 'the top level'}.`,
     { label: 'Undo', run: undo });
 }

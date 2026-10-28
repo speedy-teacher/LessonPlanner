@@ -223,6 +223,17 @@ function addDriveDeck(ctx, node, folderId) {
   }));
 }
 
+/**
+ * The cloud shown on a folder: 'watching' (new decks in its Drive folder are pulled in),
+ * 'not-watching' (came from Drive, but watching was turned off), or null — not from Drive,
+ * or inside another Drive folder (that folder's cloud covers everything in it).
+ */
+export function driveLink(state, folder) {
+  if (!driveFileId(folder)) return null;
+  if (folderPath(state, folder.parentId).some((f) => driveFileId(f))) return null;
+  return folder.watch ? 'watching' : 'not-watching';
+}
+
 /** Folders whose Google Drive folder is checked for new decks. */
 export function watchedFolders(state, yearId) {
   return inYear(state, 'deckFolders', yearId).filter((f) => f.watch && driveFileId(f));

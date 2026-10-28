@@ -6,7 +6,7 @@ import {
   add, addStep, autoFill, createYear, editLesson, emptyState, find, inYear, normalize, placeCriterion, remove, weekNumber,
 } from '../public/js/model.js';
 import {
-  addDeck, addFolder, decksByFolder, decksIn, DRIVE_FOLDER, folderPath, foldersIn, hasNewInside, importDriveItems,
+  addDeck, addFolder, decksByFolder, decksIn, DRIVE_FOLDER, driveLink, folderPath, foldersIn, hasNewInside, importDriveItems,
   importLocalFiles, moveDeck, moveFolder, removeFolder, syncWatchedFolders, watchedFolders,
 } from '../public/js/library.js';
 import { listFolderTree, projectNumber } from '../public/js/drive.js';
@@ -326,4 +326,24 @@ test('saved data with one file per deck is upgraded to a list of places, keeping
   assert.deepEqual(byId('deckFolders', 'fld_d').seenDriveIds, ['d1']);
   assert.ok([...up.lessons, ...up.deckFolders].every((r) => !('source' in r)));
   assert.ok(byId('lessons', 'les_d').isNew);
+});
+
+test('a Drive folder whose watching is turned off still shows it came from Drive (broken cloud), and nothing is pulled in', () => {
+  const { s, yearId, unit } = watchedUnit();
+  const [inner] = foldersIn(s, yearId, unit.id);
+  assert.equal(driveLink(s, unit), 'watching');
+  assert.equal(driveLink(s, inner), null, 'a folder inside a watched folder is covered by its cloud');
+  unit.watch = false;
+  assert.equal(driveLink(s, unit), 'not-watching');
+  assert.equal(driveLink(s, inner), null);
+  assert.equal(syncWatchedFolders(s, yearId, { [unit.id]: [driveFile('d9', 'Fresh')] }).length, 0);
+  assert.equal(driveLink(s, addFolder(s, { yearId, name: 'Planner only' })), null);
+});
+
+test('removing a watched folder from the planner keeps its decks and stops watching', () => {
+  const { s, yearId, unit } = watchedUnit();
+  const decks = inYear(s, 'lessons', yearId).length;
+  removeFolder(s, unit.id);
+  assert.equal(inYear(s, 'lessons', yearId).length, decks);
+  assert.equal(watchedFolders(s, yearId).length, 0);
 });
