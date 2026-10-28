@@ -6,7 +6,7 @@ import { google, prepareDrive, setGoogleHandlers } from './google.js';
 import { clientId } from './deviceSettings.js';
 import { openLastPlan, syncNow } from './workspace.js';
 import { drivePill, showSignInNotice, warnIfGoogleNotSetUp } from './views/googleCard.js';
-import { planButton, welcome } from './views/plans.js';
+import { planButton, refreshPlansMenu, welcome } from './views/plans.js';
 import { renderPlan, planKeys } from './views/plan.js';
 import { renderSchedule, scheduleKeys } from './views/schedule.js';
 import { renderLessonSchedule, lessonScheduleKeys, showThisWeek } from './views/lessonSchedule.js';
@@ -123,6 +123,7 @@ async function start() {
       if (connected && !wasConnected) syncNow();
       wasConnected = connected;
       refresh();
+      refreshPlansMenu();
       checkWatchedFolders();
     },
     needsSignIn: showSignInNotice,

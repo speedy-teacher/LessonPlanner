@@ -55,8 +55,22 @@ function whereTag(plan) {
   return null;
 }
 
+let liveMenu = null; // the open plans menu: { holder, close, status }
+
 export function openPlansMenu() {
-  openModal('Your plans', (close) => plansPanel(close));
+  openModal('Your plans', (close) => {
+    const holder = h('div', {}, plansPanel(close));
+    liveMenu = { holder, close, status: google.status };
+    return holder;
+  });
+}
+
+/** Redraw the open plans menu when the Google Drive connection changes (e.g. it finishes connecting). */
+export function refreshPlansMenu() {
+  if (!liveMenu?.holder.isConnected) { liveMenu = null; return; }
+  if (liveMenu.status === google.status) return;
+  liveMenu.status = google.status;
+  liveMenu.holder.replaceChildren(plansPanel(liveMenu.close));
 }
 
 /** Shown in place of the planner when no plan is open yet (the first visit on a computer). */
