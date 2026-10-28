@@ -1,4 +1,4 @@
-// "Setup": the year's dates and the lists everything else is built from.
+// "Setup › School Year": the year's dates and the lists everything else is built from.
 
 import { adder, editable, h, iconButton, openModal, toast } from '../dom.js';
 import { add, createYear, nextColor, remove, suggestNextYear, update } from '../model.js';

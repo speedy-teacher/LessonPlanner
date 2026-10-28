@@ -75,7 +75,7 @@ Google changes its screens now and then; if a button name is slightly different,
    http://localhost:5178
    ```
 
-   (The planner's Setup tab has a **Copy** button for this.) Leave "redirect URIs" empty.
+   (The planner's **Setup › School Year** page has a **Copy** button for this.) Leave "redirect URIs" empty.
 4. Click **Create**.
 5. Copy the **Client ID** — it ends in `.apps.googleusercontent.com`.
 6. Copy the **Client secret** too (starts with `GOCSPX-`). If you closed the window: **Clients** → **Lesson Planner**,
@@ -93,7 +93,7 @@ Google changes its screens now and then; if a button name is slightly different,
 ## 8. Connect the planner
 
 1. Open the planner (double-click **Start Lesson Planner**). It opens at `http://localhost:5178`.
-2. Go to the **Setup** tab → **Google Drive** card.
+2. Click **Setup ▾** → **School Year** → **Google Drive** card.
 3. Paste the **Client ID**, **Client secret** and **API key** into their boxes (click outside each box to save it).
    The client secret is kept in a separate file on this computer (`data/google-auth.json`), never in your lesson data.
 4. Click **Connect Google Drive**. Google's window opens:
@@ -104,7 +104,7 @@ You stay signed in: each time the planner opens it reconnects by itself.
 
 **About once a week**, while the Google project is in *testing* mode, Google ends the sign-in. A note pops up in the
 bottom-left corner — **"Google Drive signed you out"** — click **Sign in**, pick your account, click **Allow**. Same codes, nothing to redo.
-(The **Sign in again** button on the Setup tab does the same.)
+(The **Sign in again** button under **Setup › School Year** does the same.)
 
 ---
 

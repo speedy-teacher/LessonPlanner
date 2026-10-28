@@ -116,7 +116,7 @@ function locationLabel(loc) {
 
 function instrumentToggles(l) {
   const instruments = current('instruments');
-  if (!instruments.length) return emptyNote('Add instruments on the Setup tab.');
+  if (!instruments.length) return emptyNote('Add instruments under Setup › School Year.');
   return h('div', { class: 'grade-toggles' }, instruments.map((i) => {
     const on = l.instrumentIds.includes(i.id);
     return h('button', {

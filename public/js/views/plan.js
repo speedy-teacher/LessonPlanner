@@ -34,7 +34,7 @@ export function outcomeColor(outcomeId) {
 export function renderPlan() {
   const ctx = context();
   if (!ctx.schools.length || !ctx.grades.length) {
-    return emptyNote('Add at least one school and one grade on the Setup tab to start planning.');
+    return emptyNote('Add at least one school and one grade under Setup › School Year to start planning.');
   }
   const selected = find(store.state, 'placements', store.ui.placementId);
   const showDetail = selected && selected.schoolId === ctx.schoolId && selected.gradeId === ctx.gradeId;

@@ -27,7 +27,8 @@ Hold a bar's end, or anything you're dragging, near the top or bottom edge to sc
   appear with a ❗ (also shown on every folder above them) until you change any of their details.
   Each deck has its instruments, the details it fills in automatically (including week number and the class's lesson number),
   and which evals teach it. `↑` `↓` move through the list.
-- **Setup** — the year's dates, schools, grades and instruments; start a new year
+- **Setup ▾** — a menu of three pages: **School Year**, **Outcomes, Evals & Lesson Order** and **Lesson Templates**.
+- **School Year** — the year's dates, schools, grades and instruments; start a new year
   (copies last year's lists, lesson decks, outcomes, criteria and lesson order; calendars start empty).
   The **Google Drive** card connects to Drive and stays signed in — see `docs/google-drive-setup.md`.
 

@@ -31,7 +31,7 @@ const blockName = (b) => `${instrumentOf(b)?.name}@${schoolOf(b)?.name}`;
 export function renderSchedule() {
   const ctx = context();
   if (!ctx.schools.length || !ctx.instruments.length) {
-    return emptyNote('Add at least one school and one instrument on the Setup tab first.');
+    return emptyNote('Add at least one school and one instrument under Setup › School Year first.');
   }
   // Order by school so each school's bars sit in the same row week to week.
   const schoolOrder = new Map(ctx.shownSchools.map((s, i) => [s.id, i]));

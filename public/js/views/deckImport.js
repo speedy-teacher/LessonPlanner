@@ -77,9 +77,9 @@ function pickLocal(folder) {
 /** Make sure Drive is connected (and can read folders); otherwise explain and offer to sign in. */
 function driveReady({ needFolders }) {
   const { googleClientId, googleApiKey } = store.state.settings;
-  const goSetup = { label: 'Open Setup', run: () => setUi({ tab: 'setup' }) };
+  const goSetup = { label: 'Open School Year', run: () => setUi({ tab: 'setup' }) };
   if (!googleClientId || !googleApiKey) {
-    showNotice({ id: 'drive-import', tone: 'warn', title: 'Google Drive isn’t set up yet', message: 'Fill in the Google Drive card on the Setup tab first (including the API key).', actions: [goSetup] });
+    showNotice({ id: 'drive-import', tone: 'warn', title: 'Google Drive isn’t set up yet', message: 'Fill in the Google Drive card under Setup › School Year first (including the API key).', actions: [goSetup] });
     return false;
   }
   if (google.status !== 'connected') {

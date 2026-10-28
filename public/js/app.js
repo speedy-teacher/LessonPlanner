@@ -11,13 +11,15 @@ import { renderSetup, openNewYear } from './views/setup.js';
 import { renderLessons, lessonKeys } from './views/lessons.js';
 import { installCalendarScrolling, showCalendar } from './views/calendarGrid.js';
 import { checkWatchedFolders, startWatchingDrive } from './views/deckImport.js';
+import { menuItem, popMenu } from './views/common.js';
 
+// Pages with `menu: 'setup'` are reached through the "Setup ▾" menu instead of their own tab.
 const TABS = [
   { id: 'plan', label: 'Outcome & Eval Calendar', icon: '📅', render: renderPlan, keys: planKeys, onShow: showCalendar },
   { id: 'schedule', label: 'Instrument Schedule', icon: '🎶', render: renderSchedule, keys: scheduleKeys, onShow: showCalendar },
-  { id: 'outcomes', label: 'Outcomes, Evals & Lesson Order', icon: '🌱', render: renderOutcomes },
-  { id: 'lessons', label: 'Lesson Templates', icon: '🖼️', render: renderLessons, keys: lessonKeys },
-  { id: 'setup', label: 'Setup', icon: '🧺', render: renderSetup },
+  { id: 'setup', label: 'School Year', icon: '🧺', render: renderSetup, menu: 'setup' },
+  { id: 'outcomes', label: 'Outcomes, Evals & Lesson Order', icon: '🌱', render: renderOutcomes, menu: 'setup' },
+  { id: 'lessons', label: 'Lesson Templates', icon: '🖼️', render: renderLessons, keys: lessonKeys, menu: 'setup' },
 ];
 
 function activeTab() {
@@ -54,14 +56,26 @@ function renderHeader() {
   document.getElementById('year-picker').replaceChildren(
     h('span', { class: 'mini-label' }, 'School year'), yearSelect,
     h('button', { class: 'btn small light', title: 'Start a new academic year', onclick: openNewYear }, '+ New year'));
-  document.getElementById('tabs').replaceChildren(...TABS.map((t) => h('button', {
-    class: `tab ${t.id === activeTab().id ? 'active' : ''}`,
-    role: 'tab',
-    onclick: () => setUi({ tab: t.id }),
-  }, h('span', { class: 'tab-icon' }, t.icon), t.label)));
+  document.getElementById('tabs').replaceChildren(
+    ...TABS.filter((t) => !t.menu).map((t) => h('button', {
+      class: `tab ${t.id === activeTab().id ? 'active' : ''}`,
+      role: 'tab',
+      onclick: () => setUi({ tab: t.id }),
+    }, h('span', { class: 'tab-icon' }, t.icon), t.label)),
+    setupMenu());
   document.getElementById('drive-status').replaceChildren(...[drivePill()].filter(Boolean));
   document.getElementById('undo').disabled = !store.undoStack.length;
   document.getElementById('redo').disabled = !store.redoStack.length;
+}
+
+/** "Setup ▾": School Year, Outcomes, Evals & Lesson Order, and Lesson Templates. Shows which one is open. */
+function setupMenu() {
+  const tab = activeTab();
+  const open = tab.menu === 'setup';
+  return popMenu({
+    label: [h('span', { class: 'tab-icon' }, '⚙️'), 'Setup', open ? h('span', { class: 'tab-sub' }, `› ${tab.label}`) : null, ' ▾'],
+    title: 'Setup pages', summaryClass: `tab ${open ? 'active' : ''}`, menuClass: 'setup-menu',
+  }, TABS.filter((t) => t.menu === 'setup').map((t) => menuItem(t.label, () => setUi({ tab: t.id }), { icon: t.icon })));
 }
 
 function isTyping(e) {

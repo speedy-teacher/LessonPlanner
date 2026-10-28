@@ -66,6 +66,9 @@ kbd {
   font-weight: 700; color: var(--ink-soft); cursor: pointer; display: flex; gap: 6px; align-items: center; white-space: nowrap; flex: none;
 }
 .tab:hover { background: var(--card-2); }
+.tabs .pop-menu > summary.tab { list-style: none; }
+.tab-sub { font-weight: 600; color: var(--royal); opacity: .85; }
+.setup-menu .menu-card { min-width: 270px; }
 .tab.active { background: var(--card); color: var(--royal); box-shadow: 0 -2px 0 var(--royal) inset; }
 
 .main { flex: 1; overflow: auto; padding: 16px 20px 40px; }

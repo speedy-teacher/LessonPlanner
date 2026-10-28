@@ -1,4 +1,4 @@
-// The Setup tab's "Google Drive" card, and the bottom-left reminder that
+// The "Google Drive" card (Setup › School Year), and the bottom-left reminder that
 // appears when Google ends your sign-in (about once a week in testing mode).
 
 import { editable, h, toast } from '../dom.js';
