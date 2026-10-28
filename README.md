@@ -27,7 +27,7 @@ Hold a bar's end, or anything you're dragging, near the top or bottom edge to sc
   (copies last year's lists, lesson decks, outcomes, criteria and lesson order; calendars start empty).
   The **Google Drive** card connects to Drive and stays signed in — see `docs/google-drive-setup.md`.
 
-Notices pop up in the bottom-left corner (`public/js/notices.js` — reusable: message, buttons, auto-hide).
+The top bar shows a Drive status pill (click to sign in or open settings). Notices pop up in the bottom-left corner (`public/js/notices.js` — reusable: message, buttons, auto-hide).
 
 ## Data model
 

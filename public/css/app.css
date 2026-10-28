@@ -98,7 +98,7 @@ kbd {
 .button-row { display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
 .button-row.end { justify-content: flex-end; }
 
-input:not([type]), input[type="date"], select {
+input:not([type]), input[type="date"], input[type="password"], select {
   border: 1.5px solid var(--line); border-radius: 10px; padding: 6px 10px; background: #fff;
 }
 input:focus, select:focus, button:focus-visible { outline: 3px solid #cdb8ea; outline-offset: 1px; }
@@ -434,3 +434,14 @@ input:focus, select:focus, button:focus-visible { outline: 3px solid #cdb8ea; ou
 .notice-actions { display: flex; gap: 8px; margin-top: 6px; }
 .notice-close { margin: -4px -2px 0 0; }
 .saved-tag { color: var(--sage); font-weight: 800; margin-left: 4px; }
+.drive-pill {
+  display: inline-flex; align-items: center; gap: 6px; border: 1.5px solid rgba(255, 255, 255, .35); background: rgba(255, 255, 255, .12);
+  color: #fff8ec; border-radius: 999px; padding: 3px 12px 3px 9px; font-size: 13px; font-weight: 700; cursor: pointer; margin-right: 6px;
+}
+.drive-pill:hover { background: rgba(255, 255, 255, .22); }
+.drive-dot { width: 9px; height: 9px; border-radius: 50%; background: #c9c0b3; }
+.drive-pill.ok .drive-dot { background: #9fd18b; }
+.drive-pill.busy .drive-dot { background: #f2d28b; animation: pulse 1s infinite alternate; }
+.drive-pill.warn { background: var(--gold); border-color: var(--gold); color: #2b2113; }
+.drive-pill.warn .drive-dot { background: #fff8ec; }
+@keyframes pulse { from { opacity: .4; } to { opacity: 1; } }

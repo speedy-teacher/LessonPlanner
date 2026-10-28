@@ -3,7 +3,7 @@
 import { h, installTooltips } from './dom.js';
 import { commit, loadData, redo, refresh, setUi, store, subscribe, undo } from './store.js';
 import { resumeDrive, setGoogleHandlers } from './google.js';
-import { showSignInNotice } from './views/googleCard.js';
+import { drivePill, showSignInNotice } from './views/googleCard.js';
 import { renderPlan, planKeys } from './views/plan.js';
 import { renderSchedule, scheduleKeys } from './views/schedule.js';
 import { renderOutcomes } from './views/outcomes.js';
@@ -58,6 +58,7 @@ function renderHeader() {
     role: 'tab',
     onclick: () => setUi({ tab: t.id }),
   }, h('span', { class: 'tab-icon' }, t.icon), t.label)));
+  document.getElementById('drive-status').replaceChildren(...[drivePill()].filter(Boolean));
   document.getElementById('undo').disabled = !store.undoStack.length;
   document.getElementById('redo').disabled = !store.redoStack.length;
 }

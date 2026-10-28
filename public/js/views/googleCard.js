@@ -2,7 +2,7 @@
 // appears when Google ends your sign-in (about once a week in testing mode).
 
 import { editable, h, toast } from '../dom.js';
-import { commit, store } from '../store.js';
+import { commit, setUi, store } from '../store.js';
 import {
   APP_ORIGIN, canSignIn, connectDrive, disconnectDrive, google, saveClientSecret,
 } from '../google.js';
@@ -88,4 +88,28 @@ export function showSignInNotice() {
 
 function copyText(text) {
   navigator.clipboard?.writeText(text).then(() => toast('Copied!'), () => toast(`Copy this: ${text}`));
+}
+
+// ---------- top bar status pill ----------
+
+const PILLS = {
+  connected: { tone: 'ok', text: 'Drive connected', tip: () => `Connected to Google Drive${google.userName ? ` as ${google.userName}` : ''}. Click for settings.` },
+  working: { tone: 'busy', text: 'Drive connecting…', tip: () => 'Connecting to Google Drive…' },
+  'needs-signin': { tone: 'warn', text: 'Drive: sign in', tip: () => 'Google signed you out. Click to sign in again.' },
+  error: { tone: 'warn', text: 'Drive: not connected', tip: () => google.message || 'Click to connect.' },
+  idle: { tone: 'off', text: 'Drive: not connected', tip: () => 'Click to connect Google Drive.' },
+};
+
+/** Always-visible Drive status in the top bar (hidden until a Client ID is entered). */
+export function drivePill() {
+  const clientId = store.state.settings.googleClientId;
+  if (!clientId) return null;
+  const pill = PILLS[google.status] || PILLS.idle;
+  const offerSignIn = google.status !== 'connected' && google.status !== 'working' && canSignIn(clientId);
+  return h('button', {
+    class: `drive-pill ${pill.tone}`,
+    'data-tip': pill.tip(),
+    'aria-label': pill.tip(),
+    onclick: () => (offerSignIn ? signIn() : setUi({ tab: 'setup' })),
+  }, h('span', { class: 'drive-dot', 'aria-hidden': 'true' }), pill.text);
 }
