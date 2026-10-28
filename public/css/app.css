@@ -69,6 +69,9 @@ kbd {
 .tabs .pop-menu > summary.tab { list-style: none; }
 .tab-sub { font-weight: 600; color: var(--royal); opacity: .85; }
 .setup-menu .menu-card { min-width: 270px; }
+.setup-menu .menu-item { white-space: nowrap; }
+/* Setup sits at the right end of the tab row; every other tab stays on the left. */
+.tabs > .setup-menu { margin-left: auto; flex: none; }
 .tab.active { background: var(--card); color: var(--royal); box-shadow: 0 -2px 0 var(--royal) inset; }
 
 .main { flex: 1; overflow: auto; padding: 16px 20px 40px; }
