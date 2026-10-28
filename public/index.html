@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lesson Planner</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎵</text></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap">
+  <link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><span class="brand-icon">🎵</span> Lesson Planner</div>
+    <div id="year-picker" class="year-picker"></div>
+    <div class="top-actions">
+      <button id="undo" class="icon-btn" title="Undo (Ctrl+Z)" aria-label="Undo">↶</button>
+      <button id="redo" class="icon-btn" title="Redo (Ctrl+Y)" aria-label="Redo">↷</button>
+      <span id="save-status" class="save-status" data-status="saved">All changes saved</span>
+    </div>
+  </header>
+  <nav id="tabs" class="tabs" role="tablist"></nav>
+  <main id="main" class="main"><p class="empty-note">Loading your planner…</p></main>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <div id="tooltip" class="tooltip" role="tooltip"></div>
+  <div id="modal" class="modal"></div>
+  <script type="module" src="/js/app.js"></script>
+</body>
+</html>

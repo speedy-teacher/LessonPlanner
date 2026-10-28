@@ -1,0 +1,18 @@
+{
+  "name": "lesson-planner",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Organize music lesson slides by academic year, school, grade and instrument schedule.",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test \"test/*.test.js\"",
+    "lint": "eslint . && node scripts/quality.js"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "eslint": "^9.39.5",
+    "eslint-plugin-sonarjs": "^4.2.2",
+    "globals": "^17.13.0"
+  }
+}
