@@ -99,10 +99,11 @@ function drivePlans(close) {
     return box;
   }
   if (!driveConnected()) {
-    box.append(h('p', { class: 'hint' }, 'Connect Google Drive to see your plans there, and to use them on any computer.'),
+    // h() skips empty parts (plain .append would write "null").
+    box.append(h('div', {}, h('p', { class: 'hint' }, 'Connect Google Drive to see your plans there, and to use them on any computer.'),
       h('button', { class: 'btn', disabled: google.status === 'working', onclick: () => connectDrive(clientId()) },
         google.status === 'working' ? 'Connecting…' : 'Connect Google Drive'),
-      google.message ? h('p', { class: `google-status ${google.status === 'error' ? 'error' : ''}` }, google.message) : null);
+      google.message ? h('p', { class: `google-status ${google.status === 'error' ? 'error' : ''}` }, google.message) : null));
     return box;
   }
   const list = h('ul', { class: 'plan-list' }, h('li', { class: 'hint' }, 'Looking in your Drive…'));
