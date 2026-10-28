@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { add, addStep, addInstrumentBlock, createYear, emptyState, normalize, placeCriterion, remove } from '../public/js/model.js';
 import {
-  addWeekLesson, autoFillWeeks, entryOutcome, filterLessons, instrumentsInWeek, missingInstruments,
+  addWeekLesson, autoFillWeek, autoFillWeeks, entryOutcome, filterLessons, instrumentsInWeek, missingInstruments,
   moveWeekLesson, placementsInWeek, removeWeekLesson, schoolWeeks, weekLessonsFor,
 } from '../public/js/weekPlan.js';
 
@@ -187,4 +187,23 @@ test('auto-fill keeps calendar order when evals share a week, and leaves other c
   assert.deepEqual(names(s, weekLessonsFor(s, cls, weeks[1].weekStart)), ['Alpha', 'Bravo', 'Charlie', 'Delta']);
   assert.equal(weekLessonsFor(s, other, weeks[1].weekStart)[0].lessonId, a.id);
   assert.ok(d);
+});
+
+test('the ✨ on one week fills only that week from the calendar', () => {
+  const { s, a, d, crit, cls, weeks } = setup();
+  // Three lessons over two weeks: Alpha + Bravo in week 2, Charlie in week 3.
+  placeCriterion(s, { ...cls, criterionId: crit.id, startDate: '2026-09-01', endDate: '2026-09-10' });
+  addWeekLesson(s, { ...cls, weekStart: weeks[1].weekStart, lessonId: d.id });
+  addWeekLesson(s, { ...cls, weekStart: weeks[2].weekStart, lessonId: d.id });
+  assert.equal(autoFillWeek(s, cls, weeks, weeks[1].weekStart), 2);
+  assert.deepEqual(names(s, weekLessonsFor(s, cls, weeks[1].weekStart)), ['Alpha', 'Bravo'], 'replaces that week');
+  assert.deepEqual(names(s, weekLessonsFor(s, cls, weeks[2].weekStart)), ['Delta'], 'other weeks untouched');
+  assert.ok(a);
+});
+
+test('the ✨ on a week with nothing on the calendar leaves the week as it is', () => {
+  const { s, d, cls, weeks } = setup();
+  addWeekLesson(s, { ...cls, weekStart: weeks[4].weekStart, lessonId: d.id });
+  assert.equal(autoFillWeek(s, cls, weeks, weeks[4].weekStart), 0);
+  assert.deepEqual(names(s, weekLessonsFor(s, cls, weeks[4].weekStart)), ['Delta']);
 });

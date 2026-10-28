@@ -6,7 +6,7 @@
 import { h, iconButton, openModal, toast } from '../dom.js';
 import { find, inYear, lessonInstruments, outcomeLabel } from '../model.js';
 import {
-  addWeekLesson, autoFillWeeks, entryOutcome, filterLessons, instrumentsInWeek, missingInstruments,
+  addWeekLesson, autoFillWeek, autoFillWeeks, entryOutcome, filterLessons, instrumentsInWeek, missingInstruments,
   moveWeekLesson, placementsInWeek, removeWeekLesson, schoolWeeks, weekLessonsFor,
 } from '../weekPlan.js';
 import { commit, setUi, store, undo } from '../store.js';
@@ -90,6 +90,19 @@ function autoFill(ctx, classes) {
     count ? { label: 'Undo', run: undo } : null);
 }
 
+/** The ✨ at the top right of a week: fill just this week from the calendar. */
+function weekFillButton(ctx, week, hasLessons) {
+  const tip = `Fill Week ${week.number} from the Outcome & Eval Calendar${hasLessons ? ' (replaces this week’s lessons — you can undo)' : ''}`;
+  return h('button', {
+    class: 'ls-week-fill', 'aria-label': tip, 'data-tip': tip,
+    onclick: () => {
+      const count = commit((s) => autoFillWeek(s, ctx.cls, ctx.weeks, week.weekStart));
+      toast(count ? `Filled Week ${week.number} with ${count} lesson${count === 1 ? '' : 's'}.` : 'The evals this week don’t have lessons yet.',
+        count ? { label: 'Undo', run: undo } : null);
+    },
+  }, '✨');
+}
+
 // ---------- the weeks ----------
 
 function weekRow(ctx, week, isThisWeek) {
@@ -105,7 +118,8 @@ function weekRow(ctx, week, isThisWeek) {
       h('strong', {}, `Week ${week.number}`),
       h('small', {}, week.days.length ? formatRange(week.days[0], week.days.at(-1)) : formatRange(week.weekStart, week.friday))),
     h('div', { class: 'ls-body' },
-      h('div', { class: 'ls-info' }, placements.map(evalTag), instrumentTags(ctx, week)),
+      h('div', { class: 'ls-info' }, placements.map(evalTag), instrumentTags(ctx, week),
+        placements.length ? weekFillButton(ctx, week, entries.length) : null),
       dropZone(ctx, week, entries, placements)),
   );
 }

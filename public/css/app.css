@@ -553,6 +553,11 @@ input:focus, select:focus, button:focus-visible { outline: 3px solid #cdb8ea; ou
   display: inline-flex; align-items: center; gap: 4px; max-width: 260px; min-width: 0; font-size: 11.5px;
   background: color-mix(in srgb, var(--chip) 14%, #fff); border-radius: 999px; padding: 0 8px 0 2px;
 }
+.ls-week-fill {
+  margin-left: auto; flex: none; border: 1.5px solid var(--line); background: var(--card); border-radius: 999px;
+  width: 26px; height: 22px; font-size: 12px; cursor: pointer; padding: 0; line-height: 1;
+}
+.ls-week-fill:hover { border-color: var(--royal); background: var(--royal-soft); }
 .ins-tag.part { background: #fff; border: 1.5px dashed var(--ins); opacity: .8; }
 .ls-no-ins { font-size: 11px; color: #b9a990; font-style: italic; }
 .ls-zone {

@@ -145,24 +145,42 @@ function lessonsInEvals(state, yearId, { gradeId, outcomeId, criterionId }) {
 }
 
 /**
- * Fill a class's weeks from the Outcome & Eval Calendar: each eval's lessons, in teaching order,
- * are spread evenly over the weeks the eval is on the calendar. Replaces the class's schedule.
- * Returns how many lessons were placed.
+ * What the Outcome & Eval Calendar suggests for a class: each eval's lessons, in teaching order,
+ * spread evenly over the weeks the eval is on the calendar (evals in date order).
+ * Returns [{ weekStart, lessonId, criterionId }].
  */
-export function autoFillWeeks(state, cls, weeks) {
-  classEntries(state, cls).forEach((e) => remove(state, 'weekLessons', e.id));
+export function calendarPlan(state, cls, weeks) {
   const sorted = placementsFor(state, cls.yearId, cls.schoolId, cls.gradeId)
     .sort((a, b) => a.startDate.localeCompare(b.startDate));
-  let count = 0;
-  for (const p of sorted) {
+  return sorted.flatMap((p) => {
     const covered = weeks.filter((w) => p.startDate <= w.friday && p.endDate >= w.weekStart);
     const steps = stepsFor(state, p.criterionId);
-    if (!covered.length) continue;
-    steps.forEach((step, i) => {
-      const week = covered[Math.floor((i * covered.length) / steps.length)];
-      addWeekLesson(state, { ...cls, weekStart: week.weekStart, lessonId: step.lessonId, criterionId: p.criterionId });
-      count += 1;
-    });
-  }
-  return count;
+    if (!covered.length) return [];
+    return steps.map((step, i) => ({
+      weekStart: covered[Math.floor((i * covered.length) / steps.length)].weekStart,
+      lessonId: step.lessonId,
+      criterionId: p.criterionId,
+    }));
+  });
+}
+
+/** Fill a class's whole schedule from the calendar, replacing it. Returns how many lessons were placed. */
+export function autoFillWeeks(state, cls, weeks) {
+  classEntries(state, cls).forEach((e) => remove(state, 'weekLessons', e.id));
+  const plan = calendarPlan(state, cls, weeks);
+  plan.forEach((item) => addWeekLesson(state, { ...cls, ...item }));
+  return plan.length;
+}
+
+/**
+ * Fill just one week from the calendar (the same lessons the whole-year fill would put there),
+ * replacing that week only. When the calendar has nothing for that week, the week is left as it is.
+ * Returns how many lessons were placed.
+ */
+export function autoFillWeek(state, cls, weeks, weekStart) {
+  const plan = calendarPlan(state, cls, weeks).filter((item) => item.weekStart === weekStart);
+  if (!plan.length) return 0;
+  weekLessonsFor(state, cls, weekStart).forEach((e) => remove(state, 'weekLessons', e.id));
+  plan.forEach((item) => addWeekLesson(state, { ...cls, ...item }));
+  return plan.length;
 }
