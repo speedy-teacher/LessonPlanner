@@ -97,6 +97,8 @@ export function installTooltips() {
   document.addEventListener('mouseover', (e) => {
     const target = e.target.closest('[data-tip]');
     if (!target) { tip.classList.remove('show'); return; }
+    // An empty title stops the browser also showing a parent's title tooltip on top of this one.
+    if (!target.hasAttribute('title')) target.setAttribute('title', '');
     tip.textContent = target.dataset.tip;
     const rect = target.getBoundingClientRect();
     tip.classList.add('show');
