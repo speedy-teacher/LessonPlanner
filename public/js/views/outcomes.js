@@ -1,14 +1,15 @@
 // "Outcomes & Lessons": essential outcomes → eval criteria → grades and
-// ordered lesson slides.
+// ordered lessons (slide decks from the Lesson Decks library).
 
 import { adder, editable, h, iconButton, toast } from '../dom.js';
 import {
-  add, addSlide, autoFill, nextColor, criteriaFor, find, moveSlide, remove, slidesFor, templatesByCategory, toggleGrade, update,
+  add, addStep, autoFill, nextColor, criteriaFor, find, lessonsByCategory, moveStep, remove, stepsFor, toggleGrade, update,
 } from '../model.js';
 import { commit, setUi, store, undo } from '../store.js';
 import { current, emptyNote, pickId, year } from './common.js';
 import { outcomeColor } from './plan.js';
-import { slidePreview } from './slides.js';
+import { instrumentTags, lessonPreview } from './lessonPreview.js';
+import { newLesson } from './lessons.js';
 
 export function renderOutcomes() {
   const outcomes = current('outcomes');
@@ -73,63 +74,65 @@ function criterionCard(crit) {
         'aria-pressed': crit.gradeIds.includes(g.id) ? 'true' : 'false',
         onclick: () => commit((s) => toggleGrade(s, crit.id, g.id)),
       }, g.short || g.name))),
-    h('div', { class: 'mini-label' }, 'Lesson slides, in teaching order (drag ⠿ to reorder):'),
-    h('ol', { class: 'slide-list' }, slidesFor(store.state, crit.id).map((s, i, all) => slideRow(s, i, all.length))),
-    adder('New lesson slide…', (title) => commit((s) => addSlide(s, crit.id, { title })), `add-slide-${crit.id}`),
+    h('div', { class: 'mini-label' }, 'Lessons, in teaching order (drag ⠿ to reorder):'),
+    h('ol', { class: 'slide-list' }, stepsFor(store.state, crit.id).map((s, i, all) => stepRow(s, i, all.length))),
+    addLessonRow(crit),
   );
 }
 
-function slideRow(slide, index, total) {
-  const li = h('li', { class: 'slide-item', dataset: { slideId: slide.id } },
+function stepRow(step, index, total) {
+  const lesson = find(store.state, 'lessons', step.lessonId);
+  const li = h('li', { class: 'slide-item', dataset: { stepId: step.id } },
     h('span', { class: 'drag-handle', title: 'Drag to reorder', draggable: 'true',
       ondragstart: (e) => {
-        e.dataTransfer.setData('application/x-slide', slide.id);
+        e.dataTransfer.setData('application/x-step', step.id);
         e.dataTransfer.effectAllowed = 'move';
       } }, '⠿'),
     h('span', { class: 'slide-num' }, index + 1),
-    slidePreview(slide, { small: true, fields: autoFill(store.state, slide, null) }),
+    lessonPreview(step.lessonId, { small: true, fields: autoFill(store.state, step, null) }),
     h('div', { class: 'slide-fields-edit' },
-      editable(slide.title, (title) => commit((s) => update(s, 'slides', slide.id, { title }))),
-      h('div', { class: 'slide-selects' },
-        templatePicker(slide),
-        picker('Instrument', current('instruments'), slide.instrumentId, (instrumentId) => commit((s) => update(s, 'slides', slide.id, { instrumentId })), 'None'))),
+      lessonPicker(step.lessonId, (lessonId) => commit((s) => update(s, 'criterionLessons', step.id, { lessonId })), 'Lesson'),
+      h('div', { class: 'step-meta' },
+        lesson?.category ? h('span', { class: 'hint' }, lesson.category) : null,
+        instrumentTags(lesson),
+        h('button', { class: 'link-btn', title: 'Edit this lesson deck', onclick: () => setUi({ tab: 'lessons', lessonId: step.lessonId }) }, 'Edit deck'))),
     h('div', { class: 'row-actions' },
-      iconButton('↑', 'Move up', () => commit((s) => moveSlide(s, slide.id, index - 1)), index === 0 ? 'invisible' : ''),
-      iconButton('↓', 'Move down', () => commit((s) => moveSlide(s, slide.id, index + 1)), index === total - 1 ? 'invisible' : ''),
-      iconButton('×', 'Delete slide', () => {
-        commit((s) => remove(s, 'slides', slide.id));
-        toast('Slide deleted.', { label: 'Undo', run: undo });
+      iconButton('↑', 'Move up', () => commit((s) => moveStep(s, step.id, index - 1)), index === 0 ? 'invisible' : ''),
+      iconButton('↓', 'Move down', () => commit((s) => moveStep(s, step.id, index + 1)), index === total - 1 ? 'invisible' : ''),
+      iconButton('×', 'Take out of this eval (the deck stays in your library)', () => {
+        commit((s) => remove(s, 'criterionLessons', step.id));
+        toast(`Took “${lesson?.name}” out of this eval.`, { label: 'Undo', run: undo });
       })),
   );
   li.addEventListener('dragover', (e) => {
-    if (!e.dataTransfer.types.includes('application/x-slide')) return;
+    if (!e.dataTransfer.types.includes('application/x-step')) return;
     e.preventDefault();
     li.classList.add('drop-target');
   });
   li.addEventListener('dragleave', () => li.classList.remove('drop-target'));
   li.addEventListener('drop', (e) => {
-    const id = e.dataTransfer.getData('application/x-slide');
-    const moving = find(store.state, 'slides', id);
-    if (!moving || moving.criterionId !== slide.criterionId) return;
+    const id = e.dataTransfer.getData('application/x-step');
+    const moving = find(store.state, 'criterionLessons', id);
+    if (!moving || moving.criterionId !== step.criterionId) return;
     e.preventDefault();
-    commit((s) => moveSlide(s, id, index));
+    commit((s) => moveStep(s, id, index));
   });
   return li;
 }
 
-/** Template dropdown, grouped by category so dozens of templates stay findable. */
-function templatePicker(slide) {
-  const groups = templatesByCategory(store.state, year().id);
-  const option = (t) => h('option', { value: t.id, selected: t.id === slide.templateId }, t.name);
-  return h('label', { class: 'mini-select' }, h('span', {}, 'Template'),
-    h('select', { onchange: (e) => commit((s) => update(s, 'slides', slide.id, { templateId: e.target.value || null })) },
-      h('option', { value: '' }, 'None'),
-      groups.map(({ category, templates }) => h('optgroup', { label: category || 'No category' }, templates.map(option)))));
+/** Add a lesson from the library, or make a brand-new deck and add it. */
+function addLessonRow(crit) {
+  return h('div', { class: 'add-lesson-row' },
+    lessonPicker(null, (lessonId) => { if (lessonId) commit((s) => addStep(s, crit.id, lessonId)); }, 'Add a lesson', '＋ Pick from your decks…'),
+    adder('…or a new lesson deck', (name) => commit((s) => addStep(s, crit.id, newLesson(s, name).id)), `add-lesson-${crit.id}`));
 }
 
-function picker(label, items, value, onPick, noneLabel = 'None') {
+/** Lesson dropdown, grouped by category so dozens of decks stay findable. */
+function lessonPicker(value, onPick, label, noneLabel = null) {
+  const groups = lessonsByCategory(store.state, year().id);
+  const option = (l) => h('option', { value: l.id, selected: l.id === value }, l.name);
   return h('label', { class: 'mini-select' }, h('span', {}, label),
     h('select', { onchange: (e) => onPick(e.target.value || null) },
-      h('option', { value: '' }, noneLabel),
-      items.map((i) => h('option', { value: i.id, selected: i.id === value }, i.name))));
+      noneLabel ? h('option', { value: '', selected: true }, noneLabel) : null,
+      groups.map(({ category, lessons }) => h('optgroup', { label: category || 'No category' }, lessons.map(option)))));
 }

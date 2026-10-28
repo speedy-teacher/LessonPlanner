@@ -104,7 +104,7 @@ export function openNewYear() {
         h('label', { class: 'field' }, h('span', {}, 'First day'), start),
         h('label', { class: 'field' }, h('span', {}, 'Last day'), end)),
       from ? h('label', { class: 'check big' }, copy,
-        `Copy schools, grades, instruments, templates and essential outcomes (with eval criteria and slides) from ${from.name}`) : null,
+        `Copy schools, grades, instruments, lesson decks and essential outcomes (with eval criteria and lesson order) from ${from.name}`) : null,
       h('p', { class: 'hint' }, 'Calendars start empty. Past years stay just as they are.'),
       h('div', { class: 'button-row end' },
         h('button', { class: 'btn light', onclick: close }, 'Cancel'),

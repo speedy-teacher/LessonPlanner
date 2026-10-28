@@ -308,6 +308,13 @@ input:focus, select:focus, button:focus-visible { outline: 3px solid #cdb8ea; ou
 .mini-select { display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--ink-soft); font-weight: 700; }
 .mini-select select { padding: 2px 6px; font-size: 13px; }
 .row-actions { display: flex; }
+.step-meta { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; font-size: 12px; }
+.step-meta .hint { margin: 0; }
+.add-lesson-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 4px; }
+.add-lesson-row .adder { margin-top: 0; flex: 1; min-width: 200px; }
+.add-lesson-row .mini-select select { max-width: 260px; }
+.ins-toggle { --ins: var(--sage); }
+.grade-toggle.ins-toggle.on { background: var(--ins); border-color: var(--ins); }
 
 /* ---------- templates ---------- */
 

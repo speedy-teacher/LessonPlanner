@@ -20,17 +20,19 @@ Hold a bar's end, or anything you're dragging, near the top or bottom edge to sc
 - **Instrument Schedule** — drag an instrument for a school onto its first day, then drag the end of the bar
   to its last day. Bars are colored by instrument and labeled `Instrument@School`; "Show" narrows to one school.
   Same moves as the Lesson Calendar (Ctrl to copy, `Shift`+`←` `→`, `Delete`).
-- **Outcomes & Lessons** — essential outcomes → eval criteria → grades and ordered lesson slides.
-- **Templates** — the lesson slide template library: search, categories, which details each template
-  fills in automatically, and which slides use it. `↑` `↓` move through the list.
+- **Outcomes & Lessons** — essential outcomes → eval criteria → grades and the lesson decks for each eval, in teaching order.
+- **Lesson Decks** — the library of lessons (one slide deck each): search, categories, the instruments it uses,
+  which details it fills in automatically, and which evals teach it. `↑` `↓` move through the list.
 - **Setup** — the year's dates, schools, grades and instruments; start a new year
-  (copies last year's lists, outcomes, criteria and slides; calendars start empty).
+  (copies last year's lists, lesson decks, outcomes, criteria and lesson order; calendars start empty).
 
 ## Data model
 
 One JSON file of flat collections linked by id (see `public/js/model.js`):
-`years`, `instruments`, `schools`, `grades`, `outcomes`, `templates` (year-scoped, copied each new year
-with a `copiedFromId` link back), `criteria` → `slides` (belong to an outcome), and the calendars
+`years`, `instruments`, `schools`, `grades`, `outcomes`, `lessons` (slide decks with their `instrumentIds`;
+all year-scoped, copied each new year
+with a `copiedFromId` link back), `criteria` (belong to an outcome) → `criterionLessons` (the lessons
+of an eval in teaching order, by `position`), and the calendars
 `placements` (an eval criterion for a school + grade from `startDate` to `endDate`) and
 `instrumentBlocks` (year-scoped, never copied). Outcomes carry a `color` shared by all their evals.
 Older saved files are upgraded automatically when loaded (`schemaVersion`).

@@ -1,7 +1,7 @@
 // Placeholder starter data, used the very first time the app opens.
 // Everything here is made up.
 
-import { PALETTE, add, addSlide, createYear, emptyState, paintInstrument, placeCriterion } from './model.js';
+import { PALETTE, add, addStep, createYear, emptyState, paintInstrument, placeCriterion } from './model.js';
 import { weekdaysBetween } from './dates.js';
 
 const SCHOOLS = ['Acorn Elementary', 'Bluebird Elementary', 'Cedar Grove Elementary', 'Dandelion Elementary'];
@@ -10,39 +10,45 @@ const GRADES = [
   ['Grade 3', '3'], ['Grade 4', '4'], ['Grade 5', '5'],
 ];
 const INSTRUMENTS = [['Ukulele', '#b5654a'], ['Recorder', '#6b8f5e'], ['Xylophone', '#6a4c93']];
-// [name, category, auto-filled fields]. The first three are used by the slides below.
-const TEMPLATES = [
-  ['Warm-up', 'Openers', ['school', 'grade', 'date']],
-  ['Main lesson', 'Lesson', ['grade', 'date', 'outcome', 'criterion', 'instrument']],
-  ['Exit ticket', 'Closers', ['grade', 'criterion']],
-  ['Welcome song', 'Openers', ['school', 'grade', 'date']],
-  ['Agenda', 'Openers', ['date', 'outcome']],
-  ['Listening example', 'Lesson', ['outcome', 'criterion']],
-  ['Instrument demo', 'Lesson', ['instrument', 'criterion']],
-  ['Partner practice', 'Lesson', ['grade', 'instrument']],
-  ['Self check', 'Closers', ['criterion']],
-  ['Goodbye song', 'Closers', ['school', 'grade']],
+// Lesson decks: [name, category, auto-filled fields, instrument #s].
+const LESSONS = [
+  ['Beat walk', 'Movement', ['school', 'grade', 'date']],
+  ['Body percussion', 'Movement', ['grade', 'date', 'criterion']],
+  ['Strum the beat', 'Ukulele', ['grade', 'date', 'instrument', 'criterion'], [0]],
+  ['Echo songs', 'Singing', ['school', 'grade', 'date']],
+  ['Hello song', 'Singing', ['grade', 'date']],
+  ['B-A-G songs', 'Recorder', ['grade', 'date', 'instrument', 'outcome'], [1]],
+  ['Melody practice', 'Recorder', ['grade', 'date', 'instrument'], [1]],
+  ['Pattern game', 'Creating', ['grade', 'date', 'criterion']],
+  ['Make a pattern', 'Xylophone', ['grade', 'date', 'instrument'], [2]],
+  ['Phrase builder', 'Xylophone', ['grade', 'date', 'instrument', 'criterion'], [2]],
+  ['Listening map', 'Listening', ['grade', 'date', 'outcome']],
+  ['Feelings words', 'Listening', ['grade', 'criterion']],
+  ['Ensemble warm-up', 'Ukulele', ['school', 'grade', 'date', 'instrument'], [0]],
+  ['Group piece', 'Ukulele', ['grade', 'date', 'instrument', 'outcome'], [0]],
+  ['Show me', 'Check-ins', ['grade', 'criterion']],
+  ['Share it', 'Check-ins', ['grade', 'criterion']],
 ];
 
-// [code, title, [[criterion, grade shorts, [[slide, template#, instrument#?]]]]]
+// [code, title, [[criterion, grade shorts, [lesson names in teaching order]]]]
 const OUTCOMES = [
   ['MU1', 'Keep a steady beat', [
-    ['Moves to a steady beat', 'K12', [['Beat walk', 0], ['Body percussion', 1]]],
-    ['Plays a steady beat on an instrument', '345', [['Strum the beat', 1, 0], ['Beat check', 2]]],
+    ['Moves to a steady beat', 'K12', ['Beat walk', 'Body percussion']],
+    ['Plays a steady beat on an instrument', '345', ['Strum the beat', 'Show me']],
   ]],
   ['MU2', 'Sing and play melodies', [
-    ['Matches pitch', 'K12', [['Echo songs', 0], ['Hello song', 1]]],
-    ['Plays a simple melody', '2345', [['B-A-G songs', 1, 1], ['Melody practice', 1, 1], ['Show me', 2]]],
+    ['Matches pitch', 'K12', ['Echo songs', 'Hello song']],
+    ['Plays a simple melody', '2345', ['B-A-G songs', 'Melody practice', 'Show me']],
   ]],
   ['MU3', 'Create musical ideas', [
-    ['Makes up a short pattern', 'K123', [['Pattern game', 0], ['Make a pattern', 1, 2]]],
-    ['Composes a 4-beat phrase', '45', [['Phrase builder', 1, 2], ['Share it', 2]]],
+    ['Makes up a short pattern', 'K123', ['Pattern game', 'Make a pattern']],
+    ['Composes a 4-beat phrase', '45', ['Phrase builder', 'Share it']],
   ]],
   ['MU4', 'Listen and respond', [
-    ['Describes music with words', 'K12345', [['Listening map', 1], ['Feelings words', 2]]],
+    ['Describes music with words', 'K12345', ['Listening map', 'Feelings words']],
   ]],
   ['MU5', 'Perform with others', [
-    ['Plays a part in a group', '345', [['Ensemble warm-up', 0, 0], ['Group piece', 1, 0]]],
+    ['Plays a part in a group', '345', ['Ensemble warm-up', 'Group piece']],
   ]],
 ];
 
@@ -53,8 +59,10 @@ export function seedState() {
     schools: SCHOOLS.map((name) => add(state, 'schools', { yearId: year.id, name }).id),
     grades: GRADES.map(([name, short]) => add(state, 'grades', { yearId: year.id, name, short })),
     instruments: INSTRUMENTS.map(([name, color]) => add(state, 'instruments', { yearId: year.id, name, color }).id),
-    templates: TEMPLATES.map(([name, category, autoFields]) => add(state, 'templates', { yearId: year.id, name, category, autoFields }).id),
   };
+  ids.lessons = new Map(LESSONS.map(([name, category, autoFields, ins = []]) => [name, add(state, 'lessons', {
+    yearId: year.id, name, category, autoFields, instrumentIds: ins.map((i) => ids.instruments[i]),
+  }).id]));
   OUTCOMES.forEach((o, i) => seedOutcome(state, year.id, ids, o, PALETTE[i]));
   seedSchedule(state, year.id, ids);
   seedPlacements(state, year.id, ids);
@@ -63,16 +71,10 @@ export function seedState() {
 
 function seedOutcome(state, yearId, ids, [code, title, criteria], color) {
   const outcome = add(state, 'outcomes', { yearId, code, title, color });
-  for (const [critTitle, shorts, slides] of criteria) {
+  for (const [critTitle, shorts, lessons] of criteria) {
     const gradeIds = ids.grades.filter((g) => shorts.includes(g.short)).map((g) => g.id);
     const crit = add(state, 'criteria', { outcomeId: outcome.id, title: critTitle, gradeIds });
-    for (const [slideTitle, tpl, ins] of slides) {
-      addSlide(state, crit.id, {
-        title: slideTitle,
-        templateId: ids.templates[tpl],
-        instrumentId: ins === undefined ? null : ids.instruments[ins],
-      });
-    }
+    lessons.forEach((name) => addStep(state, crit.id, ids.lessons.get(name)));
   }
 }
 

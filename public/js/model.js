@@ -12,7 +12,7 @@
 
 import { addDays, daysBetween, isWeekday, nextWeekday, weekdaysBetween } from './dates.js';
 
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 /** Default colors handed out to new outcomes and instruments (earthy & royal). */
 export const PALETTE = ['#6b8f5e', '#6a4c93', '#b5654a', '#3f6e8c', '#c49a3a', '#8c4f6b', '#4f7d7a', '#7a6248'];
@@ -24,17 +24,19 @@ export const COLLECTIONS = {
   schools: 'id, yearId, name',
   grades: 'id, yearId, name, short',
   outcomes: 'id, yearId, code, title, color',
-  templates: 'id, yearId, name, category, autoFields[]',
+  // A lesson is one slide deck: what it fills in automatically and which instruments it uses.
+  lessons: 'id, yearId, name, category, autoFields[], instrumentIds[]',
   criteria: 'id, outcomeId, title, gradeIds[]',
-  slides: 'id, criterionId, title, templateId?, instrumentId?, position',
+  // The lessons an eval criterion is taught with, in teaching order (a lesson can be in several evals).
+  criterionLessons: 'id, criterionId, lessonId, position',
   placements: 'id, yearId, schoolId, gradeId, criterionId, startDate, endDate',
   instrumentBlocks: 'id, yearId, schoolId, instrumentId, startDate, endDate',
 };
 
 /** Collections that roll over (are copied) when a new year is created. */
-export const ROLLOVER = ['instruments', 'schools', 'grades', 'templates', 'outcomes'];
+export const ROLLOVER = ['instruments', 'schools', 'grades', 'lessons', 'outcomes'];
 
-/** Template fields that are filled in automatically from the schedule. */
+/** Lesson deck fields that are filled in automatically from the schedule. */
 export const AUTO_FIELDS = {
   school: 'School',
   grade: 'Grade',
@@ -50,15 +52,15 @@ const RELATIONS = {
   years: [
     ['instruments', 'yearId', 'delete'], ['schools', 'yearId', 'delete'],
     ['grades', 'yearId', 'delete'], ['outcomes', 'yearId', 'delete'],
-    ['templates', 'yearId', 'delete'], ['placements', 'yearId', 'delete'],
+    ['lessons', 'yearId', 'delete'], ['placements', 'yearId', 'delete'],
     ['instrumentBlocks', 'yearId', 'delete'],
   ],
-  instruments: [['instrumentBlocks', 'instrumentId', 'delete'], ['slides', 'instrumentId', 'null']],
+  instruments: [['instrumentBlocks', 'instrumentId', 'delete'], ['lessons', 'instrumentIds', 'pull']],
   schools: [['placements', 'schoolId', 'delete'], ['instrumentBlocks', 'schoolId', 'delete']],
   grades: [['placements', 'gradeId', 'delete'], ['criteria', 'gradeIds', 'pull']],
   outcomes: [['criteria', 'outcomeId', 'delete']],
-  templates: [['slides', 'templateId', 'null']],
-  criteria: [['slides', 'criterionId', 'delete'], ['placements', 'criterionId', 'delete']],
+  lessons: [['criterionLessons', 'lessonId', 'delete']],
+  criteria: [['criterionLessons', 'criterionId', 'delete'], ['placements', 'criterionId', 'delete']],
 };
 
 export function newId(prefix) {
@@ -68,7 +70,7 @@ export function newId(prefix) {
 
 const PREFIX = {
   years: 'yr', instruments: 'ins', schools: 'sch', grades: 'gr', outcomes: 'out',
-  templates: 'tpl', criteria: 'crit', slides: 'sld', placements: 'plc', instrumentBlocks: 'blk',
+  lessons: 'les', criteria: 'crit', criterionLessons: 'cl', placements: 'plc', instrumentBlocks: 'blk',
 };
 
 export function emptyState() {
@@ -84,17 +86,27 @@ export function normalize(raw) {
     if (!Array.isArray(state[name])) state[name] = [];
   }
   state.criteria.forEach((c) => { if (!Array.isArray(c.gradeIds)) c.gradeIds = []; });
-  state.templates.forEach((t) => {
-    if (!Array.isArray(t.autoFields)) t.autoFields = [];
-    if (typeof t.category !== 'string') t.category = '';
-  });
-  if ((state.schemaVersion || 1) < 2) migrateToV2(state);
+  migrate(state);
+  state.lessons.forEach(normalizeLesson);
   for (const year of state.years) assignOutcomeColors(state, year.id);
   if (!state.years.some((y) => y.id === state.activeYearId)) {
     state.activeYearId = state.years.at(-1)?.id ?? null;
   }
   state.schemaVersion = SCHEMA_VERSION;
   return state;
+}
+
+/** Upgrade data saved by older versions of the app, one version at a time. */
+function migrate(state) {
+  const version = state.schemaVersion || 1;
+  if (version < 2) migrateToV2(state);
+  if (version < 3) migrateToV3(state);
+}
+
+function normalizeLesson(lesson) {
+  if (!Array.isArray(lesson.autoFields)) lesson.autoFields = [];
+  if (!Array.isArray(lesson.instrumentIds)) lesson.instrumentIds = [];
+  if (typeof lesson.category !== 'string') lesson.category = '';
 }
 
 /**
@@ -112,6 +124,31 @@ function migrateToV2(state) {
         criterionId: c.id, startDate: p.date, endDate: p.date,
       }));
   });
+}
+
+/**
+ * Version 2 had slide "templates" and per-eval "slides" that each picked a
+ * template and an instrument. Version 3: each template is a lesson (one slide
+ * deck) that knows its own instruments, and an eval lists lessons in order.
+ */
+function migrateToV3(state) {
+  const lessons = new Map((state.templates || []).map((t) => [t.id, { ...t, instrumentIds: [] }]));
+  state.lessons = [...lessons.values()];
+  state.criterionLessons = (state.slides || []).map((slide) => {
+    const lesson = lessons.get(slide.templateId) ?? lessonFromSlide(state, slide);
+    if (slide.instrumentId && !lesson.instrumentIds.includes(slide.instrumentId)) lesson.instrumentIds.push(slide.instrumentId);
+    return { id: slide.id, criterionId: slide.criterionId, lessonId: lesson.id, position: slide.position };
+  });
+  delete state.templates;
+  delete state.slides;
+}
+
+/** An old slide without a template becomes a lesson of its own. */
+function lessonFromSlide(state, slide) {
+  const yearId = outcomeOf(state, slide.criterionId)?.yearId ?? null;
+  const lesson = { id: newId('les'), yearId, name: slide.title, category: '', autoFields: [], instrumentIds: [] };
+  state.lessons.push(lesson);
+  return lesson;
 }
 
 function assignOutcomeColors(state, yearId) {
@@ -156,7 +193,7 @@ export function remove(state, collection, id) {
   for (const [other, field, action] of RELATIONS[collection] || []) {
     applyRelation(state, other, field, action, id);
   }
-  if (collection === 'slides') renumberSlides(state, record.criterionId);
+  if (collection === 'criterionLessons') renumberSteps(state, record.criterionId);
   if (collection === 'years' && state.activeYearId === id) {
     state.activeYearId = state.years.at(-1)?.id ?? null;
   }
@@ -176,8 +213,8 @@ function applyRelation(state, other, field, action, id) {
 
 /**
  * Create a new academic year. When `copyFromYearId` is given, instruments,
- * schools, grades, templates and essential outcomes (with their eval
- * criteria and lesson slides) are copied over. Calendars start empty.
+ * schools, grades, lessons and essential outcomes (with their eval
+ * criteria and lesson order) are copied over. Calendars start empty.
  */
 export function createYear(state, { name, startDate, endDate }, copyFromYearId = null) {
   const year = add(state, 'years', { name, startDate, endDate });
@@ -196,6 +233,9 @@ function copyYearContents(state, fromYearId, toYearId) {
     }
   }
   const mapId = (id) => (id ? idMap[id] ?? null : null);
+  for (const lesson of inYear(state, 'lessons', toYearId)) {
+    lesson.instrumentIds = lesson.instrumentIds.map(mapId).filter(Boolean);
+  }
   for (const outcomeId of Object.keys(idMap).filter((id) => find(state, 'outcomes', id))) {
     copyCriteria(state, outcomeId, idMap[outcomeId], mapId);
   }
@@ -209,14 +249,9 @@ function copyCriteria(state, fromOutcomeId, toOutcomeId, mapId) {
       gradeIds: crit.gradeIds.map(mapId).filter(Boolean),
       copiedFromId: crit.id,
     });
-    for (const slide of slidesFor(state, crit.id)) {
-      add(state, 'slides', {
-        criterionId: newCrit.id,
-        title: slide.title,
-        templateId: mapId(slide.templateId),
-        instrumentId: mapId(slide.instrumentId),
-        position: slide.position,
-        copiedFromId: slide.id,
+    for (const step of stepsFor(state, crit.id)) {
+      add(state, 'criterionLessons', {
+        criterionId: newCrit.id, lessonId: mapId(step.lessonId), position: step.position, copiedFromId: step.id,
       });
     }
   }
@@ -233,38 +268,39 @@ export function suggestNextYear(year) {
   return { name: `${startYear}–${startYear + 1}`, startDate: shift(year.startDate), endDate: shift(year.endDate) };
 }
 
-// ---------- outcomes, criteria, slides ----------
+// ---------- outcomes, criteria, lesson order ----------
 
 export function criteriaFor(state, outcomeId) {
   return state.criteria.filter((c) => c.outcomeId === outcomeId);
 }
 
-/** Lesson slides for an eval criterion, in their teaching order. */
-export function slidesFor(state, criterionId) {
-  return state.slides
+/**
+ * The "steps" of an eval criterion: its lessons in teaching order.
+ * Each step is a criterionLessons record pointing at a lesson.
+ */
+export function stepsFor(state, criterionId) {
+  return state.criterionLessons
     .filter((s) => s.criterionId === criterionId)
     .sort((a, b) => a.position - b.position);
 }
 
-export function addSlide(state, criterionId, fields = {}) {
-  const position = slidesFor(state, criterionId).length;
-  return add(state, 'slides', {
-    criterionId, title: 'New slide', templateId: null, instrumentId: null, ...fields, position,
-  });
+/** Add a lesson to the end of an eval criterion's teaching order. */
+export function addStep(state, criterionId, lessonId) {
+  return add(state, 'criterionLessons', { criterionId, lessonId, position: stepsFor(state, criterionId).length });
 }
 
-/** Move a slide to a new place (0-based) in its criterion's order. */
-export function moveSlide(state, slideId, newIndex) {
-  const slide = find(state, 'slides', slideId);
-  if (!slide) return;
-  const ordered = slidesFor(state, slide.criterionId).filter((s) => s.id !== slideId);
+/** Move a step to a new place (0-based) in its criterion's order. */
+export function moveStep(state, stepId, newIndex) {
+  const step = find(state, 'criterionLessons', stepId);
+  if (!step) return;
+  const ordered = stepsFor(state, step.criterionId).filter((s) => s.id !== stepId);
   const index = Math.max(0, Math.min(newIndex, ordered.length));
-  ordered.splice(index, 0, slide);
+  ordered.splice(index, 0, step);
   ordered.forEach((s, i) => { s.position = i; });
 }
 
-function renumberSlides(state, criterionId) {
-  slidesFor(state, criterionId).forEach((s, i) => { s.position = i; });
+function renumberSteps(state, criterionId) {
+  stepsFor(state, criterionId).forEach((s, i) => { s.position = i; });
 }
 
 export function toggleGrade(state, criterionId, gradeId) {
@@ -380,43 +416,49 @@ export function toRanges(dates) {
 // ---------- warnings ----------
 
 /**
- * Lesson slides in a placement that need an instrument the school does not
- * have on one or more of its school days.
- * Returns [{ criterion, slide, instrument, blocks, missingDates }].
+ * Lessons in a placement that use an instrument the school does not have
+ * on one or more of its school days.
+ * Returns [{ criterion, step, lesson, instrument, blocks, missingDates }].
  */
 export function placementWarnings(state, placement) {
   const { yearId, schoolId, startDate, endDate } = placement;
   const criterion = find(state, 'criteria', placement.criterionId);
   const days = weekdaysBetween(startDate, endDate);
   const warnings = [];
-  for (const slide of slidesFor(state, placement.criterionId)) {
-    if (!slide.instrumentId) continue;
-    const missingDates = days.filter((d) => !instrumentsAt(state, yearId, schoolId, d).includes(slide.instrumentId));
-    if (!missingDates.length) continue;
-    const instrument = find(state, 'instruments', slide.instrumentId);
-    const blocks = blocksFor(state, yearId, schoolId, slide.instrumentId);
-    warnings.push({ criterion, slide, instrument, blocks, missingDates });
+  for (const step of stepsFor(state, placement.criterionId)) {
+    const lesson = find(state, 'lessons', step.lessonId);
+    for (const instrumentId of lesson?.instrumentIds ?? []) {
+      const missingDates = days.filter((d) => !instrumentsAt(state, yearId, schoolId, d).includes(instrumentId));
+      if (!missingDates.length) continue;
+      const instrument = find(state, 'instruments', instrumentId);
+      warnings.push({ criterion, step, lesson, instrument, blocks: blocksFor(state, yearId, schoolId, instrumentId), missingDates });
+    }
   }
   return warnings;
 }
 
-// ---------- templates ----------
+// ---------- lessons (slide decks) ----------
+
+export function lessonInstruments(state, lesson) {
+  return (lesson?.instrumentIds ?? []).map((id) => find(state, 'instruments', id)).filter(Boolean);
+}
 
 /**
- * The values a slide's template fills in automatically for a placement.
+ * The values a lesson fills in automatically. `step` is { lessonId, criterionId? };
+ * `placement` (optional) supplies school, grade and dates.
  * `date` is an ISO date, or an ISO interval "start/end" for several days.
  */
-export function autoFill(state, slide, placement) {
-  const template = find(state, 'templates', slide.templateId);
-  if (!template) return [];
-  const criterion = find(state, 'criteria', slide.criterionId);
+export function autoFill(state, step, placement) {
+  const lesson = find(state, 'lessons', step.lessonId);
+  if (!lesson) return [];
+  const criterion = find(state, 'criteria', step.criterionId ?? placement?.criterionId);
   const values = {
     ...scheduleValues(state, placement),
-    instrument: find(state, 'instruments', slide.instrumentId)?.name,
+    instrument: lessonInstruments(state, lesson).map((i) => i.name).join(', '),
     outcome: outcomeLabel(find(state, 'outcomes', criterion?.outcomeId)),
     criterion: criterion?.title,
   };
-  return template.autoFields.map((key) => ({ key, label: AUTO_FIELDS[key], value: values[key] ?? '' }));
+  return lesson.autoFields.map((key) => ({ key, label: AUTO_FIELDS[key], value: values[key] ?? '' }));
 }
 
 function scheduleValues(state, placement) {
@@ -429,29 +471,33 @@ function scheduleValues(state, placement) {
   };
 }
 
-/** Templates of a year, alphabetical, grouped by category ('' = no category, listed last). */
-export function templatesByCategory(state, yearId) {
-  const sorted = inYear(state, 'templates', yearId)
+/** Lessons of a year, alphabetical, grouped by category ('' = no category, listed last). */
+export function lessonsByCategory(state, yearId) {
+  const sorted = inYear(state, 'lessons', yearId)
     .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
-  const groups = Map.groupBy(sorted, (t) => t.category || '');
+  const groups = Map.groupBy(sorted, (l) => l.category || '');
   return [...groups.entries()]
     .sort(([a], [b]) => (a === '') - (b === '') || a.localeCompare(b))
-    .map(([category, templates]) => ({ category, templates }));
+    .map(([category, lessons]) => ({ category, lessons }));
 }
 
-/** Where a template is used: [{ slide, criterion, outcome }]. */
-export function templateUsage(state, templateId) {
-  return state.slides
-    .filter((s) => s.templateId === templateId)
-    .map((slide) => {
-      const criterion = find(state, 'criteria', slide.criterionId);
-      return { slide, criterion, outcome: find(state, 'outcomes', criterion?.outcomeId) };
-    });
+/** The evals a lesson is taught in: [{ criterion, outcome, positions: [1-based] }]. */
+export function lessonEvals(state, lessonId) {
+  const steps = state.criterionLessons.filter((s) => s.lessonId === lessonId);
+  return [...Map.groupBy(steps, (s) => s.criterionId).entries()].map(([criterionId, list]) => {
+    const criterion = find(state, 'criteria', criterionId);
+    const order = stepsFor(state, criterionId);
+    return {
+      criterion,
+      outcome: find(state, 'outcomes', criterion?.outcomeId),
+      positions: list.map((s) => order.indexOf(s) + 1).sort((a, b) => a - b),
+    };
+  });
 }
 
-export function duplicateTemplate(state, templateId) {
-  const { id: _id, copiedFromId: _from, ...rest } = find(state, 'templates', templateId);
-  return add(state, 'templates', { ...structuredClone(rest), name: `${rest.name} (copy)` });
+export function duplicateLesson(state, lessonId) {
+  const { id: _id, copiedFromId: _from, ...rest } = find(state, 'lessons', lessonId);
+  return add(state, 'lessons', { ...structuredClone(rest), name: `${rest.name} (copy)` });
 }
 
 export function outcomeLabel(outcome) {

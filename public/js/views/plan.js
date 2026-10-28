@@ -4,14 +4,14 @@
 import { h, iconButton, toast } from '../dom.js';
 import {
   PALETTE, autoFill, criteriaForGrade, find, outcomeLabel, outcomeOf, placementWarnings,
-  placementsFor, remove, resizePlacement, shiftSchoolDay, slidesFor, toRanges,
+  placementsFor, remove, resizePlacement, shiftSchoolDay, stepsFor, toRanges,
 } from '../model.js';
 import { commit, setUi, store, undo } from '../store.js';
 import { formatDate, formatRange } from '../dates.js';
 import { current, emptyNote, pickId, pills, year } from './common.js';
 import { calendarHeader, stepMonth } from './calendarGrid.js';
 import { planCalendar } from './planCalendar.js';
-import { slidePreview } from './slides.js';
+import { lessonPreview } from './lessonPreview.js';
 
 function context() {
   const schools = current('schools');
@@ -108,12 +108,12 @@ export function warningText(placement, warnings) {
   const parts = [...byInstrument.values()].map((group) => {
     const { instrument, blocks, missingDates } = group[0];
     const name = instrument?.name || 'An instrument';
-    const slides = group.map((w) => `“${w.slide.title}”`).join(', ');
+    const lessons = group.map((w) => `“${w.lesson.name}”`).join(', ');
     const missing = toRanges(missingDates).map(([a, b]) => formatRange(a, b)).join(', ');
     const when = blocks.length
       ? `${name} is at ${school}: ${blocks.map((b) => formatRange(b.startDate, b.endDate)).join(', ')}.`
       : `${name} isn’t scheduled at ${school} at all this year.`;
-    return `${name} isn’t at ${school} on ${missing}, but these lessons use it: ${slides}.\n${when}`;
+    return `${name} isn’t at ${school} on ${missing}, but these lessons use it: ${lessons}.\n${when}`;
   });
   return `⚠ Instrument not available\n${parts.join('\n\n')}`;
 }
@@ -122,8 +122,8 @@ export function warningText(placement, warnings) {
 
 function detailPanel(p) {
   const criterion = find(store.state, 'criteria', p.criterionId);
-  const slides = slidesFor(store.state, p.criterionId);
-  const warnIds = new Set(placementWarnings(store.state, p).map((w) => w.slide.id));
+  const steps = stepsFor(store.state, p.criterionId);
+  const warnIds = new Set(placementWarnings(store.state, p).map((w) => w.step.id));
   const range = p.startDate === p.endDate ? formatDate(p.startDate) : `${formatDate(p.startDate)} – ${formatDate(p.endDate)}`;
   return h('aside', { class: 'detail card', style: { '--chip': outcomeColor(outcomeOf(store.state, p.criterionId)?.id) } },
     h('div', { class: 'detail-head' },
@@ -132,11 +132,11 @@ function detailPanel(p) {
         h('div', { class: 'detail-outcome' }, outcomeLabel(outcomeOf(store.state, p.criterionId))),
         h('h3', {}, criterion?.title)),
       iconButton('×', 'Close', () => setUi({ placementId: null }))),
-    slides.length ? null : emptyNote('No lesson slides yet. Add them on the Outcomes & Lessons tab.'),
-    h('div', { class: 'slide-row' }, slides.map((slide, i) => slidePreview(slide, {
+    steps.length ? null : emptyNote('No lessons yet. Add them on the Outcomes & Lessons tab.'),
+    h('div', { class: 'slide-row' }, steps.map((step, i) => lessonPreview(step.lessonId, {
       number: i + 1,
-      fields: autoFill(store.state, slide, p),
-      warn: warnIds.has(slide.id),
+      fields: autoFill(store.state, step, p),
+      warn: warnIds.has(step.id),
     }))),
     h('p', { class: 'hint' }, 'Tip: Shift + ← / → makes this shorter or longer.'),
     h('button', { class: 'btn light danger', onclick: () => removePlacement(p) }, 'Remove from calendar'),
