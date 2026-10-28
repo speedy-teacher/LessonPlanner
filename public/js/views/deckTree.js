@@ -28,14 +28,25 @@ function matches(lesson, words) {
   return words.every((word) => text.includes(word));
 }
 
-/** The decks that pass the search box (all of them when it's empty). */
+/** The instrument chosen with "Lessons that use …" (only those lessons are shown), if any. */
+export function instrumentFilter() {
+  const ins = find(store.state, 'instruments', store.ui.lessonInstrumentId);
+  return ins && ins.yearId === year().id ? ins : null;
+}
+
+/** The decks that pass the search box and instrument filter (all of them when both are empty). */
 function shownDecks() {
   const words = searchWords();
-  return current('lessons').filter((l) => !words.length || matches(l, words));
+  const ins = instrumentFilter();
+  return current('lessons').filter((l) => (!words.length || matches(l, words)) && (!ins || l.instrumentIds.includes(ins.id)));
+}
+
+function filtering() {
+  return searchWords().length > 0 || Boolean(instrumentFilter());
 }
 
 function isOpen(folderId) {
-  return searchWords().length > 0 || (store.ui.openFolderIds || []).includes(folderId);
+  return filtering() || (store.ui.openFolderIds || []).includes(folderId);
 }
 
 /** Decks in the order they appear in the tree (only inside open folders) — for ↑ ↓. */
@@ -83,7 +94,7 @@ export function deckTree(selected) {
 
 function branch(folderId, depth, ctx) {
   const folders = foldersIn(store.state, year().id, folderId)
-    .filter((f) => !searchWords().length || [...ctx.shown].some((l) => folderAndInside(store.state, f.id).includes(l.folderId)));
+    .filter((f) => !filtering() || [...ctx.shown].some((l) => folderAndInside(store.state, f.id).includes(l.folderId)));
   const decks = decksIn(store.state, year().id, folderId).filter((l) => ctx.shown.has(l));
   return [...folders.map((f) => folderItem(f, depth, ctx)), ...decks.map((l) => deckItem(l, depth, ctx.selected))];
 }

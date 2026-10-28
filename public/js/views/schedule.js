@@ -6,7 +6,7 @@ import { h, toast } from '../dom.js';
 import { addInstrumentBlock, find, inYear, moveRange, remove, resizeRange, shiftSchoolDay } from '../model.js';
 import { commit, setUi, store, undo } from '../store.js';
 import { addDays, daysBetween } from '../dates.js';
-import { current, emptyNote, pills, year } from './common.js';
+import { current, emptyNote, instrumentMenu, pills, year } from './common.js';
 import { calendarHeader, stepMonth } from './calendarGrid.js';
 import { barCalendar } from './barCalendar.js';
 
@@ -55,7 +55,10 @@ export function renderSchedule() {
           ? addBlock(ctx, b, startDate, addDays(startDate, daysBetween(b.startDate, b.endDate)))
           : commit((s) => moveRange(s, 'instrumentBlocks', b.id, startDate))),
         onResize: (b, edge, date) => commit((s) => resizeRange(s, 'instrumentBlocks', b.id, { [edge]: date })),
-        onSelect: (b) => setUi({ blockId: b?.id ?? null }),
+        onSelect: (b, e) => {
+          setUi({ blockId: b?.id ?? null });
+          if (b && e) instrumentMenu(e, instrumentOf(b), [{ icon: '🗑', label: `Remove ${blockName(b)}`, run: () => removeBlock(b) }]);
+        },
         onRemove: removeBlock,
         onArmedClick: (date) => addBlock(ctx, store.ui.armedBlock, date),
       })),

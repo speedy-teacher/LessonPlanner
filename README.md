@@ -36,8 +36,11 @@ Hold a bar's end, or anything you're dragging, near the top or bottom edge to sc
   and folders onto a folder, `⋯` to rename/delete). **+ Add** makes a new deck or folder, or brings in slide files or a whole
   folder (folders inside folders too) from the computer or Google Drive. Drive folders are watched: decks added there later
   appear with a ❗ (also shown on every folder above them) until you change any of their details.
-  Each deck has its instruments, the details it fills in automatically (including week number and the class's lesson number),
-  and which evals teach it. `↑` `↓` move through the list.
+  Each deck has its instruments, the details it fills in automatically (including week number and the class's lesson number)
+  with the `{{…}}` text to type in the slides for each (click to copy), and which evals teach it (**+ Add to an eval** right there).
+
+Click any instrument (a bar on the Instrument Schedule, or a tag) for a menu: **Lessons that use …** opens Lesson Templates
+showing only those lessons (**× Show all** to clear). `↑` `↓` move through the list.
 - **Setup ▾** — a menu of three pages: **School Year**, **Outcomes, Evals & Lesson Order** and **Lesson Templates**.
 - **School Year** — the year's dates, schools, grades and instruments; start a new year
   (copies last year's lists, lesson decks, outcomes, criteria and lesson order; calendars start empty).

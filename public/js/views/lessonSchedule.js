@@ -11,7 +11,7 @@ import {
 } from '../weekPlan.js';
 import { commit, setUi, store, undo } from '../store.js';
 import { formatRange, todayISO } from '../dates.js';
-import { current, emptyNote, pickId, pills, year } from './common.js';
+import { current, emptyNote, instrumentTag, pickId, pills, year } from './common.js';
 import { outcomeColor } from './plan.js';
 import { slideCanvas } from './lessonPreview.js';
 
@@ -139,8 +139,7 @@ function instrumentTags(ctx, week) {
   return list.map(({ instrumentId, days, allWeek }) => {
     const ins = find(store.state, 'instruments', instrumentId);
     const tip = allWeek ? `${ins?.name} is here all week` : `${ins?.name} is here only ${days.map(dayName).join(', ')}`;
-    return h('span', { class: `ins-tag ${allWeek ? '' : 'part'}`, style: { '--ins': ins?.color }, 'data-tip': tip },
-      allWeek ? ins?.name : `${ins?.name} (part)`);
+    return instrumentTag(ins, { label: allWeek ? ins?.name : `${ins?.name} (part)`, tip, part: !allWeek });
   });
 }
 
@@ -290,7 +289,7 @@ function paletteItem(ctx, { lesson, criterionId }) {
     h('div', { class: 'ls-item-name' }, h('span', {}, lesson.name),
       used ? h('span', { class: 'count', title: `In this class’s schedule ${used}×` }, used) : null),
     h('div', { class: 'ls-item-meta' }, lesson.category ? h('span', { class: 'ls-cat' }, lesson.category) : null,
-      lessonInstruments(store.state, lesson).map((i) => h('span', { class: 'ins-tag', style: { '--ins': i.color } }, i.name)))));
+      lessonInstruments(store.state, lesson).map((i) => instrumentTag(i)))));
 }
 
 // ---------- keyboard ----------

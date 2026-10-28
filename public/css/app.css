@@ -567,6 +567,9 @@ input:focus, select:focus, button:focus-visible { outline: 3px solid #cdb8ea; ou
   width: 26px; height: 22px; font-size: 12px; cursor: pointer; padding: 0; line-height: 1;
 }
 .ls-week-fill:hover { border-color: var(--royal); background: var(--royal-soft); }
+button.ins-tag { border: 0; font-family: inherit; line-height: inherit; cursor: pointer; }
+button.ins-tag:hover { filter: brightness(.92); box-shadow: 0 0 0 1.5px var(--ins); }
+.ins-filter { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 13px; margin: -2px 0 6px; }
 .ins-tag.part { background: #fff; border: 1.5px dashed var(--ins); opacity: .8; }
 .ls-no-ins { font-size: 11px; color: #b9a990; font-style: italic; }
 .ls-zone {
@@ -655,3 +658,13 @@ input:focus, select:focus, button:focus-visible { outline: 3px solid #cdb8ea; ou
 .crit-lessons[open] > summary::before { transform: rotate(90deg); }
 .crit-lessons > summary:hover { color: var(--royal); }
 .crit-lessons > .hint { margin: 2px 0 6px; }
+
+/* Lesson Templates: the text to type in the slides, next to each automatic detail */
+.auto-field-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.placeholder-code {
+  font-family: ui-monospace, Consolas, monospace; font-size: 12px; color: var(--royal); background: var(--royal-soft);
+  border: 1px dashed color-mix(in srgb, var(--royal) 40%, transparent); border-radius: 8px; padding: 1px 8px; cursor: copy; white-space: nowrap;
+}
+.placeholder-code:hover { background: #fff; }
+.add-to-eval { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 10px; font-weight: 700; color: var(--navy); }
+.add-to-eval select { max-width: 100%; }

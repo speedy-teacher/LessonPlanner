@@ -3,13 +3,13 @@
 
 import { editable, h, toast } from '../dom.js';
 import {
-  AUTO_FIELDS, duplicateLesson, editLesson, find, lessonEvals, lessonUsageByGrade, outcomeLabel, remove,
+  addStep, AUTO_FIELD_PLACEHOLDERS, AUTO_FIELDS, criteriaFor, duplicateLesson, editLesson, find, lessonEvals, lessonUsageByGrade, outcomeLabel, remove,
 } from '../model.js';
 import { addDeck, foldersIn, moveDeck } from '../library.js';
 import { commit, setUi, store, undo } from '../store.js';
 import { current, emptyNote, year } from './common.js';
 import { lessonPreview } from './lessonPreview.js';
-import { deckTree, openFolders, visibleDecks } from './deckTree.js';
+import { deckTree, instrumentFilter, openFolders, visibleDecks } from './deckTree.js';
 import { addMenu } from './deckImport.js';
 
 function selectedLesson() {
@@ -34,10 +34,21 @@ export function renderLessons() {
         dataset: { key: 'lesson-search' },
         oninput: (e) => setUi({ lessonSearch: e.target.value }),
       }),
+      instrumentFilterChip(),
       deckTree(selected)),
     h('section', { class: 'main-col card' },
       selected ? lessonEditor(selected) : emptyNote('Add a lesson deck to get started.')),
   );
+}
+
+/** "Only lessons that use Ukulele ×" — after choosing "Lessons that use …" on an instrument. */
+function instrumentFilterChip() {
+  const ins = instrumentFilter();
+  if (!ins) return null;
+  return h('div', { class: 'ins-filter' },
+    h('span', {}, 'Only lessons that use'),
+    h('span', { class: 'ins-tag', style: { '--ins': ins.color } }, ins.name),
+    h('button', { class: 'btn small light', title: 'Show all lessons again', onclick: () => setUi({ lessonInstrumentId: null }) }, '× Show all'));
 }
 
 function lessonEditor(l) {
@@ -65,7 +76,7 @@ function lessonEditor(l) {
         h('p', { class: 'hint' }, 'The Outcome & Eval Calendar warns you if one isn’t at the school that week.'),
         instrumentToggles(l),
         h('h3', {}, 'Filled in automatically'),
-        h('p', { class: 'hint' }, 'When this lesson is on the Outcome & Eval Calendar, these details are added for you.'),
+        h('p', { class: 'hint' }, 'When this lesson is on the Outcome & Eval Calendar, these details are added for you. In the slides, type the text on the right (e.g. {{School}}) where each detail goes — click it to copy.'),
         h('div', { class: 'auto-fields big' }, Object.entries(AUTO_FIELDS).map(([key, label]) => autoFieldToggle(l, key, label))))),
     usedIn(l),
   );
@@ -132,14 +143,24 @@ function instrumentToggles(l) {
 }
 
 function autoFieldToggle(l, key, label) {
-  return h('label', { class: 'check' },
-    h('input', {
-      type: 'checkbox',
-      checked: l.autoFields.includes(key),
-      onchange: (e) => commit((s) => editLesson(s, l.id, {
-        autoFields: e.target.checked ? [...l.autoFields, key] : l.autoFields.filter((k) => k !== key),
-      })),
-    }), label);
+  const placeholder = AUTO_FIELD_PLACEHOLDERS[key];
+  return h('div', { class: 'auto-field-row' },
+    h('label', { class: 'check' },
+      h('input', {
+        type: 'checkbox',
+        checked: l.autoFields.includes(key),
+        onchange: (e) => commit((s) => editLesson(s, l.id, {
+          autoFields: e.target.checked ? [...l.autoFields, key] : l.autoFields.filter((k) => k !== key),
+        })),
+      }), label),
+    h('button', {
+      type: 'button', class: 'placeholder-code', 'data-tip': `Type ${placeholder} in the slides where the ${label.toLowerCase()} goes. Click to copy.`,
+      onclick: () => copyText(placeholder),
+    }, placeholder));
+}
+
+function copyText(text) {
+  navigator.clipboard?.writeText(text).then(() => toast(`Copied ${text}`), () => toast(`Type this: ${text}`));
 }
 
 /** Grade → essential outcome → eval, for every eval this deck is part of. */
@@ -147,7 +168,7 @@ function usedIn(l) {
   const groups = lessonUsageByGrade(store.state, l.id);
   return h('section', { class: 'used-by' },
     h('h3', {}, 'Used in the following content'),
-    groups.length ? null : emptyNote('Not used yet. Add it to an eval on the Outcomes, Evals & Lesson Order tab.'),
+    groups.length ? null : emptyNote('Not used in any eval yet.'),
     groups.map(({ grade, outcomes }) => h('div', { class: 'usage-grade' },
       h('h4', { class: 'group-head' }, grade ? grade.name : 'No grade chosen yet'),
       h('ul', {}, outcomes.map(({ outcome, evals }) => h('li', {},
@@ -158,7 +179,32 @@ function usedIn(l) {
         }, outcomeLabel(outcome)),
         h('ul', { class: 'usage-evals' }, evals.map(({ criterion, positions }) => h('li', {},
           criterion.title,
-          h('span', { class: 'hint' }, ` — lesson ${positions.join(' & ')}`))))))))));
+          h('span', { class: 'hint' }, ` — lesson ${positions.join(' & ')}`))))))))),
+    addToEval(l));
+}
+
+/** Add this lesson to the end of an eval's lesson order, right here. */
+function addToEval(l) {
+  const outcomes = current('outcomes');
+  const using = new Set(lessonEvals(store.state, l.id).map((e) => e.criterion?.id));
+  const groups = outcomes
+    .map((o) => ({ o, crits: criteriaFor(store.state, o.id).filter((c) => !using.has(c.id)) }))
+    .filter((g) => g.crits.length);
+  if (!groups.length) return null;
+  return h('div', { class: 'add-to-eval' },
+    h('span', {}, '+ Add to an eval:'),
+    h('select', {
+      class: 'inline-edit', 'aria-label': 'Add this lesson to an eval',
+      onchange: (e) => {
+        const crit = find(store.state, 'criteria', e.target.value);
+        if (!crit) return;
+        commit((s) => addStep(s, crit.id, l.id));
+        toast(`Added “${l.name}” to “${crit.title}” (last in its lesson order).`, { label: 'Undo', run: undo });
+      },
+    },
+    h('option', { value: '' }, 'Choose an eval…'),
+    groups.map(({ o, crits }) => h('optgroup', { label: outcomeLabel(o) },
+      crits.map((c) => h('option', { value: c.id }, c.title))))));
 }
 
 function duplicate(l) {

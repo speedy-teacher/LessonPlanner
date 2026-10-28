@@ -61,6 +61,22 @@ export const AUTO_FIELDS = {
   criterion: 'Eval criterion',
 };
 
+/**
+ * What to type in a slide deck where each automatic detail goes, e.g. "{{School}}".
+ * Kept separate from the labels so renaming a label never breaks decks already written.
+ * (When copies of decks are made, these are swapped for the real details; capitals don't matter.)
+ */
+export const AUTO_FIELD_PLACEHOLDERS = {
+  school: '{{School}}',
+  grade: '{{Grade}}',
+  date: '{{Date}}',
+  week: '{{Week number}}',
+  lessonNumber: '{{Lesson number}}',
+  instrument: '{{Instrument}}',
+  outcome: '{{Essential outcome}}',
+  criterion: '{{Eval criterion}}',
+};
+
 // What happens to related records when a record is removed:
 // delete them, clear the link (null), or pull the id out of a list.
 const RELATIONS = {

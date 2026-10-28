@@ -8,6 +8,7 @@ import { store } from '../store.js';
 import { formatDate } from '../dates.js';
 import { deckThumbnail, onThumbnail, requestThumbnail, thumbnailFailed } from '../thumbnails.js';
 import { driveFileId } from '../locations.js';
+import { instrumentTag } from './common.js';
 
 /**
  * fields: [{ key, label, value }] from autoFill(). Empty values show as
@@ -82,8 +83,7 @@ function caption(lesson, number, warn) {
 
 /** Little colored tags for the instruments a lesson uses. */
 export function instrumentTags(lesson) {
-  return lessonInstruments(store.state, lesson)
-    .map((i) => h('span', { class: 'ins-tag', style: { '--ins': i.color } }, i.name));
+  return lessonInstruments(store.state, lesson).map((i) => instrumentTag(i));
 }
 
 function showValue(field) {
