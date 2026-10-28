@@ -374,3 +374,13 @@ test('the first-slide picture is asked for at a size that looks sharp', () => {
   assert.equal(sizedThumbnail('https://example.test/pic=s220', 640), 'https://example.test/pic=s640');
   assert.equal(sizedThumbnail('https://example.test/pic', 640), 'https://example.test/pic');
 });
+
+test('"Open in Google Slides" goes straight to the deck’s edit page (PDFs open in Drive’s viewer)', async () => {
+  const { driveOpenUrl, driveLocation } = await import('../public/js/locations.js');
+  const slides = driveLocation({ fileId: 'fakeSlides1', mimeType: 'application/vnd.google-apps.presentation' });
+  assert.equal(driveOpenUrl(slides), 'https://docs.google.com/presentation/d/fakeSlides1/edit');
+  const pptx = driveLocation({ fileId: 'fakePptx1', mimeType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation' });
+  assert.equal(driveOpenUrl(pptx), 'https://docs.google.com/presentation/d/fakePptx1/edit');
+  assert.equal(driveOpenUrl(driveLocation({ fileId: 'fakeOld1' })), 'https://docs.google.com/presentation/d/fakeOld1/edit', 'older decks without a type');
+  assert.equal(driveOpenUrl(driveLocation({ fileId: 'fakePdf1', mimeType: 'application/pdf' })), 'https://drive.google.com/file/d/fakePdf1/view');
+});

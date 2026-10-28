@@ -18,6 +18,25 @@ export function driveUri(fileId) {
   return `https://drive.google.com/open?id=${encodeURIComponent(fileId)}`;
 }
 
+// Decks Google Slides can open (its own, and PowerPoint/OpenDocument files kept in Drive).
+const SLIDES_EDITABLE = [
+  'application/vnd.google-apps.presentation',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'application/vnd.ms-powerpoint',
+  'application/vnd.oasis.opendocument.presentation',
+];
+
+/**
+ * The address that opens a Drive deck straight in Google Slides' editor (people who may only
+ * view it get the same page in view-only mode — Google decides that). Other files (e.g. PDFs)
+ * open in Drive's viewer.
+ */
+export function driveOpenUrl(location) {
+  const id = encodeURIComponent(location.fileId);
+  if (!location.mimeType || SLIDES_EDITABLE.includes(location.mimeType)) return `https://docs.google.com/presentation/d/${id}/edit`;
+  return `https://drive.google.com/file/d/${id}/view`;
+}
+
 export function localUri(rootId, path) {
   return `local:${rootId ?? ''}/${path.split('/').map(encodeURIComponent).join('/')}`;
 }

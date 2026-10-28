@@ -6,6 +6,7 @@ import {
   addStep, AUTO_FIELD_PLACEHOLDERS, AUTO_FIELDS, criteriaFor, duplicateLesson, editLesson, find, lessonEvals, lessonUsageByGrade, outcomeLabel, remove,
 } from '../model.js';
 import { addDeck, foldersIn, moveDeck } from '../library.js';
+import { driveOpenUrl } from '../locations.js';
 import { commit, setUi, store, undo } from '../store.js';
 import { current, emptyNote, year } from './common.js';
 import { lessonPreview } from './lessonPreview.js';
@@ -118,7 +119,7 @@ function locationList(l) {
 
 function locationLabel(loc) {
   if (loc.kind === 'drive') {
-    return ['☁️ Google Drive · ', h('a', { href: loc.uri, target: '_blank', rel: 'noopener' }, 'Open in Drive ↗')];
+    return ['☁️ Google Drive · ', h('a', { href: driveOpenUrl(loc), target: '_blank', rel: 'noopener', title: 'Opens the slides in a new tab' }, 'Open in Google Slides ↗')];
   }
   const root = find(store.state, 'localRoots', loc.rootId);
   const path = root ? [root.name, loc.path].filter(Boolean).join('/') : loc.path;
