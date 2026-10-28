@@ -16,6 +16,9 @@ export const DRIVE_FILE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
 export const DRIVE_READ_SCOPE = 'https://www.googleapis.com/auth/drive.readonly';
 export const DRIVE_SCOPE = `${DRIVE_FILE_SCOPE} ${DRIVE_READ_SCOPE}`;
 const RENEW_EARLY_SECONDS = 600;
+// How long to wait for Google's window to answer: after you come back to the planner, and at most overall.
+const ANSWER_AFTER_RETURN_MS = 4000;
+const ANSWER_AT_MOST_MS = 45 * 1000;
 
 /** status: 'idle' | 'working' | 'connected' | 'needs-signin' | 'error' */
 export const google = { status: 'idle', message: '', userName: '', token: null, scope: '' };
@@ -69,6 +72,7 @@ const PROBLEMS = {
   api_disabled: 'Signed in, but the Google Drive API isn’t turned on in your Google project yet (guide step 3).',
   drive_failed: 'Signed in, but Google Drive didn’t answer as expected. Try again in a minute.',
   invalid_client: 'Google didn’t accept the Client ID. Check it was copied completely.',
+  no_answer: 'Google’s window closed without finishing. Click Connect Google Drive to try again (if it keeps happening, allow pop-ups for this page).',
   idpiframe_initialization_failed: 'Google doesn’t know this address yet. Add it to “Authorized JavaScript origins” (guide step 5).',
 };
 
@@ -115,17 +119,42 @@ export async function connectDrive(clientId) {
   try {
     // An empty prompt lets Google skip the questions once you've said yes before.
     (await clientFor(clientId)).requestAccessToken({ prompt: device.driveConnected ? '' : 'consent' });
+    waitForAnswer();
   } catch (err) {
     failed(err.message);
   }
 }
 
+let answerTimer = null;
+let onReturn = null;
+
+/**
+ * Google doesn't always report a window that closed without finishing, so never wait forever:
+ * give up a few seconds after you're back in the planner, or after a while at most.
+ */
+function waitForAnswer() {
+  stopWaiting();
+  const giveUp = () => { if (google.status === 'working') failed('no_answer'); };
+  answerTimer = setTimeout(giveUp, ANSWER_AT_MOST_MS);
+  onReturn = () => { clearTimeout(answerTimer); answerTimer = setTimeout(giveUp, ANSWER_AFTER_RETURN_MS); };
+  window.addEventListener('focus', onReturn, { once: true });
+}
+
+function stopWaiting() {
+  clearTimeout(answerTimer);
+  if (onReturn) window.removeEventListener('focus', onReturn);
+  onReturn = null;
+}
+
 function failed(code) {
+  stopWaiting();
+  console.warn('Google sign-in did not finish:', code);
   const quiet = code === 'popup_closed' && google.token;
   set(quiet ? { status: 'connected', message: '' } : { status: 'error', message: problem(code) });
 }
 
 async function useToken({ access_token: token, expires_in: expiresIn, scope = '' }) {
+  stopWaiting();
   try {
     const userName = google.userName || await driveUserName(token);
     setDevice({ driveConnected: true });
