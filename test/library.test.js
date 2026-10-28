@@ -9,7 +9,7 @@ import {
   addDeck, addFolder, decksByFolder, decksIn, DRIVE_FOLDER, driveLink, folderPath, foldersIn, hasNewInside, importDriveItems,
   importLocalFiles, moveDeck, moveFolder, removeFolder, syncWatchedFolders, watchedFolders,
 } from '../public/js/library.js';
-import { listFolderTree, projectNumber } from '../public/js/drive.js';
+import { fetchThumbnailLink, listFolderTree, projectNumber, sizedThumbnail } from '../public/js/drive.js';
 import { addLocation, driveLocation, findLocation } from '../public/js/locations.js';
 
 const SLIDES = 'application/vnd.google-apps.presentation';
@@ -352,4 +352,25 @@ test('removing a watched folder from the planner removes its decks and stops wat
   assert.equal(inYear(s, 'lessons', yearId).length, 0);
   assert.equal(inYear(s, 'deckFolders', yearId).length, 0);
   assert.equal(watchedFolders(s, yearId).length, 0);
+});
+
+// ---------- first-slide previews ----------
+
+test('a Drive deck’s first-slide picture address comes from Drive, or none when Drive has no picture', async () => {
+  const answers = {
+    withPicture: { hasThumbnail: true, thumbnailLink: 'https://example.test/pic=s220' },
+    noPicture: { hasThumbnail: false },
+  };
+  const fetchFn = async (url, { headers }) => {
+    assert.equal(headers.Authorization, 'Bearer fake-token');
+    const id = new URL(url).pathname.split('/').pop();
+    return { ok: true, status: 200, json: async () => answers[id] };
+  };
+  assert.equal(await fetchThumbnailLink('fake-token', 'withPicture', { fetchFn }), 'https://example.test/pic=s220');
+  assert.equal(await fetchThumbnailLink('fake-token', 'noPicture', { fetchFn }), null);
+});
+
+test('the first-slide picture is asked for at a size that looks sharp', () => {
+  assert.equal(sizedThumbnail('https://example.test/pic=s220', 640), 'https://example.test/pic=s640');
+  assert.equal(sizedThumbnail('https://example.test/pic', 640), 'https://example.test/pic');
 });

@@ -47,6 +47,8 @@ A browser app for a (non-technical) elementary music teacher to plan a school ye
   saved in Drive; each computer reconnects its own copy of a `localRoot` (handle kept in that browser only). Reachability is
   checked at run time, never saved; unreachable → warning label, never removed. `lastSeenAt` updates at most daily.
   No Google Drive for Desktop (blocked by IT).
+- Previews (`thumbnails.js`): first slide only, for Drive decks, via Drive `thumbnailLink` in an <img> (Google blocks fetch/CORS);
+  addresses kept in memory per visit, never saved. Other decks show "Preview not available".
 - Next on the roadmap: copy decks to a Drive folder and fill `{{School}}`-style
   placeholders via the Slides API → optional data backup to Drive.
 

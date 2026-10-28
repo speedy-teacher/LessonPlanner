@@ -55,6 +55,21 @@ export async function listFolderTree(token, folderId, { fetchFn = fetch, depth =
   return items;
 }
 
+/**
+ * The short-lived address of the picture Google Drive keeps of a file's first slide/page,
+ * or null if it has none. (It works in an <img>; Google doesn't allow downloading it directly.)
+ */
+export async function fetchThumbnailLink(token, fileId, { fetchFn = fetch } = {}) {
+  const params = new URLSearchParams({ fields: 'hasThumbnail,thumbnailLink', supportsAllDrives: 'true' });
+  const body = await getJson(`${FILES_URL}/${encodeURIComponent(fileId)}?${params}`, token, fetchFn);
+  return body.hasThumbnail === false ? null : body.thumbnailLink ?? null;
+}
+
+/** Google's thumbnail address at another size ("…=s220" → "…=s640"). */
+export function sizedThumbnail(link, size) {
+  return /=s\d+$/.test(link) ? link.replace(/=s\d+$/, `=s${size}`) : link;
+}
+
 // ---------- Google's file picker ----------
 
 let pickerPromise = null;

@@ -262,7 +262,15 @@ input:focus, select:focus, button:focus-visible { outline: 3px solid #cdb8ea; ou
 }
 .slide-preview.has-warn .slide-canvas { border-color: var(--gold); box-shadow: 0 0 0 2px var(--gold-soft); }
 .slide-template { font-size: 10px; font-weight: 800; color: var(--ink-soft); text-transform: uppercase; letter-spacing: .5px; margin-top: 4px; }
-.slide-fields { display: flex; flex-direction: column; gap: 2px; font-size: 11px; }
+.slide-fields { display: flex; flex-direction: column; gap: 2px; font-size: 11px; margin-top: 6px; }
+.slide-canvas.has-picture { padding: 0; background: #fff; }
+.slide-canvas.has-picture img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.slide-status {
+  flex: 1; display: grid; place-items: center; text-align: center; font-size: 12px; font-weight: 700;
+  color: #b9a990; border: 1.5px dashed var(--line); border-radius: 8px; margin-top: 2px;
+}
+.slide-status.loading { color: var(--ink-soft); border-style: solid; background: var(--card-2); }
+.slide-preview.small .slide-status { font-size: 9px; }
 .slide-field { display: flex; gap: 6px; }
 .field-label { color: var(--ink-soft); min-width: 70px; }
 .field-value { font-weight: 700; }

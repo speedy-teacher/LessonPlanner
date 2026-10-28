@@ -1,10 +1,12 @@
-// Blank preview of a lesson's slide deck. Real slide artwork isn't connected
-// yet, so this shows the lesson name and the details that would be filled in.
+// Preview of a lesson's slide deck: the first slide's picture for decks in
+// Google Drive ("Preview not available" for others), then the details that
+// are filled in automatically.
 
 import { h } from '../dom.js';
 import { find, lessonInstruments } from '../model.js';
 import { store } from '../store.js';
 import { formatDate } from '../dates.js';
+import { deckThumbnail, thumbnailFailed } from '../thumbnails.js';
 
 /**
  * fields: [{ key, label, value }] from autoFill(). Empty values show as
@@ -13,13 +15,26 @@ import { formatDate } from '../dates.js';
 export function lessonPreview(lessonId, { number, fields = [], warn = false, small = false } = {}) {
   const lesson = find(store.state, 'lessons', lessonId);
   return h('figure', { class: `slide-preview ${warn ? 'has-warn' : ''} ${small ? 'small' : ''}` },
-    h('div', { class: 'slide-canvas' },
-      h('div', { class: 'slide-template' }, lesson ? lesson.name : 'Missing lesson'),
-      h('div', { class: 'slide-fields' }, fields.map((f) => h('div', { class: 'slide-field' },
-        h('span', { class: 'field-label' }, f.label),
-        h('span', { class: `field-value ${f.value ? '' : 'placeholder'}` }, showValue(f)))))),
+    slideCanvas(lesson),
+    fields.length ? h('div', { class: 'slide-fields' }, fields.map((f) => h('div', { class: 'slide-field' },
+      h('span', { class: 'field-label' }, f.label),
+      h('span', { class: `field-value ${f.value ? '' : 'placeholder'}` }, showValue(f))))) : null,
     caption(lesson, number, warn),
   );
+}
+
+/** The first slide's picture, or the deck's name with a note when there's no picture. */
+function slideCanvas(lesson) {
+  const thumb = lesson ? deckThumbnail(lesson) : { status: 'none', reason: 'This lesson deck was removed.' };
+  if (thumb.status === 'ready') {
+    return h('div', { class: 'slide-canvas has-picture' },
+      h('img', { src: thumb.url, alt: `First slide of ${lesson.name}`, referrerpolicy: 'no-referrer', onerror: () => thumbnailFailed(lesson) }));
+  }
+  const loading = thumb.status === 'loading';
+  return h('div', { class: 'slide-canvas' },
+    h('div', { class: 'slide-template' }, lesson ? lesson.name : 'Missing lesson'),
+    h('div', { class: `slide-status ${loading ? 'loading' : ''}`, 'data-tip': loading ? null : thumb.reason },
+      loading ? 'Loading preview…' : 'Preview not available'));
 }
 
 function caption(lesson, number, warn) {
