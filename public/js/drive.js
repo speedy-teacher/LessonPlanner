@@ -104,6 +104,11 @@ export function pickPlanFromDrive({ token, apiKey, clientId }) {
   return openPicker({ token, apiKey, clientId }, { mimeTypes: ['application/json'], title: 'Pick a plan file' });
 }
 
+/** Open Google's picker for one folder (also gives the planner permission to save plans in it). */
+export function pickFolderFromDrive({ token, apiKey, clientId }) {
+  return openPicker({ token, apiKey, clientId }, { mimeTypes: [DRIVE_FOLDER], folders: true, title: 'Pick a folder for the plan' });
+}
+
 async function openPicker({ token, apiKey, clientId }, { mimeTypes, folders = false, multiple = false, title }) {
   await loadPicker();
   const { picker } = window.google;

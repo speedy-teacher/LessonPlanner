@@ -22,7 +22,8 @@ A browser app for a (non-technical) elementary music teacher to plan a school ye
 - **One plan (workspace) file per school year** (`workspaceFile.js`, pure + tested): normal planner data holding exactly one year,
   plus `kind: 'lesson-planner-workspace'`. `yearOnly`/`splitYears` (collections with `yearId` filter by it; `criteria`/
   `criterionLessons` follow their parent). New year = `newYearPlan` → a new plan file. Older multi-year files are split on import.
-- Where it lives (`workspace.js`): Drive file in a "Lesson Planner" folder, found by property `lessonPlanner=workspace`
+- Where it lives (`workspace.js`): Drive file in a folder the user picks (`views/planFolders.js`, Google folder picker,
+  default a "Lesson Planner" folder; "Move to another folder…" = addParents/removeParents), found by property `lessonPlanner=workspace`
   (`driveFiles.js`), or "this computer only". Every plan is cached in IndexedDB (`localCache.js`, + localStorage rescue on
   page close). Saves: cache at once, Drive 2 s later; `syncAction` compares `headRevisionId` → upload / download / ask
   (conflict: "Use the Drive version" keeps mine as a "(my changes)" plan). One Drive revision kept forever per day.

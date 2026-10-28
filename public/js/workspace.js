@@ -10,7 +10,7 @@ import { refresh, setPersist, setSaveStatus, store, useState } from './store.js'
 import { device, setDevice } from './deviceSettings.js';
 import { google } from './google.js';
 import { allPlans, deletePlan, getPlan, putPlan, rescue } from './localCache.js';
-import { createPlanFile, keepRevision, planFileInfo, readPlanFile, savePlanFile } from './driveFiles.js';
+import { createPlanFile, folderName, keepRevision, movePlanFile, planFileInfo, readPlanFile, savePlanFile } from './driveFiles.js';
 import {
   forgetPlan, fromWorkspaceFile, rememberPlan, shouldKeepRevision, splitYears, syncAction, toWorkspaceFile,
 } from './workspaceFile.js';
@@ -18,7 +18,7 @@ import { showNotice } from './notices.js';
 
 const UPLOAD_DELAY_MS = 2000;
 
-/** The open plan: { key, name, fileId, rev, changed, keptDay, canEdit, savedAt, state }. */
+/** The open plan: { key, name, fileId, folderId, rev, changed, keptDay, canEdit, savedAt, state }. */
 export let current = null;
 
 let uploadTimer = null;
@@ -71,7 +71,7 @@ export async function openDrivePlan(fileId) {
     return syncNow();
   }
   const file = await readPlanFile(google.token, fileId);
-  const record = { key: driveKey(fileId), name: file.name, fileId, rev: file.rev, canEdit: file.canEdit, changed: false, keptDay: null, state: fromWorkspaceFile(file.text) };
+  const record = { key: driveKey(fileId), name: file.name, fileId, folderId: file.folderId, rev: file.rev, canEdit: file.canEdit, changed: false, keptDay: null, state: fromWorkspaceFile(file.text) };
   await putPlan(record);
   return show(record);
 }
@@ -83,14 +83,14 @@ export async function openSavedPlan(key) {
 }
 
 /**
- * Make a new plan: in Google Drive when connected, otherwise on this computer only.
- * Opens it unless `open` is false. Returns its record.
+ * Make a new plan: in Google Drive when connected (in `folderId`, or else the "Lesson Planner" folder),
+ * otherwise on this computer only. Opens it unless `open` is false. Returns its record.
  */
-export async function createPlan({ name, state }, { open = true } = {}) {
-  let record = { key: `computer:${newId('plan')}`, name, fileId: null, rev: null, canEdit: true, changed: false, keptDay: null, state };
+export async function createPlan({ name, state }, { open = true, folderId = null } = {}) {
+  let record = { key: `computer:${newId('plan')}`, name, fileId: null, folderId: null, rev: null, canEdit: true, changed: false, keptDay: null, state };
   if (driveReady()) {
-    const file = await createPlanFile(google.token, { name, text: toWorkspaceFile(state) });
-    record = { ...record, key: driveKey(file.fileId), fileId: file.fileId, rev: file.rev };
+    const file = await createPlanFile(google.token, { name, text: toWorkspaceFile(state), folderId });
+    record = { ...record, key: driveKey(file.fileId), fileId: file.fileId, folderId: file.folderId, rev: file.rev };
   }
   await putPlan(record);
   if (open) show(record);
@@ -102,10 +102,10 @@ export async function createPlan({ name, state }, { open = true } = {}) {
  * Bring in planner data (a downloaded plan, or an older planner file holding several years):
  * each year becomes its own plan. Opens the year that was open in it. Returns the new plans.
  */
-export async function importPlannerData(state) {
+export async function importPlannerData(state, { folderId = null } = {}) {
   const made = [];
   for (const plan of splitYears(state)) {
-    made.push(await createPlan(plan, { open: false }));
+    made.push(await createPlan(plan, { open: false, folderId }));
   }
   const active = made[state.years.findIndex((y) => y.id === state.activeYearId)] ?? made.at(-1);
   if (active) show(active);
@@ -128,14 +128,32 @@ export async function removeComputerPlan(key) {
 }
 
 /** Copy a plan that's only on this computer into Google Drive (it becomes a Drive plan). */
-export async function moveToDrive() {
+export async function moveToDrive({ folderId = null } = {}) {
   const old = current;
-  const file = await createPlanFile(google.token, { name: old.name, text: toWorkspaceFile(store.state) });
-  const record = { ...old, key: driveKey(file.fileId), fileId: file.fileId, rev: file.rev, changed: false, state: store.state };
+  const file = await createPlanFile(google.token, { name: old.name, text: toWorkspaceFile(store.state), folderId });
+  const record = { ...old, key: driveKey(file.fileId), fileId: file.fileId, folderId: file.folderId, rev: file.rev, changed: false, state: store.state };
   await putPlan(record);
   await deletePlan(old.key);
   setDevice({ recent: forgetPlan(device.recent, old.key) });
   show(record, { sameDocument: true });
+}
+
+/** The name of the Drive folder the open plan is in (null if it isn't in Drive). */
+export async function planFolderName() {
+  if (!current?.fileId || !driveReady()) return null;
+  let folderId = current.folderId;
+  if (!folderId) {
+    folderId = (await planFileInfo(google.token, current.fileId)).folderId;
+    current = { ...current, folderId };
+  }
+  return folderId ? folderName(google.token, folderId) : null;
+}
+
+/** Move the open plan's Drive file into another folder. */
+export async function moveCurrentPlan(folderId) {
+  const moved = await movePlanFile(google.token, current.fileId, folderId);
+  current = { ...current, folderId: moved };
+  await putPlan(current);
 }
 
 /** Save this plan as a file on this computer. */
@@ -182,7 +200,7 @@ export async function syncNow() {
 
 async function syncOnce() {
   const info = await planFileInfo(google.token, current.fileId);
-  current = { ...current, canEdit: info.canEdit, name: info.name };
+  current = { ...current, canEdit: info.canEdit, name: info.name, folderId: info.folderId };
   const action = syncAction({ localChanges: current.changed && info.canEdit, knownRev: current.rev, remoteRev: info.rev });
   if (action === 'upload') await upload();
   if (action === 'download') await download('Loaded the newest version of this plan from Google Drive (it was changed on another computer).');

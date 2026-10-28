@@ -10,7 +10,7 @@ const UPLOAD = 'https://www.googleapis.com/upload/drive/v3/files';
 const FOLDER_MIME = 'application/vnd.google-apps.folder';
 const FOLDER_PROPERTY = { key: 'lessonPlanner', value: 'folder' };
 export const FOLDER_NAME = 'Lesson Planner';
-const FILE_FIELDS = 'id,name,headRevisionId,modifiedTime,ownedByMe,capabilities(canEdit),owners(displayName)';
+const FILE_FIELDS = 'id,name,parents,headRevisionId,modifiedTime,ownedByMe,capabilities(canEdit),owners(displayName)';
 
 async function call(fetchFn, token, url, init = {}) {
   let res;
@@ -41,7 +41,7 @@ export async function listPlanFiles(token, { fetchFn = fetch } = {}) {
 
 function fileInfo(f) {
   return {
-    fileId: f.id, name: f.name, rev: f.headRevisionId ?? null, modifiedTime: f.modifiedTime ?? null,
+    fileId: f.id, name: f.name, folderId: f.parents?.[0] ?? null, rev: f.headRevisionId ?? null, modifiedTime: f.modifiedTime ?? null,
     ownedByMe: f.ownedByMe !== false, canEdit: f.capabilities?.canEdit !== false, owner: f.owners?.[0]?.displayName ?? '',
   };
 }
@@ -61,9 +61,12 @@ async function planFolder(token, fetchFn) {
   return (await made.json()).id;
 }
 
-/** Save a new plan file into the "Lesson Planner" folder. Returns { fileId, name, rev, canEdit }. */
-export async function createPlanFile(token, { name, text }, { fetchFn = fetch } = {}) {
-  const parent = await planFolder(token, fetchFn);
+/**
+ * Save a new plan file into `folderId` (a folder you picked), or else the "Lesson Planner" folder.
+ * Returns { fileId, name, folderId, rev, canEdit }.
+ */
+export async function createPlanFile(token, { name, text, folderId = null }, { fetchFn = fetch } = {}) {
+  const parent = folderId || await planFolder(token, fetchFn);
   const meta = { name, mimeType: WORKSPACE_MIME, parents: [parent], properties: { [WORKSPACE_PROPERTY.key]: WORKSPACE_PROPERTY.value } };
   const boundary = `planner${Date.now()}`;
   const body = [
@@ -100,4 +103,22 @@ export async function savePlanFile(token, fileId, text, { fetchFn = fetch } = {}
 export async function keepRevision(token, fileId, rev, { fetchFn = fetch } = {}) {
   const url = `${API}/${encodeURIComponent(fileId)}/revisions/${encodeURIComponent(rev)}`;
   await call(fetchFn, token, url, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ keepForever: true }) });
+}
+
+/** Move a plan file into another folder. Returns the new folder's id. */
+export async function movePlanFile(token, fileId, toFolderId, { fetchFn = fetch } = {}) {
+  const { folderId: from } = await planFileInfo(token, fileId, { fetchFn });
+  const params = new URLSearchParams({ addParents: toFolderId, fields: 'parents', supportsAllDrives: 'true' });
+  if (from && from !== toFolderId) params.set('removeParents', from);
+  const res = await call(fetchFn, token, `${API}/${encodeURIComponent(fileId)}?${params}`, {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: '{}',
+  });
+  return (await res.json()).parents?.[0] ?? toFolderId;
+}
+
+/** A folder's name ("My Drive" for the top of your Drive). */
+export async function folderName(token, folderId, { fetchFn = fetch } = {}) {
+  const url = `${API}/${encodeURIComponent(folderId)}?fields=name,parents&supportsAllDrives=true`;
+  const body = await (await call(fetchFn, token, url)).json();
+  return body.parents?.length ? body.name : 'My Drive';
 }

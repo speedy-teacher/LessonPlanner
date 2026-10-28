@@ -634,6 +634,8 @@ input:focus, select:focus, button:focus-visible { outline: 3px solid #cdb8ea; ou
 .plans-section h3 { color: var(--navy); font-size: 15px; }
 .plans-section.this-plan { background: var(--royal-soft); border-radius: 12px; padding: 12px; }
 .plans-section.old-planner { background: var(--gold-soft); border-radius: 12px; padding: 12px; }
+.folder-choice { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 4px 0 10px; }
+.plans-stack { display: flex; flex-direction: column; gap: 6px; }
 .plans-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .plans-actions label.btn { cursor: pointer; }
 .plan-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }

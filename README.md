@@ -7,7 +7,7 @@ Organize music lesson slides by academic year, school, grade and instrument sche
 
 Each school year is one **plan**: a file in a **Lesson Planner** folder in your Google Drive (or kept on one computer only).
 The 📒 plan button at the top switches plans, starts a new school year, opens a plan shared with you, brings in a file,
-and downloads a copy. Changes save on the computer at once and to Drive a moment later; if the plan changed on another
+downloads a copy, and shows (and moves) the Drive folder the plan is in. New plans can go in any folder you pick. Changes save on the computer at once and to Drive a moment later; if the plan changed on another
 computer meanwhile, the planner asks which to keep. Drive keeps one version per day.
 
 ## Screens

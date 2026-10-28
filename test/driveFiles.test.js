@@ -2,10 +2,12 @@
 // with you), read, and saved — and problems come back as plain reasons.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createPlanFile, keepRevision, listPlanFiles, readPlanFile, savePlanFile } from '../public/js/driveFiles.js';
+import {
+  createPlanFile, folderName, keepRevision, listPlanFiles, movePlanFile, planFileInfo, readPlanFile, savePlanFile,
+} from '../public/js/driveFiles.js';
 
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status });
-const asListed = (f) => ({ id: f.id, name: f.name, headRevisionId: f.rev, ownedByMe: true, capabilities: { canEdit: true } });
+const asListed = (f) => ({ id: f.id, name: f.name, parents: f.parents, headRevisionId: f.rev, ownedByMe: true, capabilities: { canEdit: true } });
 
 /** A pretend Google Drive that remembers files and the requests it was sent. */
 function fakeDrive() {
@@ -20,6 +22,12 @@ function fakeDrive() {
       return json(asListed(make({ ...JSON.parse(parts[3]), content: parts[7], rev: 'rev1' })));
     }],
     [(r) => r.method === 'PATCH' && r.url.pathname.includes('/revisions/'), () => json({ keepForever: true })],
+    [(r) => r.method === 'PATCH' && r.url.searchParams.has('addParents'), (r) => {
+      const f = files.get(r.id);
+      const remove = r.url.searchParams.get('removeParents');
+      f.parents = [...(f.parents || []).filter((p) => p !== remove), r.url.searchParams.get('addParents')];
+      return json({ parents: f.parents });
+    }],
     [(r) => r.method === 'PATCH', (r) => {
       const f = files.get(r.id);
       if (!f) return json({}, 404);
@@ -37,7 +45,7 @@ function fakeDrive() {
     calls.push(r);
     return routes.find(([match]) => match(r))[1](r);
   };
-  return { files, calls, fetchFn };
+  return { files, calls, fetchFn, make };
 }
 
 test('a new plan is saved into one "Lesson Planner" folder and can be found and read again', async () => {
@@ -73,4 +81,18 @@ test('problems with Drive come back as plain reasons', async () => {
   await assert.rejects(savePlanFile('tok', 'x', '', status(404)), /not_found/);
   await assert.rejects(savePlanFile('tok', 'x', '', status(500)), /drive_failed/);
   await assert.rejects(savePlanFile('tok', 'x', '', { fetchFn: async () => { throw new TypeError('network'); } }), /offline/);
+});
+
+test('a plan can be saved in a folder you pick, and moved to another folder later', async () => {
+  const drive = fakeDrive();
+  const term = drive.make({ name: 'Plans by year', mimeType: 'application/vnd.google-apps.folder', parents: ['root'] });
+  const other = drive.make({ name: 'Archive', mimeType: 'application/vnd.google-apps.folder', parents: ['root'] });
+  const plan = await createPlanFile('tok', { name: 'Music Plans A', text: '{}', folderId: term.id }, drive);
+  assert.equal(plan.folderId, term.id);
+  assert.ok(![...drive.files.values()].some((f) => f.name === 'Lesson Planner'), 'no extra folder is made');
+  assert.equal(await folderName('tok', term.id, drive), 'Plans by year');
+
+  assert.equal(await movePlanFile('tok', plan.fileId, other.id, drive), other.id);
+  assert.deepEqual(drive.files.get(plan.fileId).parents, [other.id], 'it leaves the old folder');
+  assert.equal((await planFileInfo('tok', plan.fileId, drive)).folderId, other.id);
 });

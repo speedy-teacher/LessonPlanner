@@ -15,6 +15,7 @@ import {
   openDrivePlan, openSavedPlan, removeComputerPlan,
 } from '../workspace.js';
 import { showNotice } from '../notices.js';
+import { askFolderThen, currentFolderRow, folderChooser } from './planFolders.js';
 
 const PROBLEMS = {
   signed_out: 'Google signed you out. Click anywhere to reconnect, then try again.',
@@ -84,12 +85,23 @@ function plansPanel(close) {
 function thisPlan(done) {
   return h('div', { class: 'plans-section this-plan' },
     h('h3', {}, 'Open now: ', current.name),
+    current.fileId && driveConnected() ? currentFolderRow(attempt) : null,
     h('div', { class: 'button-row' },
       h('button', { class: 'btn small light', onclick: downloadCopy, title: 'Saves this plan as a file you can keep or send' }, '⬇ Download a copy'),
       !current.fileId && driveConnected()
-        ? h('button', { class: 'btn small', onclick: done(async () => { await moveToDrive(); toast('This plan is now in your Google Drive.'); }) }, '☁ Save to Google Drive')
+        ? h('button', { class: 'btn small', onclick: done(saveToDrive) }, '☁ Save to Google Drive')
         : null,
       current.fileId ? h('a', { class: 'btn small light', href: `https://drive.google.com/file/d/${encodeURIComponent(current.fileId)}/view`, target: '_blank', rel: 'noopener', title: 'Open the file in Google Drive (to share it, or see past versions)' }, 'Share or see past versions in Drive ↗') : null));
+}
+
+function saveToDrive() {
+  askFolderThen({
+    title: 'Save to Google Drive', button: 'Save to Drive',
+    text: `${current.name} will be saved in your Google Drive, so you can use it on any computer.`,
+    action: async (folderId) => {
+      if (await attempt(() => moveToDrive({ folderId })) !== null) toast('This plan is now in your Google Drive.');
+    },
+  });
 }
 
 function drivePlans(close) {
@@ -100,7 +112,7 @@ function drivePlans(close) {
   }
   if (!driveConnected()) {
     // h() skips empty parts (plain .append would write "null").
-    box.append(h('div', {}, h('p', { class: 'hint' }, 'Connect Google Drive to see your plans there, and to use them on any computer.'),
+    box.append(h('div', { class: 'plans-stack' }, h('p', { class: 'hint' }, 'Connect Google Drive to see your plans there, and to use them on any computer.'),
       h('button', { class: 'btn', disabled: google.status === 'working', onclick: () => connectDrive(clientId()) },
         google.status === 'working' ? 'Connecting…' : 'Connect Google Drive'),
       google.message ? h('p', { class: `google-status ${google.status === 'error' ? 'error' : ''}` }, google.message) : null));
@@ -180,13 +192,24 @@ function oldPlannerOffer(close) {
       h('p', { class: 'hint' }, driveConnected()
         ? 'Copy them into your Google Drive (one plan per school year). Nothing is deleted here.'
         : 'Connect Google Drive first to copy them there — or copy them into this browser now.'),
-      h('button', { class: 'btn', onclick: async () => {
-        close();
-        const made = await attempt(() => importPlannerData(state));
-        if (made) toast(`Copied ${made.map((p) => p.name).join(', ')}${driveConnected() ? ' to Google Drive' : ''}.`);
-      } }, driveConnected() ? 'Move my plans to Google Drive' : 'Copy my plans into this browser')));
+      h('button', { class: 'btn', onclick: () => { close(); copyOldPlans(state); } },
+        driveConnected() ? 'Move my plans to Google Drive' : 'Copy my plans into this browser')));
   });
   return box;
+}
+
+async function bringIn(state, folderId = null) {
+  const made = await attempt(() => importPlannerData(state, { folderId }));
+  if (made) toast(`Copied ${made.map((p) => p.name).join(', ')}${driveConnected() ? ' to Google Drive' : ''}.`);
+}
+
+function copyOldPlans(state) {
+  if (!driveConnected()) return bringIn(state);
+  return askFolderThen({
+    title: 'Move my plans to Google Drive', button: 'Move to Drive',
+    text: 'Each school year becomes its own plan file in your Google Drive. Nothing is deleted on this computer.',
+    action: (folderId) => bringIn(state, folderId),
+  });
 }
 
 // ---------- new school year ----------
@@ -199,6 +222,7 @@ export function openNewYear() {
     const start = h('input', { type: 'date', value: next.startDate });
     const end = h('input', { type: 'date', value: next.endDate });
     const copy = h('input', { type: 'checkbox', checked: Boolean(from) });
+    const folder = driveConnected() ? folderChooser() : null;
     const create = async () => {
       if (!name.value.trim() || !start.value || !end.value || end.value < start.value) {
         toast('Please give the year a name, and a last day after the first day.');
@@ -206,7 +230,7 @@ export function openNewYear() {
       }
       close();
       const plan = newYearPlan(store.state, { name: name.value.trim(), startDate: start.value, endDate: end.value }, { copy: copy.checked });
-      const made = await attempt(() => createPlan(plan));
+      const made = await attempt(() => createPlan(plan, { folderId: folder?.folderId() ?? null }));
       if (made) toast(`Welcome to ${name.value.trim()}! Switch back to past years with the plan button at the top.`);
     };
     return h('div', { class: 'modal-body' },
@@ -216,6 +240,7 @@ export function openNewYear() {
         h('label', { class: 'field' }, h('span', {}, 'Last day'), end)),
       from ? h('label', { class: 'check big' }, copy,
         `Copy schools, grades, instruments, lesson decks and essential outcomes (with eval criteria and lesson order) from ${from.name}`) : null,
+      folder?.el,
       h('p', { class: 'hint' }, driveConnected()
         ? 'It’s saved as a new plan in your Google Drive. Calendars start empty; past years stay just as they are.'
         : 'Google Drive isn’t connected, so it’s kept on this computer for now (you can save it to Drive later). Calendars start empty.'),
