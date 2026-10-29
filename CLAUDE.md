@@ -104,6 +104,17 @@ A browser app for a (non-technical) elementary music teacher to plan a school ye
 - Original bitmoji rules/data: `~/Documents/CodeProjects/lesson-organizer/HANDOFF.md` (+ `bitmoji_tags.json`).
   The user adds the pictures in the app; linking those tags up is a later data step.
 
+## Assistant commands (Claude controlling the open app)
+- The teacher asks Claude (via Claude in Chrome on their open tab) to do things in the planner. Use the page's
+  `window.lessonPlanner` with the javascript tool instead of clicking: `lessonPlanner.help()` lists commands;
+  `lessonPlanner.run(name, args)` or `run([{ command, args }, …])` (all or nothing, one undo step). Start with `overview`.
+- `agentCommands.js` (pure + tested): `COMMANDS` catalog (summary, `params` name → [text, required], `changes`, `run`),
+  things named as the app shows them or by id, active year only, weeks by number or any date in the week, 1-based positions,
+  friendly `CommandError`s that list the choices. `agentBridge.js` commits the changed copy, shows a "✨ Claude made changes"
+  notice with Undo, and also registers the commands as WebMCP tools when `navigator.modelContext` exists.
+- To add a command: add it to `COMMANDS` (reuse model/weekPlan functions), add a test in `test/agentCommands.test.js`.
+- Covers the Lesson Schedule, Outcome & Eval Calendar and Instrument Schedule so far; not yet lessons, outcomes, images.
+
 ## Working agreements
 - Feature work on a `feature/...` branch, commit at milestones, then recommend merging to `main` (fast-forward, delete branch).
 - Talk to the user in plain, non-technical language; give a recommendation and its practical consequence.

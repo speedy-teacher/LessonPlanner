@@ -18,6 +18,7 @@ import { installCalendarScrolling, showCalendar } from './views/calendarGrid.js'
 import { checkWatchedFolders, startWatchingDrive } from './views/deckImport.js';
 import { menuItem, popMenu } from './views/common.js';
 import { soon as checkCopies, startExportBridge } from './exportBridge.js';
+import { startAgentBridge } from './agentBridge.js';
 
 // Pages with `menu: 'setup'` are reached through the "Setup ▾" menu instead of their own tab.
 const TABS = [
@@ -140,6 +141,7 @@ async function start() {
   }
   startWatchingDrive();
   startExportBridge();
+  startAgentBridge();
   warnIfGoogleNotSetUp();
   prepareDrive(clientId());
 }
