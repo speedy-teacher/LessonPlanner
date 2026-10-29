@@ -728,9 +728,18 @@ button.ins-tag:hover { filter: brightness(.92); box-shadow: 0 0 0 1.5px var(--in
 .month-day { display: inline-flex; gap: 2px; }
 .check.small { font-size: 12px; color: var(--ink-soft); }
 .fits-note { font-size: 13px; background: var(--royal-soft); border-radius: 10px; padding: 8px 10px; margin: 0; }
-.holiday-list li { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
-.holiday-list input[type="date"], .holiday-adder input[type="date"] { font: inherit; font-size: 13px; border: 1.5px solid var(--line); border-radius: 8px; padding: 2px 4px; }
-.holiday-adder { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 8px; }
+/* Holidays: a normal-size card. Each row is two lines — the name, then the dates — and every row
+   (and the "add" row) uses the same columns, so the date boxes line up. */
+.holiday-list li, .holiday-adder {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) 64px; gap: 4px 6px; align-items: center;
+  flex-wrap: nowrap; padding: 6px 0;
+}
+.holiday-list li > .inline-edit, .holiday-adder > .inline-edit { grid-column: 1 / -1; width: 100%; min-width: 0; }
+.holiday-list li > .icon-btn { justify-self: start; }
+.holiday-list input[type="date"], .holiday-adder input[type="date"] {
+  width: 100%; min-width: 0; box-sizing: border-box; font: inherit; font-size: 13px; border: 1.5px solid var(--line); border-radius: 8px; padding: 3px 6px; background: var(--card);
+}
+.holiday-adder { margin-top: 4px; }
 @media (max-width: 1200px) {
   .images-layout { grid-template-columns: 240px minmax(0, 1fr); }
   .image-side { grid-column: 1 / -1; position: static; max-height: none; }

@@ -71,7 +71,7 @@ export function recheckCopies() {
 function setStatus(status) {
   const before = JSON.stringify(bridge.status);
   bridge.status = status;
-  if (JSON.stringify(status) !== before && ['setup', 'lessons'].includes(store.ui.tab)) refresh();
+  if (JSON.stringify(status) !== before) refresh();
 }
 
 /** Who may change the copies, and what's stopping this computer from doing it (null = nothing). */
