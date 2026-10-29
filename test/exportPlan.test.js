@@ -223,3 +223,12 @@ test('a lesson with a picture spot gets the week’s picture in its copy; a new 
   assert.deepEqual(syncFolder(s, year.id, haves, slidesTarget), ['refill']);
   assert.equal(wants(s, year.id)[0].picture, '', 'no picture where pictures can’t go (e.g. not Google Slides)');
 });
+
+test('copies wait a minute after the last change before updating; a change near an update pushes it back', async () => {
+  const { updateTime, SETTLE_MS } = await import('../public/js/exportPlan.js');
+  assert.equal(SETTLE_MS, 60 * 1000);
+  assert.equal(updateTime({ now: 10_000, lastEdit: 0, delay: 1500 }), 11_500, 'no changes: just the short delay (e.g. after signing in)');
+  assert.equal(updateTime({ now: 10_000, lastEdit: 10_000, delay: 1500 }), 70_000, 'a minute after the change');
+  assert.equal(updateTime({ now: 69_000, lastEdit: 68_000, delay: 1500 }), 128_000, 'another change just before: a minute after that one');
+  assert.equal(updateTime({ now: 200_000, lastEdit: 10_000, delay: 1500 }), 201_500, 'long settled');
+});

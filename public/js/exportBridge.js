@@ -13,14 +13,14 @@ import { refresh, store, subscribe } from './store.js';
 import { google } from './google.js';
 import { current as plan } from './workspace.js';
 import { canFillIn, driveFileId, driveOpenUrl, findLocation, googleTypeFor } from './locations.js';
-import { groupCopies, keysToDo, nextStep, sparesFor, wantedCopies } from './exportPlan.js';
+import { groupCopies, keysToDo, nextStep, SETTLE_MS, sparesFor, updateTime, wantedCopies } from './exportPlan.js';
 import { SLIDES } from './exportGoogle.js';
 import { isShared, markShareRefused } from './imageSharing.js';
 import { downloadTemplate, driveCopies } from './exportDrive.js';
 import { folderPermission, localCopies, rememberedFolder } from './exportLocal.js';
 import { dismissNotice, showNotice } from './notices.js';
 
-const WAIT_MS = 1500; // let a burst of changes (dragging, auto-fill) settle first
+const WAIT_MS = 1500; // after a sign-in or a new folder; after your own changes it's a minute (SETTLE_MS)
 const RECHECK_MS = 10 * 60 * 1000;
 const MAX_TRIES = 4; // steps for one entry in a row before giving up on it for now
 const STOPPERS = ['signed_out', 'offline'];
@@ -39,6 +39,15 @@ const bridge = {
   wants: null, // { version, targetId, map }
 };
 let timer = null;
+let tick = null; // redraws the countdown while waiting
+let skipWaitAt = 0; // "Update now" was clicked at this time: changes before it don't need to settle
+
+/** When your last change was (0 = none still settling). */
+function lastEdit() {
+  return store.editedAt > skipWaitAt ? store.editedAt : 0;
+}
+
+const settling = () => Date.now() < lastEdit() + SETTLE_MS;
 
 /**
  * What's happening with the open year's copies:
@@ -51,15 +60,35 @@ export function copyStatus() {
 
 /** Start watching for changes (once, when the planner opens). */
 export function startExportBridge() {
-  subscribe(() => { bridge.version += 1; soon(); });
+  let seenState = null;
+  let seenEdit = 0;
+  subscribe(() => {
+    // Only data changes matter (not switching tabs and the like).
+    if (store.state === seenState && store.editedAt === seenEdit) return;
+    seenState = store.state;
+    seenEdit = store.editedAt;
+    bridge.version += 1;
+    soon();
+  });
   setInterval(() => { bridge.target = null; soon(); }, RECHECK_MS);
   soon();
 }
 
-/** Look again soon (after changes settle). Also used after Google Drive connects or a folder is chosen. */
+/**
+ * Look again soon: a moment from now, but not until a minute after your last change (so a burst of
+ * changes is handled once, and nothing is updated while you're still moving things around).
+ */
 export function soon() {
   clearTimeout(timer);
-  timer = setTimeout(() => look().catch((err) => console.warn('Lesson copies:', err)), WAIT_MS);
+  const now = Date.now();
+  timer = setTimeout(() => look().catch((err) => console.warn('Lesson copies:', err)), updateTime({ now, lastEdit: lastEdit(), delay: WAIT_MS }) - now);
+  showWaiting();
+}
+
+/** "Update now" in the panel: don't wait for changes to settle. */
+function updateNow() {
+  skipWaitAt = Date.now();
+  soon();
 }
 
 /** Look again from scratch (e.g. after a different output folder was chosen). */
@@ -185,6 +214,11 @@ function signature(target, key) {
 
 // ---------- doing it ----------
 
+/** Keep working through the queue? Not while your latest change settles (a look is already planned). */
+function canGoOn(target) {
+  return Boolean(target) && !settling() && blocker(activeYear(store.state)?.output) === null;
+}
+
 async function work() {
   bridge.running = true;
   const tries = new Map();
@@ -192,8 +226,8 @@ async function work() {
     while (bridge.queue.size) {
       const target = bridge.target;
       const key = bridge.queue.values().next().value;
-      const step = target && blocker(activeYear(store.state)?.output) === null ? stepFor(target, key) : undefined;
-      if (step === undefined) break; // the folder or sign-in changed: the next look starts again
+      const step = canGoOn(target) ? stepFor(target, key) : undefined;
+      if (step === undefined) break; // a change to settle, or the folder or sign-in changed: the next look carries on
       tries.set(key, (tries.get(key) ?? 0) + 1);
       if (!step || tries.get(key) > MAX_TRIES) { bridge.queue.delete(key); continue; }
       if (await attempt(target, key, step) === 'stop') break;
@@ -326,19 +360,52 @@ function warnOtherComputer(status) {
   return warn(status, `This plan’s lesson copies are saved in a folder on another computer${who}, so changes made here reach them the next time the planner is opened on that computer. To make copies from this computer instead, choose a folder under Setup › School Year › Lesson copies.`);
 }
 
-/** Bottom-right: what the bridge is doing and how much is left. Gone when there's nothing to do. */
-function drawPanel() {
+/** How many copies your recent changes will update (only known when this computer keeps the copies). */
+function waitingCount() {
+  if (!bridge.target || bridge.status.state !== 'ready') return 0;
+  return new Set([...bridge.queue, ...keysToDo([...wanted(bridge.target).values()], bridge.haves)]).size;
+}
+
+/** While changes settle, the panel counts down to the update (and offers to do it now). */
+function showWaiting() {
+  clearInterval(tick);
+  if (!settling()) return drawPanel();
+  tick = setInterval(() => { if (settling()) drawPanel(); else clearInterval(tick); }, 1000);
+  return drawPanel();
+}
+
+function panelElement() {
   let el = document.getElementById('copy-queue');
   if (!el) {
     el = h('div', { id: 'copy-queue', class: 'copy-queue', role: 'status', 'aria-live': 'polite' });
     document.body.append(el);
   }
+  return el;
+}
+
+/** Bottom-right: what the bridge is doing (or waiting to do) and how much is left. Gone when there's nothing to do. */
+function drawPanel() {
+  const el = panelElement();
+  const waiting = settling() ? waitingCount() : 0;
+  if (waiting && !bridge.running) return drawWaiting(el, waiting);
   const left = bridge.queue.size;
   el.classList.toggle('show', bridge.running && left > 0);
-  el.replaceChildren(
+  return el.replaceChildren(
     h('div', { class: 'copy-queue-head' }, h('span', { class: 'copy-spin', 'aria-hidden': 'true' }, '📂'),
       h('strong', {}, 'Updating lesson copies'), h('span', { class: 'count-badge' }, left)),
     h('div', { class: 'copy-queue-now' }, bridge.doing));
+}
+
+function drawWaiting(el, count) {
+  const seconds = Math.max(0, Math.ceil((lastEdit() + SETTLE_MS - Date.now()) / 1000));
+  el.classList.add('show');
+  return el.replaceChildren(
+    h('div', { class: 'copy-queue-head' }, h('span', { 'aria-hidden': 'true' }, '⏳'),
+      h('strong', {}, `Lesson copies update in ${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`),
+      h('span', { class: 'count-badge' }, count)),
+    h('div', { class: 'copy-queue-now wait-row' },
+      h('span', {}, 'Waiting a minute in case you change more.'),
+      h('button', { class: 'btn small light', onclick: updateNow }, 'Update now')));
 }
 
 // ---------- for the Lesson Templates page ----------

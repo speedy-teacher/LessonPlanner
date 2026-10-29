@@ -153,6 +153,17 @@ export function sparesFor(want, haves, wantedKeys) {
   return haves.filter((h) => h.lessonId === want.lessonId && !wantedKeys.has(h.entryId)).sort((a, b) => score(a) - score(b));
 }
 
+/** How long lesson copies wait after your last change before they're updated (changes often come in bursts). */
+export const SETTLE_MS = 60 * 1000;
+
+/**
+ * When to update the copies: `delay` from now, but never sooner than a minute after the last change
+ * (`lastEdit`, ms; 0 = none). So a change made just before an update pushes it back.
+ */
+export function updateTime({ now, lastEdit, delay }) {
+  return Math.max(now + delay, lastEdit ? lastEdit + SETTLE_MS : 0);
+}
+
 /** Copies that exist, grouped by the schedule entry they belong to. */
 export function groupCopies(haves) {
   return Map.groupBy(haves, (h) => h.entryId);

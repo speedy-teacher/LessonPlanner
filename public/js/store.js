@@ -15,6 +15,8 @@ export const store = {
   redoStack: [],
   listeners: new Set(),
   saveStatus: 'saved',
+  // When the data was last changed here (a change, undo or redo) — not when a plan was opened or loaded.
+  editedAt: 0,
 };
 
 let saveTimer = null;
@@ -46,6 +48,7 @@ export function commit(mutate) {
   store.undoStack.push(before);
   if (store.undoStack.length > UNDO_LIMIT) store.undoStack.shift();
   store.redoStack = [];
+  store.editedAt = Date.now();
   queueSave();
   notify();
   return result;
@@ -63,6 +66,7 @@ function travel(from, to) {
   if (!from.length) return;
   to.push(JSON.stringify(store.state));
   store.state = normalize(JSON.parse(from.pop()));
+  store.editedAt = Date.now();
   queueSave();
   notify();
 }

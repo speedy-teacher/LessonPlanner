@@ -769,3 +769,6 @@ button.ins-tag:hover { filter: brightness(.92); box-shadow: 0 0 0 1.5px var(--in
 .pill.small { font-size: 12px; padding: 2px 10px; }
 .fits-note.quiet { background: var(--card-2); color: var(--ink-soft); }
 .link-btn.small { font-size: 12px; align-self: flex-start; }
+
+.copy-queue .wait-row { display: flex; align-items: center; gap: 8px; white-space: normal; }
+.copy-queue .wait-row span { flex: 1; }

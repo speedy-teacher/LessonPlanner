@@ -71,7 +71,9 @@ A browser app for a (non-technical) elementary music teacher to plan a school ye
   (pure + tested) works out wanted copies (`hash` = template + filled values, `place` = folder) and `nextStep` = create / move / refill
   (fresh copy, old one trashed) / remove (trash). `exportDrive.js` (copy, fill via Slides/Docs/Sheets `replaceAllText`/`findReplace`,
   move, trash; copies found again by `appProperties`) and `exportLocal.js` (File System Access, `lesson-planner-copies.json` list; no
-  fill-in) share that path. `exportBridge.js` runs it in the background after changes (1.5 s), bottom-right queue panel.
+  fill-in) share that path. `exportBridge.js` runs it in the background, bottom-right queue panel: a minute after your
+  last data change (`SETTLE_MS`, `store.editedAt` = commit/undo/redo only; a change mid-run pauses the queue), with a
+  countdown + "Update now"; opening/loading a plan, signing in or choosing a folder update after 1.5 s.
   Templates are only ever copied. Shared plans: only the keeper (who chose the folder, by Google `permissionId`) changes copies;
   others get a notice naming the keeper and how many copies are behind. Copies aren't in the plan data, so undo never touches them.
 
