@@ -91,16 +91,26 @@ export function entryDates(state, entry) {
   return { week, start: days[0], end: days.at(-1) };
 }
 
+/**
+ * The pictures a schedule entry chooses from: the ones picked for its lesson by hand (they fit any week,
+ * and the best for the week wins), otherwise every picture of the year.
+ */
+function candidates(state, entry) {
+  const all = state.images.filter((i) => i.yearId === entry.yearId);
+  const chosen = all.filter((i) => i.lessonIds?.includes(entry.lessonId));
+  return chosen.length ? chosen.map((i) => ({ ...i, when: { ...i.when, anytime: true } })) : all;
+}
+
 /** The picture chosen for a schedule entry ({ image, week } — image null when none fits). */
 export function pictureForEntry(state, entry, sharing = () => null) {
   const { week, start, end } = entryDates(state, entry);
   const lesson = find(state, 'lessons', entry.lessonId);
-  const [image = null] = pickImages(state.images.filter((i) => i.yearId === entry.yearId), {
+  const [best] = pickImages(candidates(state, entry), {
     start, end, sharing,
     holidays: yearEvents(state, entry.yearId),
     instrumentIds: lesson?.instrumentIds ?? [],
   });
-  return { image, week };
+  return { image: best ? find(state, 'images', best.id) : null, week };
 }
 
 /** Whether a lesson has a spot for a picture (its "Picture" detail is ticked). */

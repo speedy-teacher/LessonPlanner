@@ -11,7 +11,9 @@ import {
 } from '../weekPlan.js';
 import { commit, setUi, store, undo } from '../store.js';
 import { formatRange, todayISO } from '../dates.js';
-import { current, emptyNote, instrumentTag, pickId, pills, year } from './common.js';
+import { contextMenu, current, emptyNote, instrumentTag, pickId, pills, year } from './common.js';
+import { driveOpenLabel, driveOpenUrl, findLocation } from '../locations.js';
+import { copiesOfLesson } from '../exportBridge.js';
 import { outcomeColor } from './plan.js';
 import { slideCanvas } from './lessonPreview.js';
 
@@ -169,6 +171,7 @@ function entryCard(entry, index, week, placements) {
     class: `ls-card ${missing.length ? 'has-warn' : ''}`, draggable: 'true',
     style: { '--chip': outcome ? outcomeColor(outcome.id) : NO_EVAL_COLOR }, 'data-tip': tip,
     ondragstart: (e) => e.dataTransfer.setData('text/plain', JSON.stringify({ entryId: entry.id })),
+    onclick: (e) => { if (!e.target.closest('.ls-x')) cardMenu(e, entry, lesson); },
   },
   h('div', { class: 'ls-thumb' }, slideCanvas(lesson)),
   h('div', { class: 'ls-card-caption' },
@@ -176,6 +179,20 @@ function entryCard(entry, index, week, placements) {
     missing.length ? h('span', { class: 'warn', 'aria-label': 'Instrument warning' }, '⚠') : null,
     h('span', { class: 'chip-title' }, lesson?.name)),
   iconButton('×', 'Take off this week', () => takeOff(entry), 'ls-x'));
+}
+
+/** Clicking a lesson: go to its template, open it or this week's copy, or take it off the week. */
+function cardMenu(e, entry, lesson) {
+  if (!lesson) return;
+  const template = findLocation(lesson, 'drive');
+  const copy = copiesOfLesson(lesson.id).find((c) => c.copy.entryId === entry.id);
+  const open = (url) => window.open(url, '_blank', 'noopener');
+  contextMenu(e, [
+    { icon: '🖼️', label: 'Go to the lesson template', run: () => setUi({ tab: 'lessons', lessonId: lesson.id, deckFolderId: lesson.folderId, lessonSearch: '' }) },
+    template ? { icon: '☁️', label: `${driveOpenLabel(template, 'Template')} ↗`, run: () => open(driveOpenUrl(template)) } : null,
+    copy?.url ? { icon: '📄', label: 'Open this week’s copy ↗', run: () => open(copy.url) } : null,
+    { icon: '×', label: 'Take off this week', run: () => takeOff(entry) },
+  ].filter(Boolean));
 }
 
 // ---------- drag & drop ----------

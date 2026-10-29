@@ -3,10 +3,11 @@
 
 import { editable, h, toast } from '../dom.js';
 import { add, find, remove, update } from '../model.js';
-import { addTag, editImage, tagsByGroup } from '../library.js';
+import { addTag, chooseImageLesson, editImage, tagsByGroup } from '../library.js';
 import { driveOpenUrl, findLocation } from '../locations.js';
 import { commit, setUi, store, undo } from '../store.js';
 import { checkSharing, isShared, shareRefused } from '../imageSharing.js';
+import { allowPictures } from './images.js';
 import { imageUses } from '../imagePick.js';
 import { google } from '../google.js';
 import { current, emptyNote, menuItem, popMenu, year } from './common.js';
@@ -51,9 +52,12 @@ function sharingLine(image) {
   const shared = isShared(image);
   if (shareRefused(image)) {
     return h('div', { class: 'share-line warn-box' },
-      h('strong', {}, '⚠ Couldn’t be placed in lesson copies'),
-      h('span', {}, 'Google didn’t let the planner share it for a moment to place it. In Google Drive: open the picture → Share → General access → “Anyone with the link” (Viewer). It can stay that way.'),
-      h('button', { class: 'btn small light', onclick: () => checkSharing([image], { again: true }) }, 'Check again'));
+      h('strong', {}, '⚠ Couldn’t be placed in lesson copies yet'),
+      h('span', {}, 'Google only lets the planner share pictures you’ve selected in Google’s own picker — pictures that came in with a folder need to be selected once. Click below, select the pictures (Ctrl+A selects all), and click Select.'),
+      h('div', { class: 'button-row' },
+        h('button', { class: 'btn small', onclick: () => allowPictures(image) }, 'Let the planner share pictures…'),
+        h('button', { class: 'btn small light', onclick: () => checkSharing([image], { again: true }) }, 'Check again')),
+      h('span', { class: 'hint' }, 'Or share it yourself in Google Drive: Share → General access → “Anyone with the link” (Viewer).'));
   }
   if (shared === true) return h('p', { class: 'share-line ok' }, '✓ Shared with “Anyone with the link” in Google Drive.');
   if (shared === null) {
@@ -142,12 +146,47 @@ const nameOf = (collection, id) => find(store.state, collection, id)?.name ?? ''
 function usedBy(image) {
   const uses = imageUses(store.state, image.id, isShared);
   return h('section', { class: 'image-section' },
-    h('h3', {}, 'Lessons that get this picture', uses.length ? h('span', { class: 'count-badge' }, uses.length) : null),
-    uses.length ? null : emptyNote('None on the Lesson Schedule right now. (Only lessons with “Picture” ticked under “Filled in automatically” get one.)'),
+    h('h3', {}, 'Lessons that get this picture'),
+    chosenLessons(image),
+    h('h4', { class: 'group-head' }, 'On the Lesson Schedule', uses.length ? h('span', { class: 'count-badge' }, uses.length) : null),
+    uses.length ? null : emptyNote('None right now. (Only lessons with “Picture” ticked under “Filled in automatically” get one.)'),
     uses.length && shareRefused(image) ? h('p', { class: 'warn-box' }, '⚠ These lessons can’t show it until it’s shared with “Anyone with the link” in Google Drive.') : null,
     h('ul', { class: 'usage-copies' }, uses.map(({ entry, week }) => h('li', {},
       h('button', { class: 'link-btn', onclick: () => setUi({ tab: 'lessons', lessonId: entry.lessonId }) },
         `${nameOf('lessons', entry.lessonId)} — ${nameOf('schools', entry.schoolId)} › ${nameOf('grades', entry.gradeId)} › Week ${week?.number ?? '?'}`)))));
+}
+
+// ---------- lessons chosen by hand ----------
+
+/** Lessons you chose to always get this picture, and a search box to choose more. */
+function chosenLessons(image) {
+  const chosen = image.lessonIds.map((id) => find(store.state, 'lessons', id)).filter(Boolean);
+  return h('div', { class: 'chosen-lessons' },
+    h('p', { class: 'hint' }, 'Always use it for these lessons, whatever the week. (If a lesson has several, the best fit for the week wins.)'),
+    chosen.length ? h('div', { class: 'tag-chips' }, chosen.map((l) => h('span', { class: 'tag-chip on' }, l.name,
+      h('button', { class: 'chip-x', title: `Stop always using it for ${l.name}`, 'aria-label': `Remove ${l.name}`, onclick: () => commit((s) => chooseImageLesson(s, image.id, l.id, false)) }, '×')))) : null,
+    lessonSearch(image));
+}
+
+/** Type to find lessons; click one to add it. (Results update as you type, without redrawing the page.) */
+function lessonSearch(image) {
+  const results = h('div', { class: 'lesson-results' });
+  const show = (text) => {
+    const words = text.trim().toLowerCase();
+    const matches = words ? current('lessons')
+      .filter((l) => !image.lessonIds.includes(l.id) && `${l.name} ${l.category}`.toLowerCase().includes(words))
+      .slice(0, 8) : [];
+    results.replaceChildren(...matches.map((l) => h('button', { class: 'menu-item', onclick: () => addLesson(image, l) },
+      h('span', { class: 'menu-icon', 'aria-hidden': 'true' }, '＋'), l.name, l.category ? h('span', { class: 'hint' }, ` · ${l.category}`) : null)),
+    ...(words && !matches.length ? [h('p', { class: 'hint' }, 'No lessons match.')] : []));
+  };
+  const input = h('input', { class: 'search', type: 'search', placeholder: '🔍 Add a lesson…', 'aria-label': 'Find a lesson to add', oninput: (e) => show(e.target.value) });
+  return h('div', { class: 'lesson-picker' }, input, results);
+}
+
+function addLesson(image, lesson) {
+  const ticked = commit((s) => chooseImageLesson(s, image.id, lesson.id));
+  toast(ticked ? `“${lesson.name}” always gets this picture. “Picture” is now ticked for it — put an IMAGE_ANCHOR spot in its template.` : `“${lesson.name}” always gets this picture.`, { label: 'Undo', run: undo });
 }
 
 function removeImage(image) {

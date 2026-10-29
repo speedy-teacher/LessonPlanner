@@ -30,6 +30,12 @@ export function markShareRefused(fileId) {
   redrawSoon();
 }
 
+/** The planner was given permission for these pictures (picked in Google's picker): try placing them again. */
+export function clearRefused(fileIds) {
+  fileIds.forEach((id) => refused.delete(id));
+  redrawSoon();
+}
+
 /** Whether placing this picture failed because it couldn't be shared for a moment. */
 export function shareRefused(image) {
   return refused.has(driveFileId(image));

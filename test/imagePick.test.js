@@ -165,3 +165,20 @@ test('each time a picture fits reads as a plain sentence', async () => {
   assert.equal(windowSentence(around('Veterans Day', 'start', 3, 1)), '3 days before to 1 day after Veterans Day');
   assert.equal(windowSentence(around('Flag Day', 'start', 0, 0)), 'On Flag Day');
 });
+
+test('a lesson chosen by hand always gets that picture — even in weeks another picture fits better', async () => {
+  const { chooseImageLesson } = await import('../public/js/library.js');
+  const { remove } = await import('../public/js/model.js');
+  const { s, plain, welcome, waving, weeks, cls } = planner();
+  const first = addWeekLesson(s, { ...cls, weekStart: weeks[0].weekStart, lessonId: plain.id });
+  assert.equal(chooseImageLesson(s, waving.id, plain.id), true, '“Picture” gets ticked for the lesson');
+  assert.ok(plain.autoFields.includes('image'));
+  assert.equal(pictureForEntry(s, first).image.id, waving.id, 'not the welcome picture, though it fits week 1');
+  assert.deepEqual(imageUses(s, waving.id).map((u) => u.entry.id), [first.id]);
+  chooseImageLesson(s, welcome.id, plain.id);
+  assert.equal(pictureForEntry(s, first).image.id, welcome.id, 'with two chosen, the best fit for the week wins');
+  chooseImageLesson(s, welcome.id, plain.id, false);
+  assert.equal(pictureForEntry(s, first).image.id, waving.id);
+  remove(s, 'lessons', plain.id);
+  assert.deepEqual(waving.lessonIds, [], 'a removed lesson leaves the picture’s list');
+});

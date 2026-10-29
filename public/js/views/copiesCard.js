@@ -14,6 +14,7 @@ import { year } from './common.js';
 
 const STATUS = {
   none: () => 'No folder chosen yet, so no copies are made.',
+  checking: () => 'Checking the folder…',
   ready: () => '✓ Copies are kept up to date as you change the Lesson Schedule.',
   waiting: () => 'Connect Google Drive (above) and the copies catch up.',
   'view-only': () => 'This plan is view-only for you, so the copies are left as they are.',

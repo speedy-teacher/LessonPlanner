@@ -2,13 +2,17 @@
 // tree as Lesson Templates); middle: a gallery of every picture, by folder; right: the chosen picture's
 // tags and when it fits (imageDetails.js). Pictures come from Google Drive; only their details are saved.
 
-import { h } from '../dom.js';
+import { h, toast } from '../dom.js';
 import { find } from '../model.js';
 import { decksIn, folderPath, foldersIn, IMAGE_SHELF } from '../library.js';
 import { setUi, store } from '../store.js';
 import { deckThumbnail, onThumbnail, requestThumbnail, thumbnailFailed } from '../thumbnails.js';
 import { driveFileId } from '../locations.js';
-import { checkSharing, shareRefused } from '../imageSharing.js';
+import { checkSharing, clearRefused, shareRefused } from '../imageSharing.js';
+import { pickPicturesFromDrive } from '../drive.js';
+import { apiKey, clientId } from '../deviceSettings.js';
+import { google } from '../google.js';
+import { recheckCopies } from '../exportBridge.js';
 import { current, emptyNote, menuItem, popMenu, year } from './common.js';
 import { folderTree, newMark, newTreeFolder, openTreeFolders, treeTarget, visibleItems } from './folderTree.js';
 import { importFromDrive, setImageKind } from './deckImport.js';
@@ -92,8 +96,22 @@ function addMenu() {
 function sharingSummary(images) {
   const refused = images.filter(shareRefused);
   if (!refused.length) return null;
-  return h('p', { class: 'share-summary' }, '⚠ ',
-    `${refused.length} ${refused.length === 1 ? 'picture' : 'pictures'} couldn’t be placed in lesson copies: Google didn’t let the planner share ${refused.length === 1 ? 'it' : 'them'} for a moment. Share ${refused.length === 1 ? 'it' : 'them'} with “Anyone with the link” in Google Drive.`);
+  return h('div', { class: 'share-summary' },
+    h('span', {}, `⚠ ${refused.length} ${refused.length === 1 ? 'picture' : 'pictures'} couldn’t be placed in lesson copies yet: the planner needs your permission to share ${refused.length === 1 ? 'it' : 'them'} for a moment.`),
+    h('button', { class: 'btn small', onclick: () => allowPictures(refused[0]) }, 'Let the planner share pictures…'));
+}
+
+/**
+ * Open Google's picker in the picture's folder so you can select the pictures: that gives the planner
+ * permission to share them for a moment while placing them. Then the copies try again.
+ */
+export async function allowPictures(image) {
+  const folder = find(store.state, 'imageFolders', image.folderId);
+  const picked = await pickPicturesFromDrive({ token: google.token, apiKey: apiKey(), clientId: clientId() }, { parentId: driveFileId(folder) }).catch(() => []);
+  if (!picked.length) return;
+  clearRefused(picked.map((p) => p.id));
+  recheckCopies();
+  toast(`Thanks — the planner can place ${picked.length === 1 ? 'that picture' : `those ${picked.length} pictures`} now. The lesson copies are being updated.`);
 }
 
 // ---------- the gallery ----------

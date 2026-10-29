@@ -610,6 +610,7 @@ button.ins-tag:hover { filter: brightness(.92); box-shadow: 0 0 0 1.5px var(--in
 .ls-zone.drop-target .ls-drop-hint { display: none; }
 .ls-marker { width: 4px; align-self: stretch; background: var(--royal); border-radius: 2px; flex: none; }
 /* Cards shrink to share the row when a week is very full. */
+.ls-card { cursor: pointer; }
 .ls-card {
   flex: 0 1 150px; min-width: 44px; display: flex; flex-direction: column; gap: 4px; padding: 5px; position: relative;
   border-radius: 10px; font-size: 13px; cursor: grab; user-select: none;
@@ -778,3 +779,9 @@ button.ins-tag:hover { filter: brightness(.92); box-shadow: 0 0 0 1.5px var(--in
 
 .copy-queue .wait-row { display: flex; align-items: center; gap: 8px; white-space: normal; }
 .copy-queue .wait-row span { flex: 1; }
+
+.chosen-lessons { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
+.chip-x { border: 0; background: none; color: inherit; cursor: pointer; padding: 0 0 0 6px; font-weight: 800; }
+.lesson-picker .search { width: 100%; box-sizing: border-box; }
+.lesson-results { display: flex; flex-direction: column; margin-top: 4px; }
+.lesson-results .menu-item { text-align: left; }

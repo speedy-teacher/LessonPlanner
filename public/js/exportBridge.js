@@ -29,6 +29,7 @@ export const folderKey = (yearId) => `copies:${yearId}`;
 
 const bridge = {
   status: { state: 'none' }, // see copyStatus()
+  statusFor: 'null', // the output folder the status is about
   target: null, // { id, adapter, keeps, … } for the open year's output folder
   haves: [], // copies found in it
   queue: new Set(), // schedule entry ids with something to do, in order
@@ -55,7 +56,10 @@ const settling = () => Date.now() < lastEdit() + SETTLE_MS;
  * (the computer folder must be allowed again) · 'other-computer' · 'other-keeper' ({ keeperName, behind }).
  */
 export function copyStatus() {
-  return bridge.status;
+  const output = (store.state && activeYear(store.state)?.output) ?? null;
+  if (!output) return { state: 'none' };
+  // A folder just chosen (or another year): say so until it's been looked at.
+  return bridge.statusFor === JSON.stringify(output) ? bridge.status : { state: 'checking' };
 }
 
 /** Start watching for changes (once, when the planner opens). */
@@ -91,18 +95,20 @@ function updateNow() {
   soon();
 }
 
-/** Look again from scratch (e.g. after a different output folder was chosen). */
+/** Look again from scratch, right away (e.g. after a different output folder was chosen). */
 export function recheckCopies() {
   bridge.target = null;
+  skipWaitAt = Date.now(); // choosing a folder isn't a change that needs to settle
   soon();
 }
 
 // ---------- the output folder ----------
 
 function setStatus(status) {
-  const before = JSON.stringify(bridge.status);
+  const before = JSON.stringify([bridge.status, bridge.statusFor]);
   bridge.status = status;
-  if (JSON.stringify(status) !== before) refresh();
+  bridge.statusFor = JSON.stringify((store.state && activeYear(store.state)?.output) ?? null);
+  if (JSON.stringify([status, bridge.statusFor]) !== before) refresh();
 }
 
 /** Who may change the copies, and what's stopping this computer from doing it (null = nothing). */

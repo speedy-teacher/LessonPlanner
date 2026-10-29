@@ -120,11 +120,22 @@ export function pickFolderFromDrive({ token, apiKey, clientId }) {
   return openPicker({ token, apiKey, clientId }, { mimeTypes: [DRIVE_FOLDER], folders: true, title: 'Pick a folder for the plan' });
 }
 
-/** `mimeTypes` = the kinds of file to show (null = every kind). */
-async function openPicker({ token, apiKey, clientId }, { mimeTypes, folders = false, multiple = false, title }) {
+const PICTURE_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/bmp', 'image/svg+xml'];
+
+/**
+ * Open Google's picker on a folder of pictures, to choose several. Picking files here is what gives
+ * the planner permission to change them (e.g. share a picture for a moment to place it in a slide).
+ */
+export function pickPicturesFromDrive({ token, apiKey, clientId }, { parentId = null } = {}) {
+  return openPicker({ token, apiKey, clientId }, { mimeTypes: PICTURE_TYPES, multiple: true, parentId, title: 'Select the pictures (Ctrl+A selects all)' });
+}
+
+/** `mimeTypes` = the kinds of file to show (null = every kind); `parentId` = the folder to open in. */
+async function openPicker({ token, apiKey, clientId }, { mimeTypes, folders = false, multiple = false, title, parentId = null }) {
   await loadPicker();
   const { picker } = window.google;
   const view = new picker.DocsView(picker.ViewId.DOCS).setIncludeFolders(true).setSelectFolderEnabled(folders);
+  if (parentId) view.setParent(parentId);
   if (mimeTypes) view.setMimeTypes((folders ? mimeTypes : [...mimeTypes, DRIVE_FOLDER]).join(','));
   const builder = new picker.PickerBuilder().addView(view);
   if (multiple) builder.enableFeature(picker.Feature.MULTISELECT_ENABLED);

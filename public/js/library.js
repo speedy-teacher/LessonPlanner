@@ -42,7 +42,7 @@ export const IMAGE_SHELF = {
 /** A new picture with nothing tagged yet. */
 export function addImage(state, { yearId, name, folderId = null, locations = [], isNew = false }) {
   return add(state, 'images', {
-    yearId, name, description: '', folderId, locations, isNew, tagIds: [], instrumentIds: [],
+    yearId, name, description: '', folderId, locations, isNew, tagIds: [], instrumentIds: [], lessonIds: [],
     when: { anytime: false, priority: 2, windows: [] },
   });
 }
@@ -304,6 +304,18 @@ export function editImage(state, imageId, change) {
   else Object.assign(image, change);
   image.isNew = false;
   return image;
+}
+
+/**
+ * Choose a lesson to always get this picture (or take it off the list). A lesson that gets a picture needs
+ * a picture spot, so its "Picture" detail is ticked too. Returns true if "Picture" had to be ticked.
+ */
+export function chooseImageLesson(state, imageId, lessonId, on = true) {
+  const lesson = find(state, 'lessons', lessonId);
+  editImage(state, imageId, (i) => { i.lessonIds = on ? [...new Set([...i.lessonIds, lessonId])] : i.lessonIds.filter((id) => id !== lessonId); });
+  if (!on || !lesson || lesson.autoFields.includes('image')) return false;
+  lesson.autoFields.push('image');
+  return true;
 }
 
 /** Tags of a year grouped by tag group, in name order: [{ group, tags }]. */

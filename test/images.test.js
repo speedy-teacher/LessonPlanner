@@ -93,7 +93,8 @@ test('a new year keeps the pictures, folders and tags, and the holidays a year l
   importDriveItems(s, { yearId: year.id, nodes: [folder('fakeTop', 'Pictures', [file('fakeA', 'Waving.png')])], shelf: IMAGE_SHELF });
   const group = add(s, 'tagGroups', { yearId: year.id, name: 'Season' });
   const tag = addTag(s, { yearId: year.id, groupId: group.id, name: 'winter' });
-  editImage(s, s.images[0].id, (i) => { i.tagIds.push(tag.id); i.instrumentIds.push(uke.id); });
+  const deck = add(s, 'lessons', { yearId: year.id, name: 'Beat', autoFields: [], instrumentIds: [], locations: [] });
+  editImage(s, s.images[0].id, (i) => { i.tagIds.push(tag.id); i.instrumentIds.push(uke.id); i.lessonIds.push(deck.id); });
   add(s, 'holidays', { yearId: year.id, name: 'Winter Break', startDate: '2026-12-21', endDate: '2027-01-01' });
   const next = createYear(s, { name: 'Year B', startDate: '2027-08-18', endDate: '2028-06-09' }, year.id);
   const [image] = inYear(s, 'images', next.id);
@@ -102,6 +103,7 @@ test('a new year keeps the pictures, folders and tags, and the holidays a year l
   assert.equal(find(s, 'tags', image.tagIds[0]).name, 'winter');
   assert.equal(find(s, 'tags', image.tagIds[0]).groupId, inYear(s, 'tagGroups', next.id)[0].id);
   assert.equal(find(s, 'instruments', image.instrumentIds[0]).yearId, next.id);
+  assert.equal(find(s, 'lessons', image.lessonIds[0]).yearId, next.id, 'lessons chosen by hand follow into the new year');
   assert.deepEqual(inYear(s, 'holidays', next.id).map((h) => [h.name, h.startDate, h.endDate]), [['Winter Break', '2027-12-21', '2028-01-01']]);
 });
 
