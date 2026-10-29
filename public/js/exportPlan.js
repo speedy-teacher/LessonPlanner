@@ -14,7 +14,7 @@
 // A copy that exists: { id, entryId, lessonId, hash, place, name, … } (more fields per kind of folder).
 
 import { formatRange } from './dates.js';
-import { AUTO_FIELD_PLACEHOLDERS, find, lessonInstruments, outcomeLabel } from './model.js';
+import { AUTO_FIELD_PLACEHOLDERS, find, lessonInstruments, outcomeLabel, PICTURE_FIELDS } from './model.js';
 import { entryCriterion, placementsInWeek, schoolWeeks } from './weekPlan.js';
 
 /** Letters files and folders can't have on a computer (and Drive shows oddly). */
@@ -68,7 +68,7 @@ export function entryValues(state, entry, week, numbers = lessonNumbers(state.we
 /** Only the details the lesson asks for, as placeholder → text (sorted, so fingerprints are steady). */
 function fillValues(lesson, all) {
   return Object.fromEntries([...lesson.autoFields].sort()
-    .filter((key) => AUTO_FIELD_PLACEHOLDERS[key])
+    .filter((key) => AUTO_FIELD_PLACEHOLDERS[key] && !PICTURE_FIELDS.includes(key))
     .map((key) => [AUTO_FIELD_PLACEHOLDERS[key], all[key] ?? '']));
 }
 

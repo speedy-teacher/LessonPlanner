@@ -44,10 +44,21 @@ export const COLLECTIONS = {
   // The Lesson Schedule: lesson decks taught to a class (school + grade) in a school week
   // (`weekStart` = that week's Monday), in teaching order. `criterionId` = the eval it's taught for, if known.
   weekLessons: 'id, yearId, schoolId, gradeId, weekStart, lessonId, criterionId, position',
+  // Pictures (e.g. bitmojis) that lesson copies can show. Folders work like deckFolders. An image has
+  // `tagIds[]` (your own tags), `instrumentIds[]` and `when` = when it fits (see imagePick.js):
+  // { anytime, priority, windows: [{ type: 'date', from: 'MM-DD', to: 'MM-DD', startByEnd }
+  //   | { type: 'holiday', holiday: <name>, anchor: 'start'|'end', daysBefore, daysAfter }] }.
+  imageFolders: 'id, yearId, name, parentId, locations[], watch, seenDriveIds[]',
+  images: 'id, yearId, name, description, folderId, locations[], isNew, tagIds[], instrumentIds[], when',
+  // Your own kinds of tag (e.g. "Season") and the tags in each (e.g. "winter").
+  tagGroups: 'id, yearId, name',
+  tags: 'id, yearId, groupId, name',
+  // School holidays and breaks (one list for every school), e.g. Winter Break.
+  holidays: 'id, yearId, name, startDate, endDate',
 };
 
 /** Collections that roll over (are copied) when a new year is created. */
-export const ROLLOVER = ['instruments', 'schools', 'grades', 'deckFolders', 'lessons', 'outcomes'];
+export const ROLLOVER = ['instruments', 'schools', 'grades', 'deckFolders', 'lessons', 'outcomes', 'imageFolders', 'images', 'tagGroups', 'tags', 'holidays'];
 
 /** Lesson deck fields that are filled in automatically from the schedule. */
 export const AUTO_FIELDS = {
@@ -59,6 +70,7 @@ export const AUTO_FIELDS = {
   instrument: 'Instrument',
   outcome: 'Essential outcome',
   criterion: 'Eval criterion',
+  image: 'Picture',
 };
 
 /**
@@ -76,7 +88,14 @@ export const AUTO_FIELD_PLACEHOLDERS = {
   instrument: '{{instrument}}',
   outcome: '{{essential_outcome}}',
   criterion: '{{eval_criterion}}',
+  image: 'IMAGE_ANCHOR',
 };
+
+/**
+ * Details that are pictures, not text: their "placeholder" is a see-through shape whose alt text is
+ * IMAGE_ANCHOR, and the picture chosen for the lesson's week goes there (see imagePick.js).
+ */
+export const PICTURE_FIELDS = ['image'];
 
 // What happens to related records when a record is removed:
 // delete them, clear the link (null), or pull the id out of a list.
@@ -86,13 +105,18 @@ const RELATIONS = {
     ['grades', 'yearId', 'delete'], ['outcomes', 'yearId', 'delete'],
     ['lessons', 'yearId', 'delete'], ['deckFolders', 'yearId', 'delete'], ['placements', 'yearId', 'delete'],
     ['instrumentBlocks', 'yearId', 'delete'], ['weekLessons', 'yearId', 'delete'],
+    ['imageFolders', 'yearId', 'delete'], ['images', 'yearId', 'delete'], ['tagGroups', 'yearId', 'delete'],
+    ['tags', 'yearId', 'delete'], ['holidays', 'yearId', 'delete'],
   ],
-  instruments: [['instrumentBlocks', 'instrumentId', 'delete'], ['lessons', 'instrumentIds', 'pull']],
+  instruments: [['instrumentBlocks', 'instrumentId', 'delete'], ['lessons', 'instrumentIds', 'pull'], ['images', 'instrumentIds', 'pull']],
   schools: [['placements', 'schoolId', 'delete'], ['instrumentBlocks', 'schoolId', 'delete'], ['weekLessons', 'schoolId', 'delete']],
   grades: [['placements', 'gradeId', 'delete'], ['criteria', 'gradeIds', 'pull'], ['weekLessons', 'gradeId', 'delete']],
   outcomes: [['criteria', 'outcomeId', 'delete']],
   lessons: [['criterionLessons', 'lessonId', 'delete'], ['weekLessons', 'lessonId', 'delete']],
   deckFolders: [['deckFolders', 'parentId', 'delete'], ['lessons', 'folderId', 'null']],
+  imageFolders: [['imageFolders', 'parentId', 'delete'], ['images', 'folderId', 'null']],
+  tagGroups: [['tags', 'groupId', 'delete']],
+  tags: [['images', 'tagIds', 'pull']],
   criteria: [['criterionLessons', 'criterionId', 'delete'], ['placements', 'criterionId', 'delete'], ['weekLessons', 'criterionId', 'null']],
 };
 
@@ -106,7 +130,7 @@ export function newId(prefix) {
 
 const PREFIX = {
   years: 'yr', instruments: 'ins', schools: 'sch', grades: 'gr', outcomes: 'out',
-  lessons: 'les', deckFolders: 'fld', localRoots: 'root', criteria: 'crit', criterionLessons: 'cl', placements: 'plc', instrumentBlocks: 'blk', weekLessons: 'wk',
+  lessons: 'les', deckFolders: 'fld', localRoots: 'root', imageFolders: 'ifld', images: 'img', tagGroups: 'tgrp', tags: 'tag', holidays: 'hol', criteria: 'crit', criterionLessons: 'cl', placements: 'plc', instrumentBlocks: 'blk', weekLessons: 'wk',
 };
 
 export function emptyState() {
@@ -125,6 +149,8 @@ export function normalize(raw) {
   migrate(state);
   state.lessons.forEach(normalizeLesson);
   state.deckFolders.forEach(normalizeFolder);
+  state.imageFolders.forEach(normalizeFolder);
+  state.images.forEach(normalizeImage);
   state.settings = { ...DEFAULT_SETTINGS, ...(state.settings || {}) };
   for (const year of state.years) assignOutcomeColors(state, year.id);
   if (!state.years.some((y) => y.id === state.activeYearId)) {
@@ -149,6 +175,14 @@ function normalizeLesson(lesson) {
   lesson.folderId ??= null;
   if (!Array.isArray(lesson.locations)) lesson.locations = [];
   lesson.isNew = Boolean(lesson.isNew);
+}
+
+function normalizeImage(image) {
+  normalizeLesson(image);
+  if (!Array.isArray(image.tagIds)) image.tagIds = [];
+  if (typeof image.description !== 'string') image.description = '';
+  image.when = { anytime: false, priority: 2, ...(image.when || {}) };
+  if (!Array.isArray(image.when.windows)) image.when.windows = [];
 }
 
 function normalizeFolder(folder) {
@@ -324,11 +358,14 @@ function copyYearContents(state, fromYearId, toYearId) {
     }
   }
   const mapId = (id) => (id ? idMap[id] ?? null : null);
-  for (const lesson of inYear(state, 'lessons', toYearId)) {
+  for (const lesson of [...inYear(state, 'lessons', toYearId), ...inYear(state, 'images', toYearId)]) {
     lesson.instrumentIds = lesson.instrumentIds.map(mapId).filter(Boolean);
     lesson.folderId = mapId(lesson.folderId);
   }
-  for (const folder of inYear(state, 'deckFolders', toYearId)) folder.parentId = mapId(folder.parentId);
+  for (const image of inYear(state, 'images', toYearId)) image.tagIds = image.tagIds.map(mapId).filter(Boolean);
+  for (const tag of inYear(state, 'tags', toYearId)) tag.groupId = mapId(tag.groupId);
+  for (const folder of [...inYear(state, 'deckFolders', toYearId), ...inYear(state, 'imageFolders', toYearId)]) folder.parentId = mapId(folder.parentId);
+  for (const holiday of inYear(state, 'holidays', toYearId)) Object.assign(holiday, nextYearDates(holiday));
   for (const outcomeId of Object.keys(idMap).filter((id) => find(state, 'outcomes', id))) {
     copyCriteria(state, outcomeId, idMap[outcomeId], mapId);
   }
@@ -354,11 +391,17 @@ export function activeYear(state) {
   return find(state, 'years', state.activeYearId);
 }
 
+const shiftYear = (iso) => `${Number(iso.slice(0, 4)) + 1}${iso.slice(4)}`;
+
+/** A holiday's dates a year later (a starting point — they're checked when a new year begins). */
+function nextYearDates({ startDate, endDate }) {
+  return { startDate: shiftYear(startDate), endDate: shiftYear(endDate) };
+}
+
 /** Suggested dates/name for the year after `year`. */
 export function suggestNextYear(year) {
-  const shift = (iso) => `${Number(iso.slice(0, 4)) + 1}${iso.slice(4)}`;
   const startYear = Number(year.startDate.slice(0, 4)) + 1;
-  return { name: `${startYear}–${startYear + 1}`, startDate: shift(year.startDate), endDate: shift(year.endDate) };
+  return { name: `${startYear}–${startYear + 1}`, startDate: shiftYear(year.startDate), endDate: shiftYear(year.endDate) };
 }
 
 // ---------- outcomes, criteria, lesson order ----------

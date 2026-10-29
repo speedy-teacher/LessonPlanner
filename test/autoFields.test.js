@@ -1,7 +1,7 @@
 // Lesson Templates: what to type in the slides for each automatic detail, and adding a deck to an eval.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { addStep, AUTO_FIELD_PLACEHOLDERS, AUTO_FIELDS, criteriaFor, inYear, lessonEvals, stepsFor } from '../public/js/model.js';
+import { addStep, AUTO_FIELD_PLACEHOLDERS, AUTO_FIELDS, criteriaFor, inYear, lessonEvals, PICTURE_FIELDS, stepsFor } from '../public/js/model.js';
 import { seedState } from '../public/js/seed.js';
 
 test('every automatic detail has its own {{…}} text to type in the slides', () => {
@@ -9,7 +9,11 @@ test('every automatic detail has its own {{…}} text to type in the slides', ()
   const texts = Object.values(AUTO_FIELD_PLACEHOLDERS);
   assert.equal(new Set(texts.map((t) => t.toLowerCase())).size, texts.length, 'no two are the same');
   // The same style as the teacher's decks: lowercase words joined by underscores.
-  for (const text of texts) assert.match(text, /^\{\{[a-z]+(_[a-z]+)*\}\}$/);
+  // Pictures are the exception: their spot is a see-through shape with IMAGE_ANCHOR as its alt text.
+  for (const [key, text] of Object.entries(AUTO_FIELD_PLACEHOLDERS)) {
+    if (PICTURE_FIELDS.includes(key)) assert.equal(text, 'IMAGE_ANCHOR');
+    else assert.match(text, /^\{\{[a-z]+(_[a-z]+)*\}\}$/);
+  }
   assert.equal(AUTO_FIELD_PLACEHOLDERS.lessonNumber, '{{lesson_number}}');
   assert.equal(AUTO_FIELD_PLACEHOLDERS.week, '{{week_number}}');
   assert.equal(AUTO_FIELD_PLACEHOLDERS.school, '{{school}}');

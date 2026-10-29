@@ -3,7 +3,7 @@
 
 import { editable, h, toast } from '../dom.js';
 import {
-  addStep, AUTO_FIELD_PLACEHOLDERS, AUTO_FIELDS, criteriaFor, duplicateLesson, editLesson, find, lessonEvals, lessonUsageByGrade, outcomeLabel, remove,
+  addStep, AUTO_FIELD_PLACEHOLDERS, AUTO_FIELDS, criteriaFor, PICTURE_FIELDS, duplicateLesson, editLesson, find, lessonEvals, lessonUsageByGrade, outcomeLabel, remove,
 } from '../model.js';
 import { addDeck, foldersIn, moveDeck } from '../library.js';
 import { canFillIn, driveOpenLabel, driveOpenUrl, fillInProblem } from '../locations.js';
@@ -13,6 +13,8 @@ import { lessonPreview } from './lessonPreview.js';
 import { deckTree, instrumentFilter, openFolders, visibleDecks } from './deckTree.js';
 import { addMenu } from './deckImport.js';
 import { copiesOfLesson, copyStatus } from '../exportBridge.js';
+import { lessonPictures, wantsPicture } from '../imagePick.js';
+import { checkSharing, isShared } from '../imageSharing.js';
 
 function selectedLesson() {
   const l = find(store.state, 'lessons', store.ui.lessonId);
@@ -152,8 +154,11 @@ function autoFieldsSection(l) {
   ];
 }
 
+const PICTURE_TIP = 'Where the picture goes: draw a rectangle with no fill and no border, then set its alt text (Advanced options) Title and Description to IMAGE_ANCHOR. The picture for each week is chosen from the Images tab. Click to copy.';
+
 function autoFieldToggle(l, key, label) {
   const placeholder = AUTO_FIELD_PLACEHOLDERS[key];
+  const tip = PICTURE_FIELDS.includes(key) ? PICTURE_TIP : `Type ${placeholder} in the slides where the ${label.toLowerCase()} goes. Click to copy.`;
   return h('div', { class: 'auto-field-row' },
     h('label', { class: 'check' },
       h('input', {
@@ -164,7 +169,7 @@ function autoFieldToggle(l, key, label) {
         })),
       }), label),
     h('button', {
-      type: 'button', class: 'placeholder-code', 'data-tip': `Type ${placeholder} in the slides where the ${label.toLowerCase()} goes. Click to copy.`,
+      type: 'button', class: 'placeholder-code', 'data-tip': tip,
       onclick: () => copyText(placeholder),
     }, placeholder));
 }
@@ -191,7 +196,30 @@ function usedIn(l) {
           criterion.title,
           h('span', { class: 'hint' }, ` — lesson ${positions.join(' & ')}`))))))))),
     addToEval(l),
+    lessonPictureList(l),
     lessonCopies(l));
+}
+
+/** The picture each time this lesson is on the schedule — with a warning for ones Google can't place. */
+function lessonPictureList(l) {
+  if (!wantsPicture(l)) return null;
+  checkSharing(current('images'));
+  const pictures = lessonPictures(store.state, l.id, isShared);
+  const unshared = pictures.filter((p) => p.image && isShared(p.image) === false);
+  const missing = pictures.filter((p) => !p.image);
+  return h('div', { class: 'usage-grade' },
+    h('h4', { class: 'group-head' }, 'Pictures on the Lesson Schedule'),
+    pictures.length ? null : h('p', { class: 'hint' }, 'Put this lesson on the Lesson Schedule and each week gets a picture from the Images tab.'),
+    unshared.length ? h('p', { class: 'warn-box' }, `⚠ ${unshared.length === 1 ? 'A picture this lesson uses isn’t' : `${unshared.length} pictures this lesson uses aren’t`} shared with “Anyone with the link”, so Google can’t place ${unshared.length === 1 ? 'it' : 'them'} in the lesson copies. Share ${unshared.length === 1 ? 'it' : 'them'} in Google Drive (see the Images tab).`) : null,
+    missing.length ? h('p', { class: 'warn-box' }, `⚠ No picture fits ${missing.length === 1 ? 'one of its weeks' : `${missing.length} of its weeks`} — tick “OK any time” on a picture, or give one a time that fits.`) : null,
+    h('ul', { class: 'usage-copies' }, pictures.map(({ entry, week, image }) => h('li', {},
+      `${placeLabel(entry)} › Week ${week?.number ?? '?'}: `,
+      image ? h('button', { class: 'link-btn', onclick: () => setUi({ tab: 'images', imageId: image.id, imageFolderId: image.folderId }) }, image.name) : h('em', {}, 'no picture fits'),
+      image && isShared(image) === false ? h('span', { class: 'share-warn', 'data-tip': 'Not shared with “Anyone with the link”' }, ' ⚠') : null))));
+}
+
+function placeLabel(entry) {
+  return [find(store.state, 'schools', entry.schoolId)?.name, find(store.state, 'grades', entry.gradeId)?.name].filter(Boolean).join(' › ');
 }
 
 /** Links to this lesson's copies on the Lesson Schedule (made by the export bridge). */

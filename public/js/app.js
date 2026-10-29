@@ -13,6 +13,7 @@ import { renderLessonSchedule, lessonScheduleKeys, showThisWeek } from './views/
 import { renderOutcomes } from './views/outcomes.js';
 import { renderSetup } from './views/setup.js';
 import { renderLessons, lessonKeys } from './views/lessons.js';
+import { renderImages, imageKeys } from './views/images.js';
 import { installCalendarScrolling, showCalendar } from './views/calendarGrid.js';
 import { checkWatchedFolders, startWatchingDrive } from './views/deckImport.js';
 import { menuItem, popMenu } from './views/common.js';
@@ -23,6 +24,7 @@ const TABS = [
   { id: 'plan', label: 'Outcome & Eval Calendar', icon: '📅', render: renderPlan, keys: planKeys, onShow: showCalendar },
   { id: 'schedule', label: 'Instrument Schedule', icon: '🎶', render: renderSchedule, keys: scheduleKeys, onShow: showCalendar },
   { id: 'lessonSchedule', label: 'Lesson Schedule', icon: '📖', render: renderLessonSchedule, keys: lessonScheduleKeys, onShow: showThisWeek },
+  { id: 'images', label: 'Images', icon: '🌄', render: renderImages, keys: imageKeys },
   { id: 'setup', label: 'School Year', icon: '🧺', render: renderSetup, menu: 'setup' },
   { id: 'outcomes', label: 'Outcomes, Evals & Lesson Order', icon: '🌱', render: renderOutcomes, menu: 'setup' },
   { id: 'lessons', label: 'Lesson Templates', icon: '🖼️', render: renderLessons, keys: lessonKeys, menu: 'setup' },

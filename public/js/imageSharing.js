@@ -1,0 +1,58 @@
+// Which pictures are shared with "anyone with the link" in Google Drive. Google can only put a picture
+// into a slide, doc or sheet when it's shared that way, so unshared pictures get a warning (and the
+// picture picker prefers shared ones). Checked while the planner runs and kept in memory only — sharing
+// is changed in Drive, so a saved answer would go stale.
+
+import { fetchLinkSharing } from './drive.js';
+import { google } from './google.js';
+import { driveFileId } from './locations.js';
+import { refresh, store } from './store.js';
+
+const FRESH_MS = 10 * 60 * 1000;
+const MAX_AT_ONCE = 4;
+
+const known = new Map(); // fileId → { shared: true | false | null, at }
+const queue = [];
+let running = 0;
+let redraw = null;
+
+/** true (anyone with the link can view), false (not shared that way), or null (not known yet / not in Drive). */
+export function isShared(image) {
+  const fileId = driveFileId(image);
+  return fileId ? known.get(fileId)?.shared ?? null : null;
+}
+
+/** Look up the sharing of these pictures (those not checked in the last few minutes, unless `again`). */
+export function checkSharing(images, { again = false } = {}) {
+  if (google.status !== 'connected') return;
+  for (const image of images) {
+    const fileId = driveFileId(image);
+    const entry = known.get(fileId);
+    if (!fileId || queue.includes(fileId) || (!again && entry && Date.now() - entry.at < FRESH_MS)) continue;
+    queue.push(fileId);
+  }
+  pump();
+}
+
+function pump() {
+  while (running < MAX_AT_ONCE && queue.length) {
+    running += 1;
+    load(queue.shift()).finally(() => { running -= 1; pump(); });
+  }
+}
+
+async function load(fileId) {
+  const before = known.get(fileId)?.shared;
+  try {
+    known.set(fileId, { shared: await fetchLinkSharing(google.token, fileId), at: Date.now() });
+  } catch {
+    known.set(fileId, { shared: null, at: Date.now() });
+  }
+  if (known.get(fileId).shared !== before) redrawSoon();
+}
+
+/** Show new answers on the pages that use them, a moment later (many arrive together). */
+function redrawSoon() {
+  clearTimeout(redraw);
+  redraw = setTimeout(() => { if (['images', 'lessons'].includes(store.ui.tab)) refresh(); }, 300);
+}

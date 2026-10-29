@@ -6,6 +6,7 @@ import { commit, store, undo } from '../store.js';
 import { current, year } from './common.js';
 import { googleCard } from './googleCard.js';
 import { copiesCard } from './copiesCard.js';
+import { holidaysCard } from './holidaysCard.js';
 import { openNewYear } from './plans.js';
 
 const LISTS = [
@@ -18,6 +19,7 @@ export function renderSetup() {
   return h('div', { class: 'setup-layout' },
     yearCard(),
     LISTS.map((cfg) => listCard(cfg)),
+    holidaysCard(),
     googleCard(),
     copiesCard(),
   );

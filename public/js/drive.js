@@ -65,6 +65,17 @@ export async function fetchThumbnailLink(token, fileId, { fetchFn = fetch } = {}
   return body.hasThumbnail === false ? null : body.thumbnailLink ?? null;
 }
 
+/**
+ * Whether a Drive file is shared with "anyone with the link" (or public) — only those can be put into a
+ * slide, doc or sheet by Google. true / false, or null when Drive doesn't say.
+ */
+export async function fetchLinkSharing(token, fileId, { fetchFn = fetch } = {}) {
+  const params = new URLSearchParams({ fields: 'permissionIds', supportsAllDrives: 'true' });
+  const body = await getJson(`${FILES_URL}/${encodeURIComponent(fileId)}?${params}`, token, fetchFn);
+  if (!Array.isArray(body.permissionIds)) return null;
+  return body.permissionIds.some((id) => id === 'anyoneWithLink' || id === 'anyone');
+}
+
 /** Google's thumbnail address at another size ("…=s220" → "…=s640"). */
 export function sizedThumbnail(link, size) {
   return /=s\d+$/.test(link) ? link.replace(/=s\d+$/, `=s${size}`) : link;
@@ -93,9 +104,9 @@ export function projectNumber(clientId) {
  * Open Google's picker for lesson files (any kind) and folders (several at once).
  * Resolves to the picked items [{ id, name, mimeType }], or [] if closed.
  */
-export function pickFromDrive({ token, apiKey, clientId }) {
+export function pickFromDrive({ token, apiKey, clientId }, { title = 'Pick lesson files or folders' } = {}) {
   return openPicker({ token, apiKey, clientId }, {
-    mimeTypes: null, folders: true, multiple: true, title: 'Pick lesson files or folders',
+    mimeTypes: null, folders: true, multiple: true, title,
   });
 }
 

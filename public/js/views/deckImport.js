@@ -2,9 +2,12 @@
 // (single files or a whole folder), or from Google Drive. Also keeps watched
 // Drive folders up to date: new decks there are pulled in and marked ❗.
 // Everything happens in the browser; only deck details are saved.
+// The Images tab uses the same Drive import and watching (`importFromDrive(IMAGE_KIND)`).
 
 import { h } from '../dom.js';
-import { addDeck, DECK_EXTENSIONS, DRIVE_FOLDER, importDriveItems, importLocalFiles, syncWatchedFolders, watchedFolders } from '../library.js';
+import {
+  addDeck, DECK_EXTENSIONS, DRIVE_FOLDER, IMAGE_SHELF, importDriveItems, importLocalFiles, LESSON_SHELF, syncWatchedFolders, watchedFolders,
+} from '../library.js';
 import { canReadFolders, connectDrive, google } from '../google.js';
 import { apiKey, clientId } from '../deviceSettings.js';
 import { listFolderTree, pickFromDrive } from '../drive.js';
@@ -17,6 +20,18 @@ import { askName, newFolder, openFolders, targetFolder } from './deckTree.js';
 const WATCH_EVERY_MS = 10 * 60 * 1000;
 const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
+/** What's being brought in: lesson decks, or pictures for the Images tab. */
+export const LESSON_KIND = {
+  shelf: LESSON_SHELF, noun: 'lesson deck', tab: 'lessons', pickTitle: 'Pick lesson files or folders', where: 'Lesson Templates',
+  target: () => targetFolder(), open: (ids) => openFolders(ids), select: (item) => setUi({ lessonId: item.id, lessonSearch: '' }),
+};
+let IMAGE_KIND = null;
+/** The Images tab hands in how it opens folders and selects pictures. */
+export function setImageKind(kind) {
+  IMAGE_KIND = { shelf: IMAGE_SHELF, noun: 'picture', tab: 'images', pickTitle: 'Pick pictures or folders of pictures', where: 'Images', ...kind };
+  return IMAGE_KIND;
+}
+
 /** The "+ Add" button and its menu. */
 export function addMenu() {
   const target = targetFolder();
@@ -28,7 +43,7 @@ export function addMenu() {
     menuItem('Slide files…', () => pickLocal(false), { icon: '📄', tip: 'Pick one or more slide decks' }),
     menuItem('A folder of slides…', () => pickLocal(true), { icon: '🗂️', tip: 'Brings in every deck, including folders inside folders' }),
     h('div', { class: 'menu-group' }, 'From Google Drive'),
-    menuItem('Files or folders…', importFromDrive, { icon: '☁️', tip: 'Any kind of Drive file (Docs, Sheets, Slides, PDFs…). Folders are watched: new files added there show up here' }));
+    menuItem('Files or folders…', () => importFromDrive(LESSON_KIND), { icon: '☁️', tip: 'Any kind of Drive file (Docs, Sheets, Slides, PDFs…). Folders are watched: new files added there show up here' }));
 }
 
 function newDeck() {
@@ -40,17 +55,17 @@ function newDeck() {
 }
 
 /** After bringing decks in: open their folders, select the first new deck, say what happened. */
-function showResult(result, where) {
+function showResult(result, where, kind = LESSON_KIND) {
   const { added, folders, skipped } = result;
-  openFolders([...folders.map((f) => f.id), ...added.map((l) => l.folderId).filter(Boolean)]);
-  if (added[0]) setUi({ lessonId: added[0].id, lessonSearch: '' });
-  const parts = [`Added ${plural(added.length, 'lesson deck')}`];
+  kind.open([...folders.map((f) => f.id), ...added.map((l) => l.folderId).filter(Boolean)]);
+  if (added[0]) kind.select(added[0]);
+  const parts = [`Added ${plural(added.length, kind.noun)}`];
   if (folders.length) parts.push(`and ${plural(folders.length, 'folder')}`);
   const skippedNote = skipped.length ? ` Skipped ${plural(skipped.length, 'file')} of a kind the planner doesn’t add (${skipped.slice(0, 3).join(', ')}${skipped.length > 3 ? '…' : ''}).` : '';
   const nothing = !added.length && !folders.length;
   showNotice({
     id: 'deck-import', tone: nothing ? 'info' : 'success', title: where,
-    message: nothing ? `Nothing new to add — those decks are already here.${skippedNote}` : `${parts.join(' ')}.${skippedNote}`,
+    message: nothing ? `Nothing new to add — those are already here.${skippedNote}` : `${parts.join(' ')}.${skippedNote}`,
   });
 }
 
@@ -103,17 +118,17 @@ function askForFolderAccess() {
   });
 }
 
-async function importFromDrive() {
+export async function importFromDrive(kind) {
   if (!driveReady({ needFolders: false })) return;
   try {
-    const picked = await pickFromDrive({ token: google.token, apiKey: apiKey(), clientId: clientId() });
+    const picked = await pickFromDrive({ token: google.token, apiKey: apiKey(), clientId: clientId() }, { title: kind.pickTitle });
     if (!picked.length) return;
     const hasFolder = picked.some((p) => p.mimeType === DRIVE_FOLDER);
     if (hasFolder && !canReadFolders()) { askForFolderAccess(); return; }
     if (hasFolder) showNotice({ id: 'drive-import', tone: 'info', title: 'Google Drive', message: 'Reading your folders…', seconds: null });
     const nodes = await Promise.all(picked.map(async (p) => (p.mimeType === DRIVE_FOLDER ? { ...p, children: await listFolderTree(google.token, p.id) } : p)));
-    const parentId = targetFolder()?.id ?? null;
-    showResult(commit((s) => importDriveItems(s, { yearId: year().id, parentId, nodes })), 'From Google Drive');
+    const parentId = kind.target()?.id ?? null;
+    showResult(commit((s) => importDriveItems(s, { yearId: year().id, parentId, nodes, shelf: kind.shelf })), 'From Google Drive', kind);
   } catch (err) {
     showNotice({ id: 'drive-import', tone: 'error', title: 'Google Drive', message: driveProblem(err) });
   }
@@ -139,16 +154,10 @@ function readyToCheck(now) {
 /** Look for new decks in watched Drive folders (quietly; at most every 10 minutes unless `now`). */
 export async function checkWatchedFolders({ now = false } = {}) {
   if (!readyToCheck(now)) return;
-  const y = year();
-  const folders = watchedFolders(store.state, y.id);
-  if (!folders.length) return;
   checking = true;
   lastCheck = Date.now();
   try {
-    const trees = {};
-    for (const f of folders) trees[f.id] = await listFolderTree(google.token, driveFileId(f));
-    const added = commit((s) => syncWatchedFolders(s, y.id, trees));
-    if (added.length) announceNew(added);
+    for (const kind of [LESSON_KIND, IMAGE_KIND].filter(Boolean)) await checkKind(kind);
   } catch (err) {
     console.warn('Checking watched Drive folders failed', err);
   } finally {
@@ -156,11 +165,22 @@ export async function checkWatchedFolders({ now = false } = {}) {
   }
 }
 
-function announceNew(added) {
+async function checkKind(kind) {
+  const y = year();
+  const folders = watchedFolders(store.state, y.id, kind.shelf);
+  if (!folders.length) return;
+  const trees = {};
+  for (const f of folders) trees[f.id] = await listFolderTree(google.token, driveFileId(f));
+  const added = commit((s) => syncWatchedFolders(s, y.id, trees, undefined, kind.shelf));
+  if (added.length) announceNew(added, kind);
+}
+
+function announceNew(added, kind) {
+  const id = `drive-new-${kind.tab}`;
   showNotice({
-    id: 'drive-new-decks', tone: 'info', title: 'New lesson files from Google Drive',
-    message: `${plural(added.length, 'new deck')} ${added.length === 1 ? 'was' : 'were'} added. Follow the ❗ in Lesson Templates to find ${added.length === 1 ? 'it' : 'them'}.`,
-    actions: [{ label: 'Show me', run: () => { dismissNotice('drive-new-decks'); openFolders(added.map((l) => l.folderId).filter(Boolean)); setUi({ tab: 'lessons', lessonId: added[0].id, lessonSearch: '' }); } }],
+    id, tone: 'info', title: 'New files from Google Drive',
+    message: `${plural(added.length, `new ${kind.noun}`)} ${added.length === 1 ? 'was' : 'were'} added. Follow the ❗ in ${kind.where} to find ${added.length === 1 ? 'it' : 'them'}.`,
+    actions: [{ label: 'Show me', run: () => { dismissNotice(id); kind.open(added.map((l) => l.folderId).filter(Boolean)); setUi({ tab: kind.tab }); kind.select(added[0]); } }],
     seconds: 30,
   });
 }

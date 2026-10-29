@@ -176,3 +176,10 @@ test('the template link says it opens the template', () => {
   assert.equal(driveOpenLabel(driveLocation({ fileId: 'x', mimeType: SLIDES }), 'Template'), 'Open Template in Google Slides');
   assert.equal(driveOpenLabel(driveLocation({ fileId: 'x', mimeType: SLIDES })), 'Open in Google Slides');
 });
+
+test('the picture spot (IMAGE_ANCHOR) is never replaced as text in lesson copies', () => {
+  const { s, year, plain, cls, weeks } = setup();
+  plain.autoFields.push('image');
+  addWeekLesson(s, { ...cls, weekStart: weeks[0].weekStart, lessonId: plain.id });
+  assert.deepEqual(Object.keys(wants(s, year.id)[0].values), ['{{school}}']);
+});

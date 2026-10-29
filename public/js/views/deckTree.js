@@ -1,21 +1,14 @@
-// The folder tree on the left of "Lesson Templates": folders open and close,
-// decks and folders can be dragged into other folders, and a ❗ marks decks
-// newly pulled in from Google Drive — on the deck and every folder above it.
+// The folder tree on the left of "Lesson Templates" (the shared folderTree.js, set up for lesson decks):
+// search, the "Lessons that use …" instrument filter, and how many evals teach each deck.
 
-import { h, openModal, toast } from '../dom.js';
+import { h } from '../dom.js';
 import { find, lessonEvals } from '../model.js';
-import {
-  addFolder, decksIn, driveLink, folderAndInside, folderPath, foldersIn, hasNewInside, moveDeck, moveFolder, removeFolder,
-} from '../library.js';
-import { driveFileId } from '../locations.js';
-import { commit, setUi, store, undo } from '../store.js';
-import { current, emptyNote, menuItem, popMenu, year } from './common.js';
+import { folderPath, LESSON_SHELF } from '../library.js';
+import { store } from '../store.js';
+import { current, year } from './common.js';
+import { askName, folderTree, newTreeFolder, openTreeFolders, plural, treeTarget, visibleItems } from './folderTree.js';
 
-const DECK_TYPE = 'application/x-planner-deck';
-const FOLDER_TYPE = 'application/x-planner-folder';
-const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
-
-// ---------- what's shown ----------
+export { askName };
 
 function searchWords() {
   return (store.ui.lessonSearch || '').trim().toLowerCase().split(/\s+/).filter(Boolean);
@@ -41,189 +34,26 @@ function shownDecks() {
   return current('lessons').filter((l) => (!words.length || matches(l, words)) && (!ins || l.instrumentIds.includes(ins.id)));
 }
 
-function filtering() {
-  return searchWords().length > 0 || Boolean(instrumentFilter());
+function evalCount(lesson) {
+  const evals = lessonEvals(store.state, lesson.id).length;
+  return h('span', { class: 'uses', title: evals ? `Taught in ${plural(evals, 'eval')}` : 'Not in any eval yet' },
+    evals ? plural(evals, 'eval') : '—');
 }
 
-function isOpen(folderId) {
-  return filtering() || (store.ui.openFolderIds || []).includes(folderId);
-}
-
-/** Decks in the order they appear in the tree (only inside open folders) — for ↑ ↓. */
-export function visibleDecks() {
-  const shown = new Set(shownDecks());
-  const walk = (folderId) => [
-    ...foldersIn(store.state, year().id, folderId).flatMap((f) => (isOpen(f.id) ? walk(f.id) : [])),
-    ...decksIn(store.state, year().id, folderId).filter((l) => shown.has(l)),
-  ];
-  return walk(null);
-}
-
-/** Where new and imported decks go: the folder you last clicked (or the selected deck's folder). */
-export function targetFolder() {
-  const folder = find(store.state, 'deckFolders', store.ui.deckFolderId);
-  return folder && folder.yearId === year().id ? folder : null;
-}
-
-/** Open these folders (and the folders they're in) in the tree. */
-export function openFolders(folderIds) {
-  const ids = new Set(store.ui.openFolderIds || []);
-  folderIds.forEach((id) => folderPath(store.state, id).forEach((f) => ids.add(f.id)));
-  setUi({ openFolderIds: [...ids] });
-}
-
-function toggleFolder(folder) {
-  const ids = store.ui.openFolderIds || [];
-  const openNow = ids.includes(folder.id);
-  setUi({ openFolderIds: openNow ? ids.filter((id) => id !== folder.id) : [...ids, folder.id], deckFolderId: folder.id });
-}
-
-// ---------- the tree ----------
-
-export function deckTree(selected) {
-  const shown = new Set(shownDecks());
-  if (!current('lessons').length && !current('deckFolders').length) return emptyNote('No lesson decks yet. Use “+ Add” above.');
-  if (!shown.size && searchWords().length) return emptyNote('No lessons match your search.');
-  const tree = h('div', { class: 'deck-tree' },
-    h('div', { class: 'tree-top-drop', ...dropTarget(null) }, '⤒ Drop here to move to the top level'),
-    h('ul', { class: 'tree-list' }, branch(null, 0, { shown, selected })));
-  tree.addEventListener('dragstart', () => tree.classList.add('dragging'));
-  tree.addEventListener('dragend', () => tree.classList.remove('dragging'));
-  return tree;
-}
-
-function branch(folderId, depth, ctx) {
-  const folders = foldersIn(store.state, year().id, folderId)
-    .filter((f) => !filtering() || [...ctx.shown].some((l) => folderAndInside(store.state, f.id).includes(l.folderId)));
-  const decks = decksIn(store.state, year().id, folderId).filter((l) => ctx.shown.has(l));
-  return [...folders.map((f) => folderItem(f, depth, ctx)), ...decks.map((l) => deckItem(l, depth, ctx.selected))];
-}
-
-// A cloud for folders from Google Drive; a cracked one when watching is turned off.
-const CLOUD_PATH = 'M5.5 14h10a3.5 3.5 0 0 0 .4-7A5 5 0 0 0 6.3 6.2 4 4 0 0 0 5.5 14z';
-const CLOUD_ICONS = {
-  watching: {
-    tip: 'Watching this Google Drive folder for new decks',
-    svg: `<svg viewBox="0 0 20 16" aria-hidden="true"><path d="${CLOUD_PATH}" fill="currentColor"/></svg>`,
-  },
-  'not-watching': {
-    tip: 'From Google Drive, but not watching for new decks. Turn watching back on in the ⋯ menu.',
-    svg: `<svg viewBox="0 0 20 16" aria-hidden="true"><mask id="cloud-crack"><rect width="20" height="16" fill="#fff"/>
-      <polyline points="11.5,2 9,7.5 12,9.5 9.5,15" fill="none" stroke="#000" stroke-width="1.8" stroke-linejoin="round"/></mask>
-      <path d="${CLOUD_PATH}" fill="currentColor" mask="url(#cloud-crack)"/></svg>`,
-  },
+const DECKS = {
+  shelf: LESSON_SHELF,
+  keys: { item: 'lessonId', folder: 'deckFolderId', open: 'openFolderIds' },
+  noun: 'deck', icon: '🖼️', folderHint: 'e.g. Rhythm unit',
+  shown: shownDecks,
+  filtering: () => searchWords().length > 0 || Boolean(instrumentFilter()),
+  extra: evalCount,
+  emptyText: 'No lesson decks yet. Use “+ Add” above.',
+  noMatchText: 'No lessons match your search.',
+  afterRemove: ({ evalSteps }) => (evalSteps ? ` They were taken out of ${plural(evalSteps, 'eval lesson')}.` : ''),
 };
 
-function cloudMark(link) {
-  if (!link) return null;
-  const { tip, svg } = CLOUD_ICONS[link];
-  const el = h('span', { class: `watch-mark ${link}`, 'data-tip': tip, role: 'img', 'aria-label': tip });
-  el.innerHTML = svg;
-  return el;
-}
-
-function newMark(tip) {
-  return h('span', { class: 'new-mark', 'data-tip': tip, 'aria-label': tip }, '!');
-}
-
-function folderItem(folder, depth, ctx) {
-  const open = isOpen(folder.id);
-  const count = folderAndInside(store.state, folder.id).reduce((n, id) => n + decksIn(store.state, year().id, id).length, 0);
-  return h('li', { class: 'tree-folder' },
-    h('div', {
-      class: `folder-row ${targetFolder()?.id === folder.id ? 'current' : ''}`,
-      style: { '--depth': depth }, draggable: 'true',
-      ondragstart: (e) => e.dataTransfer.setData(FOLDER_TYPE, folder.id),
-      ...dropTarget(folder.id),
-    },
-    h('button', { class: 'folder-toggle', 'aria-expanded': open ? 'true' : 'false', onclick: () => toggleFolder(folder) },
-      h('span', { class: 'caret', 'aria-hidden': 'true' }, open ? '▾' : '▸'),
-      h('span', { class: 'folder-icon', 'aria-hidden': 'true' }, open ? '📂' : '📁'),
-      h('span', { class: 'template-name' }, folder.name),
-      hasNewInside(store.state, folder.id) ? newMark('Newly added decks are in here') : null,
-      cloudMark(driveLink(store.state, folder))),
-    h('span', { class: 'count-badge' }, count),
-    folderMenu(folder)),
-  open ? h('ul', { class: 'tree-list' }, branch(folder.id, depth + 1, ctx)) : null);
-}
-
-function deckItem(l, depth, selected) {
-  const evals = lessonEvals(store.state, l.id).length;
-  return h('li', {}, h('button', {
-    class: `template-row ${l.id === selected?.id ? 'selected' : ''}`,
-    style: { '--depth': depth }, draggable: 'true',
-    ondragstart: (e) => e.dataTransfer.setData(DECK_TYPE, l.id),
-    onclick: () => setUi({ lessonId: l.id, deckFolderId: l.folderId }),
-  },
-  h('span', { class: 'deck-icon', 'aria-hidden': 'true' }, '🖼️'),
-  h('span', { class: 'template-name' }, l.name),
-  l.isNew ? newMark('Newly added from Google Drive. Change any of its details to mark it as seen.') : null,
-  h('span', { class: 'uses', title: evals ? `Taught in ${plural(evals, 'eval')}` : 'Not in any eval yet' },
-    evals ? plural(evals, 'eval') : '—')));
-}
-
-// ---------- drag and drop ----------
-
-function dropTarget(folderId) {
-  const accepts = (e) => e.dataTransfer.types.includes(DECK_TYPE) || e.dataTransfer.types.includes(FOLDER_TYPE);
-  return {
-    ondragover: (e) => { if (accepts(e)) { e.preventDefault(); e.currentTarget.classList.add('drop-over'); } },
-    ondragleave: (e) => e.currentTarget.classList.remove('drop-over'),
-    ondrop: (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      e.currentTarget.classList.remove('drop-over');
-      dropInto(folderId, e.dataTransfer.getData(DECK_TYPE), e.dataTransfer.getData(FOLDER_TYPE));
-    },
-  };
-}
-
-function dropInto(folderId, deckId, movingFolderId) {
-  if (deckId) commit((s) => moveDeck(s, deckId, folderId));
-  if (movingFolderId && movingFolderId !== folderId) {
-    const moved = commit((s) => moveFolder(s, movingFolderId, folderId));
-    if (!moved) toast('A folder can’t go inside itself.');
-  }
-  if (folderId) openFolders([folderId]);
-}
-
-// ---------- folder actions ----------
-
-function folderMenu(folder) {
-  return popMenu({ label: '⋯', title: `Options for ${folder.name}`, menuClass: 'folder-menu' },
-    menuItem('Rename', () => askName('Rename folder', folder.name, (name) => commit((s) => { find(s, 'deckFolders', folder.id).name = name; })), { icon: '✏️' }),
-    menuItem('New folder inside', () => newFolder(folder.id), { icon: '📁' }),
-    driveFileId(folder) ? menuItem(folder.watch ? 'Stop watching Drive' : 'Watch Drive for new decks',
-      () => commit((s) => { find(s, 'deckFolders', folder.id).watch = !folder.watch; }), { icon: '☁️' }) : null,
-    menuItem('Remove from Planner', () => removeFromPlanner(folder), { icon: '🗑️', tip: 'Removes this folder and everything in it from the planner. Your files stay where they are.' }));
-}
-
-/** Ask for a name in a little dialog. */
-export function askName(title, initial, onSave, placeholder = '') {
-  openModal(title, (close) => {
-    const input = h('input', { class: 'modal-input', value: initial, placeholder });
-    const save = () => { const name = input.value.trim(); if (name) { close(); onSave(name); } };
-    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') save(); if (e.key === 'Escape') close(); });
-    setTimeout(() => input.select());
-    return h('div', { class: 'modal-body' }, input,
-      h('div', { class: 'modal-actions' },
-        h('button', { class: 'btn light', onclick: close }, 'Cancel'),
-        h('button', { class: 'btn', onclick: save }, 'Save')));
-  });
-}
-
-export function newFolder(parentId) {
-  askName('New folder', '', (name) => {
-    const folder = commit((s) => addFolder(s, { yearId: year().id, name, parentId }));
-    if (parentId) openFolders([parentId]);
-    setUi({ deckFolderId: folder.id });
-  }, 'e.g. Rhythm unit');
-}
-
-function removeFromPlanner(folder) {
-  const { decks, evalSteps } = commit((s) => removeFolder(s, folder.id));
-  setUi({ deckFolderId: folder.parentId });
-  const inside = decks ? ` and its ${plural(decks, 'deck')}` : '';
-  const evals = evalSteps ? ` They were taken out of ${plural(evalSteps, 'eval lesson')}.` : '';
-  toast(`Removed “${folder.name}”${inside} from the planner. Your files weren’t touched.${evals}`, { label: 'Undo', run: undo });
-}
+export const deckTree = (selected) => folderTree(DECKS, selected);
+export const visibleDecks = () => visibleItems(DECKS);
+export const targetFolder = () => treeTarget(DECKS);
+export const openFolders = (folderIds) => openTreeFolders(DECKS, folderIds);
+export const newFolder = (parentId) => newTreeFolder(DECKS, parentId);

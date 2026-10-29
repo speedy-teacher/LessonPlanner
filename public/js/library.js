@@ -2,6 +2,9 @@
 // or Google Drive. Only a deck's details (name, folder, where its file lives)
 // are kept — never the file itself. Shared by the browser app and the tests.
 // Where each deck and folder lives is a list of locations (see locations.js).
+//
+// The same folders-and-Drive code also keeps the Images library: each "shelf" names its
+// folder and item collections (LESSON_SHELF is the default everywhere, IMAGE_SHELF for pictures).
 
 import { add, find, inYear, remove, update } from './model.js';
 import { addLocation, driveFileId, driveLocation, hasLocation, localLocation, localUri, markSeen } from './locations.js';
@@ -16,6 +19,33 @@ export function isDriveLessonFile(file) {
   return file.mimeType !== DRIVE_FOLDER && file.mimeType !== DRIVE_SHORTCUT && !file.properties?.lessonPlanner;
 }
 export const DEFAULT_AUTO_FIELDS = ['school', 'grade', 'date'];
+
+/** Pictures: any kind of image file in Drive. */
+export function isDriveImageFile(file) {
+  return Boolean(file.mimeType?.startsWith('image/'));
+}
+
+/** "Happy December.png" → "Happy December". */
+export function fileTitle(fileName) {
+  return fileName.replace(/\.[a-z0-9]{1,5}$/i, '');
+}
+
+export const LESSON_SHELF = {
+  folders: 'deckFolders', items: 'lessons', isDriveFile: isDriveLessonFile, itemName: (n) => deckName(n),
+  newItem: (state, fields) => addDeck(state, fields),
+};
+export const IMAGE_SHELF = {
+  folders: 'imageFolders', items: 'images', isDriveFile: isDriveImageFile, itemName: fileTitle,
+  newItem: (state, fields) => addImage(state, fields),
+};
+
+/** A new picture with nothing tagged yet. */
+export function addImage(state, { yearId, name, folderId = null, locations = [], isNew = false }) {
+  return add(state, 'images', {
+    yearId, name, description: '', folderId, locations, isNew, tagIds: [], instrumentIds: [],
+    when: { anytime: false, priority: 2, windows: [] },
+  });
+}
 
 const byName = (a, b) => a.name.localeCompare(b.name, undefined, { numeric: true });
 
@@ -35,16 +65,16 @@ export function deckName(fileName) {
 
 // ---------- folders ----------
 
-export function foldersIn(state, yearId, parentId) {
-  return inYear(state, 'deckFolders', yearId).filter((f) => f.parentId === parentId).sort(byName);
+export function foldersIn(state, yearId, parentId, shelf = LESSON_SHELF) {
+  return inYear(state, shelf.folders, yearId).filter((f) => f.parentId === parentId).sort(byName);
 }
 
-export function decksIn(state, yearId, folderId) {
-  return inYear(state, 'lessons', yearId).filter((l) => l.folderId === folderId).sort(byName);
+export function decksIn(state, yearId, folderId, shelf = LESSON_SHELF) {
+  return inYear(state, shelf.items, yearId).filter((l) => l.folderId === folderId).sort(byName);
 }
 
-export function addFolder(state, { yearId, name, parentId = null, locations = [], watch = false }) {
-  return add(state, 'deckFolders', { yearId, name, parentId, locations, watch, seenDriveIds: [] });
+export function addFolder(state, { yearId, name, parentId = null, locations = [], watch = false, shelf = LESSON_SHELF }) {
+  return add(state, shelf.folders, { yearId, name, parentId, locations, watch, seenDriveIds: [] });
 }
 
 /** A new lesson deck with the usual details filled in. */
@@ -55,27 +85,27 @@ export function addDeck(state, { yearId, name, folderId = null, category = '', l
 }
 
 /** The folders from the top down to this one: [top, …, folder]. */
-export function folderPath(state, folderId) {
+export function folderPath(state, folderId, shelf = LESSON_SHELF) {
   const path = [];
-  for (let f = find(state, 'deckFolders', folderId); f && !path.includes(f); f = find(state, 'deckFolders', f.parentId)) {
+  for (let f = find(state, shelf.folders, folderId); f && !path.includes(f); f = find(state, shelf.folders, f.parentId)) {
     path.unshift(f);
   }
   return path;
 }
 
 /** Ids of this folder and every folder inside it, however deep. */
-export function folderAndInside(state, folderId) {
+export function folderAndInside(state, folderId, shelf = LESSON_SHELF) {
   const ids = [folderId];
   for (let i = 0; i < ids.length; i++) {
-    state.deckFolders.filter((f) => f.parentId === ids[i]).forEach((f) => ids.push(f.id));
+    state[shelf.folders].filter((f) => f.parentId === ids[i]).forEach((f) => ids.push(f.id));
   }
   return ids;
 }
 
 /** Every deck in a folder and its folders. */
-export function decksInside(state, folderId) {
-  const ids = new Set(folderAndInside(state, folderId));
-  return state.lessons.filter((l) => ids.has(l.folderId));
+export function decksInside(state, folderId, shelf = LESSON_SHELF) {
+  const ids = new Set(folderAndInside(state, folderId, shelf));
+  return state[shelf.items].filter((l) => ids.has(l.folderId));
 }
 
 /**
@@ -94,18 +124,18 @@ export function decksByFolder(state, yearId) {
 }
 
 /** True when a newly added deck is somewhere inside — the ❗ that leads you to it. */
-export function hasNewInside(state, folderId) {
-  return decksInside(state, folderId).some((l) => l.isNew);
+export function hasNewInside(state, folderId, shelf = LESSON_SHELF) {
+  return decksInside(state, folderId, shelf).some((l) => l.isNew);
 }
 
-export function moveDeck(state, lessonId, folderId) {
-  return update(state, 'lessons', lessonId, { folderId });
+export function moveDeck(state, lessonId, folderId, shelf = LESSON_SHELF) {
+  return update(state, shelf.items, lessonId, { folderId });
 }
 
 /** Move a folder into another (or to the top with null). A folder can't go inside itself. */
-export function moveFolder(state, folderId, parentId) {
-  if (parentId && folderAndInside(state, folderId).includes(parentId)) return null;
-  return update(state, 'deckFolders', folderId, { parentId });
+export function moveFolder(state, folderId, parentId, shelf = LESSON_SHELF) {
+  if (parentId && folderAndInside(state, folderId, shelf).includes(parentId)) return null;
+  return update(state, shelf.folders, folderId, { parentId });
 }
 
 /**
@@ -113,13 +143,13 @@ export function moveFolder(state, folderId, parentId) {
  * (decks also leave the evals that teach them). Files in Drive or on the computer are not touched.
  * Returns { decks, evalSteps } — how many decks and eval lessons went.
  */
-export function removeFolder(state, folderId) {
-  if (!find(state, 'deckFolders', folderId)) return { decks: 0, evalSteps: 0 };
-  const decks = decksInside(state, folderId);
+export function removeFolder(state, folderId, shelf = LESSON_SHELF) {
+  if (!find(state, shelf.folders, folderId)) return { decks: 0, evalSteps: 0 };
+  const decks = decksInside(state, folderId, shelf);
   const deckIds = new Set(decks.map((l) => l.id));
   const evalSteps = state.criterionLessons.filter((s) => deckIds.has(s.lessonId)).length;
-  decks.forEach((l) => remove(state, 'lessons', l.id));
-  remove(state, 'deckFolders', folderId);
+  decks.forEach((l) => remove(state, shelf.items, l.id));
+  remove(state, shelf.folders, folderId);
   return { decks: decks.length, evalSteps };
 }
 
@@ -178,8 +208,8 @@ export function importLocalFiles(state, { yearId, parentId = null, files, seenAt
  * `markNew` flags decks as newly added (used when checking watched folders).
  * Returns { added, folders, skipped }.
  */
-export function importDriveItems(state, { yearId, parentId = null, nodes, markNew = false, seenAt = now() }) {
-  const ctx = { state, yearId, markNew, seenAt, seen: null, result: { added: [], folders: [], skipped: [] } };
+export function importDriveItems(state, { yearId, parentId = null, nodes, markNew = false, seenAt = now(), shelf = LESSON_SHELF }) {
+  const ctx = { state, yearId, markNew, seenAt, shelf, seen: null, result: { added: [], folders: [], skipped: [] } };
   for (const node of nodes) {
     if (node.mimeType === DRIVE_FOLDER) addDriveFolder(ctx, node, parentId, true);
     else addDriveDeck(ctx, node, parentId);
@@ -196,11 +226,11 @@ function seeDrive(ctx, record, fileId) {
 }
 
 function addDriveFolder(ctx, node, parentId, top) {
-  let folder = driveRecord(ctx, 'deckFolders', node.id);
+  let folder = driveRecord(ctx, ctx.shelf.folders, node.id);
   if (folder) seeDrive(ctx, folder, node.id);
   else {
     const location = driveLocation({ fileId: node.id, mimeType: DRIVE_FOLDER }, ctx.seenAt);
-    folder = addFolder(ctx.state, { yearId: ctx.yearId, name: node.name, parentId, watch: top, locations: [location] });
+    folder = addFolder(ctx.state, { yearId: ctx.yearId, name: node.name, parentId, watch: top, locations: [location], shelf: ctx.shelf });
     ctx.result.folders.push(folder);
   }
   const outer = ctx.seen;
@@ -216,15 +246,16 @@ function addDriveFolder(ctx, node, parentId, top) {
 }
 
 function addDriveDeck(ctx, node, folderId) {
-  if (!isDriveLessonFile(node)) { ctx.result.skipped.push(node.name); return; }
+  const { shelf } = ctx;
+  if (!shelf.isDriveFile(node)) { ctx.result.skipped.push(node.name); return; }
   const seenBefore = ctx.seen?.has(node.id);
   ctx.seen?.add(node.id);
-  const existing = driveRecord(ctx, 'lessons', node.id);
+  const existing = driveRecord(ctx, shelf.items, node.id);
   if (existing) seeDrive(ctx, existing, node.id);
   if (seenBefore || existing) return;
   const location = driveLocation({ fileId: node.id, mimeType: node.mimeType, modifiedTime: node.modifiedTime }, ctx.seenAt);
-  ctx.result.added.push(addDeck(ctx.state, {
-    yearId: ctx.yearId, name: deckName(node.name), folderId, locations: [location], isNew: ctx.markNew,
+  ctx.result.added.push(shelf.newItem(ctx.state, {
+    yearId: ctx.yearId, name: shelf.itemName(node.name), folderId, locations: [location], isNew: ctx.markNew,
   }));
 }
 
@@ -233,15 +264,15 @@ function addDriveDeck(ctx, node, folderId) {
  * 'not-watching' (came from Drive, but watching was turned off), or null — not from Drive,
  * or inside another Drive folder (that folder's cloud covers everything in it).
  */
-export function driveLink(state, folder) {
+export function driveLink(state, folder, shelf = LESSON_SHELF) {
   if (!driveFileId(folder)) return null;
-  if (folderPath(state, folder.parentId).some((f) => driveFileId(f))) return null;
+  if (folderPath(state, folder.parentId, shelf).some((f) => driveFileId(f))) return null;
   return folder.watch ? 'watching' : 'not-watching';
 }
 
 /** Folders whose Google Drive folder is checked for new decks. */
-export function watchedFolders(state, yearId) {
-  return inYear(state, 'deckFolders', yearId).filter((f) => f.watch && driveFileId(f));
+export function watchedFolders(state, yearId, shelf = LESSON_SHELF) {
+  return inYear(state, shelf.folders, yearId).filter((f) => f.watch && driveFileId(f));
 }
 
 /**
@@ -249,13 +280,41 @@ export function watchedFolders(state, yearId) {
  * `trees` maps a watched folder's id to its Drive contents read just now.
  * New decks are marked ❗ new. Nothing is ever removed. Returns the decks added.
  */
-export function syncWatchedFolders(state, yearId, trees, seenAt = now()) {
+export function syncWatchedFolders(state, yearId, trees, seenAt = now(), shelf = LESSON_SHELF) {
   const added = [];
-  for (const folder of watchedFolders(state, yearId)) {
+  for (const folder of watchedFolders(state, yearId, shelf)) {
     const tree = trees[folder.id];
     if (!tree) continue;
     const node = { id: driveFileId(folder), name: folder.name, mimeType: DRIVE_FOLDER, children: tree };
-    added.push(...importDriveItems(state, { yearId, parentId: folder.parentId, nodes: [node], markNew: true, seenAt }).added);
+    added.push(...importDriveItems(state, { yearId, parentId: folder.parentId, nodes: [node], markNew: true, seenAt, shelf }).added);
   }
   return added;
+}
+
+// ---------- pictures ----------
+
+/**
+ * Change a picture's details: `change` is fields to set, or a function that edits the picture.
+ * Any change means it's been looked at, so it's no longer "new".
+ */
+export function editImage(state, imageId, change) {
+  const image = find(state, 'images', imageId);
+  if (!image) return null;
+  if (typeof change === 'function') change(image);
+  else Object.assign(image, change);
+  image.isNew = false;
+  return image;
+}
+
+/** Tags of a year grouped by tag group, in name order: [{ group, tags }]. */
+export function tagsByGroup(state, yearId) {
+  return inYear(state, 'tagGroups', yearId).sort(byName).map((group) => ({
+    group, tags: state.tags.filter((t) => t.groupId === group.id).sort(byName),
+  }));
+}
+
+/** Add a tag to a group (or find the one with that name already there). */
+export function addTag(state, { yearId, groupId, name }) {
+  const same = state.tags.find((t) => t.groupId === groupId && t.name.toLowerCase() === name.toLowerCase());
+  return same ?? add(state, 'tags', { yearId, groupId, name });
 }

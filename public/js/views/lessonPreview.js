@@ -58,7 +58,7 @@ const watcher = typeof IntersectionObserver === 'undefined' ? null : new Interse
   }
 }, { rootMargin: '300px' });
 
-function whenVisible(el, fn) {
+export function whenVisible(el, fn) {
   if (!watcher) { fn(); return; }
   waitingToShow.set(el, fn);
   watcher.observe(el);
