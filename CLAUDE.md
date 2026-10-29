@@ -75,6 +75,19 @@ A browser app for a (non-technical) elementary music teacher to plan a school ye
   Templates are only ever copied. Shared plans: only the keeper (who chose the folder, by Google `permissionId`) changes copies;
   others get a notice naming the keeper and how many copies are behind. Copies aren't in the plan data, so undo never touches them.
 
+## Images tab (pictures for lesson copies, e.g. bitmojis)
+- `imageFolders` + `images` (Drive only) use the same library code as lesson decks: `library.js` "shelves" (`LESSON_SHELF`
+  default, `IMAGE_SHELF`), `views/folderTree.js` (shared tree), `views/deckImport.js` `importFromDrive(kind)` + watched folders.
+- Tags are user-defined: `tagGroups` → `tags`, `image.tagIds[]`; `image.instrumentIds[]`; `image.when` timing rules.
+  `holidays` (one list per year, all schools; rolls over a year later). All roll over with the year.
+- `imagePick.js` (pure + tested): port of lesson-organizer `pick_bitmoji.py` (date / holiday windows, priority 4/3/2,
+  any time = 1; ties prefer shared, then instrument). Lessons opt in with the `image` auto field (`PICTURE_FIELDS`,
+  placeholder = an `IMAGE_ANCHOR` shape, never text-replaced). Placing the picture in copies is the exporter's next step.
+- Sharing (`imageSharing.js`): Drive `permissionIds` has `anyoneWithLink` → Google can fetch it into Slides/Docs/Sheets.
+  Checked at run time, never saved; warnings on Images and on lessons that use an unshared picture.
+- Original bitmoji rules/data: `~/Documents/CodeProjects/lesson-organizer/HANDOFF.md` (+ `bitmoji_tags.json`).
+  The user adds the pictures in the app; linking those tags up is a later data step.
+
 ## Working agreements
 - Feature work on a `feature/...` branch, commit at milestones, then recommend merging to `main` (fast-forward, delete branch).
 - Talk to the user in plain, non-technical language; give a recommendation and its practical consequence.
