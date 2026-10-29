@@ -21,7 +21,8 @@ const ANSWER_AFTER_RETURN_MS = 4000;
 const ANSWER_AT_MOST_MS = 45 * 1000;
 
 /** status: 'idle' | 'working' | 'connected' | 'needs-signin' | 'error' */
-export const google = { status: 'idle', message: '', userName: '', token: null, scope: '' };
+// userId = Google's id for the signed-in person (not their email), to tell who keeps a shared plan's lesson copies.
+export const google = { status: 'idle', message: '', userName: '', userId: '', token: null, scope: '' };
 
 let handlers = { change: () => {}, needsSignIn: () => {} };
 let tokenClient = null;
@@ -156,9 +157,9 @@ function failed(code) {
 async function useToken({ access_token: token, expires_in: expiresIn, scope = '' }) {
   stopWaiting();
   try {
-    const userName = google.userName || await driveUserName(token);
+    const user = google.userId ? { name: google.userName, id: google.userId } : await driveUser(token);
     setDevice({ driveConnected: true });
-    set({ status: 'connected', token, userName, message: '', scope });
+    set({ status: 'connected', token, userName: user.name, userId: user.id, message: '', scope });
     scheduleRenewal(Number(expiresIn) || 3600);
   } catch (err) {
     failed(err.message);
@@ -189,10 +190,10 @@ function renewOnNextClick() {
   }, { capture: true, once: true });
 }
 
-async function driveUserName(token) {
+async function driveUser(token) {
   let res;
   try {
-    res = await fetch('https://www.googleapis.com/drive/v3/about?fields=user(displayName)', {
+    res = await fetch('https://www.googleapis.com/drive/v3/about?fields=user(displayName,permissionId)', {
       headers: { Authorization: `Bearer ${token}` },
     });
   } catch {
@@ -201,7 +202,7 @@ async function driveUserName(token) {
   if (res.status === 403) throw new Error('api_disabled');
   if (!res.ok) throw new Error('drive_failed');
   const body = await res.json();
-  return body.user?.displayName || '';
+  return { name: body.user?.displayName || '', id: body.user?.permissionId || '' };
 }
 
 export function disconnectDrive() {
@@ -209,7 +210,7 @@ export function disconnectDrive() {
   clearTimeout(expireTimer);
   if (google.token) window.google?.accounts?.oauth2?.revoke(google.token, () => {});
   setDevice({ driveConnected: false });
-  set({ status: 'idle', token: null, userName: '', message: '', scope: '' });
+  set({ status: 'idle', token: null, userName: '', userId: '', message: '', scope: '' });
 }
 
 /** The sign-in allows looking inside folders (older sign-ins only had drive.file). */

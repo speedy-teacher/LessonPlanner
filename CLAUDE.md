@@ -65,7 +65,15 @@ A browser app for a (non-technical) elementary music teacher to plan a school ye
   No Google Drive for Desktop (blocked by IT).
 - Previews (`thumbnails.js`): first slide only, for Drive decks, via Drive `thumbnailLink` in an <img> (Google blocks fetch/CORS);
   addresses kept in memory per visit, never saved. Other decks show "Preview not available".
-- Next on the roadmap: copy decks to a Drive folder and fill the `{{lesson_number}}`-style placeholders (`AUTO_FIELD_PLACEHOLDERS`, matching the teacher's decks) via the Slides API.
+- **Export bridge (lesson copies)**: every `weekLessons` entry gets a copy of its lesson's template in the year's output folder
+  (`year.output` = `{ kind: 'drive', folderId, name, keeperId, keeperName }` or `{ kind: 'local', name, … }` + a folder handle kept
+  in that browser), as `<output>/<plan name>/<school>/<grade name>/Week n/<order> - <lesson>`. Reconciles, never replays: `exportPlan.js`
+  (pure + tested) works out wanted copies (`hash` = template + filled values, `place` = folder) and `nextStep` = create / move / refill
+  (fresh copy, old one trashed) / remove (trash). `exportDrive.js` (copy, fill via Slides/Docs/Sheets `replaceAllText`/`findReplace`,
+  move, trash; copies found again by `appProperties`) and `exportLocal.js` (File System Access, `lesson-planner-copies.json` list; no
+  fill-in) share that path. `exportBridge.js` runs it in the background after changes (1.5 s), bottom-right queue panel.
+  Templates are only ever copied. Shared plans: only the keeper (who chose the folder, by Google `permissionId`) changes copies;
+  others get a notice naming the keeper and how many copies are behind. Copies aren't in the plan data, so undo never touches them.
 
 ## Working agreements
 - Feature work on a `feature/...` branch, commit at milestones, then recommend merging to `main` (fast-forward, delete branch).

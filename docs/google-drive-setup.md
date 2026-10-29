@@ -31,8 +31,10 @@ Google changes its screens now and then; if a button name is slightly different,
 1. In the search bar at the top, type **Google Drive API**, open it, click **Enable**.
 2. Search **Google Picker API**, open it, click **Enable**.
 3. Search **Google Slides API**, open it, click **Enable**.
+4. Search **Google Docs API**, open it, click **Enable**.
+5. Search **Google Sheets API**, open it, click **Enable**.
 
-(Picker and Slides are for the next steps — choosing decks and filling in slides. Turning them on now saves a trip.)
+(Picker is for choosing decks; Slides, Docs and Sheets fill in the details — {{school}}, {{week_number}}… — in the lesson copies.)
 
 ## 4. Describe the app for the sign-in window
 
@@ -132,4 +134,5 @@ Your changes are kept on the computer meanwhile and go to Drive as soon as it re
 | **Red "Google Drive isn't set up for this website"** | A secret is missing or mistyped. | The error says which one; fix it in GitHub (`docs/hosting.md` step 3) and publish again. |
 | **The Google window doesn't open** | Pop-ups are blocked. | Allow pop-ups for the planner's address (icon at the right of the address bar). |
 | **Picking files says the API key isn't allowed** | The website address isn't in step 7's list. | Add it (with `/*` at the end) under the API key's **Websites**. |
+| **"Filling in details needs the Google Slides API (or Docs/Sheets) switched on"** | That service wasn't turned on in step 3. | Enable it, wait a minute, then make any change on the Lesson Schedule — the copies catch up. |
 | **A colleague can't sign in** | Your Google project is in testing mode. | Add their email as a test user (step 4 #7). |

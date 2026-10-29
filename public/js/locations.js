@@ -48,9 +48,12 @@ export function driveOpenUrl(location) {
   return editor ? `https://docs.google.com/${editor}/d/${id}/edit` : `https://drive.google.com/file/d/${id}/view`;
 }
 
-/** What the open link is called: "Open in Google Docs", or "Open in Google Drive" for other files. */
-export function driveOpenLabel(location) {
-  return `Open in ${EDITOR_NAMES[editorFor(location.mimeType)] ?? 'Google Drive'}`;
+/**
+ * What the open link is called: "Open in Google Docs", or "Open in Google Drive" for other files.
+ * `what` names the file: "Open Template in Google Docs".
+ */
+export function driveOpenLabel(location, what = '') {
+  return `Open ${what ? `${what} ` : ''}in ${EDITOR_NAMES[editorFor(location.mimeType)] ?? 'Google Drive'}`;
 }
 
 /**
@@ -67,6 +70,17 @@ export function fillInProblem(record) {
   if (!drive) return 'Only files in Google Drive can be filled in — this one is on the computer.';
   if (FILLABLE_EDITORS.includes(editorFor(drive.mimeType))) return null;
   return 'Only files that open in Google Docs, Sheets or Slides can be filled in — this kind of file can’t.';
+}
+
+const GOOGLE_TYPES = { presentation: `${GOOGLE}presentation`, document: `${GOOGLE}document`, spreadsheets: `${GOOGLE}spreadsheet` };
+
+/**
+ * The Google kind of file (Slides, Docs or Sheets) a fillable file becomes when it's copied
+ * (a PowerPoint file becomes Google Slides, and so on), or null for kinds that can't be filled in.
+ */
+export function googleTypeFor(mimeType) {
+  const editor = editorFor(mimeType);
+  return FILLABLE_EDITORS.includes(editor) ? GOOGLE_TYPES[editor] : null;
 }
 
 /** Whether details can be filled in automatically for a lesson (see fillInProblem). */

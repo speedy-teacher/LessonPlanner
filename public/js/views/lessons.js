@@ -12,6 +12,7 @@ import { current, emptyNote, year } from './common.js';
 import { lessonPreview } from './lessonPreview.js';
 import { deckTree, instrumentFilter, openFolders, visibleDecks } from './deckTree.js';
 import { addMenu } from './deckImport.js';
+import { copiesOfLesson, copyStatus } from '../exportBridge.js';
 
 function selectedLesson() {
   const l = find(store.state, 'lessons', store.ui.lessonId);
@@ -118,7 +119,7 @@ function locationList(l) {
 
 function locationLabel(loc) {
   if (loc.kind === 'drive') {
-    return ['☁️ Google Drive · ', h('a', { href: driveOpenUrl(loc), target: '_blank', rel: 'noopener', title: 'Opens the file in a new tab' }, `${driveOpenLabel(loc)} ↗`)];
+    return ['☁️ Google Drive · ', h('a', { href: driveOpenUrl(loc), target: '_blank', rel: 'noopener', title: 'Opens the file in a new tab' }, `${driveOpenLabel(loc, 'Template')} ↗`)];
   }
   const root = find(store.state, 'localRoots', loc.rootId);
   const path = root ? [root.name, loc.path].filter(Boolean).join('/') : loc.path;
@@ -146,7 +147,7 @@ function instrumentToggles(l) {
 function autoFieldsSection(l) {
   return [
     h('h3', {}, 'Filled in automatically'),
-    h('p', { class: 'hint' }, 'When this lesson is on the Outcome & Eval Calendar, these details are added for you. In the file, type the text on the right (e.g. {{school}}) where each detail goes — click it to copy.'),
+    h('p', { class: 'hint' }, 'When this lesson is on the Lesson Schedule, its copy gets these details filled in (see Setup › School Year › Lesson copies). In the file, type the text on the right (e.g. {{school}}) where each detail goes — click it to copy.'),
     h('div', { class: 'auto-fields big' }, Object.entries(AUTO_FIELDS).map(([key, label]) => autoFieldToggle(l, key, label))),
   ];
 }
@@ -189,7 +190,23 @@ function usedIn(l) {
         h('ul', { class: 'usage-evals' }, evals.map(({ criterion, positions }) => h('li', {},
           criterion.title,
           h('span', { class: 'hint' }, ` — lesson ${positions.join(' & ')}`))))))))),
-    addToEval(l));
+    addToEval(l),
+    lessonCopies(l));
+}
+
+/** Links to this lesson's copies on the Lesson Schedule (made by the export bridge). */
+function lessonCopies(l) {
+  const copies = copiesOfLesson(l.id);
+  const state = copyStatus().state;
+  let note = null;
+  if (state === 'none') note = 'Choose a folder under Setup › School Year › Lesson copies, and every time this lesson is on the Lesson Schedule it gets its own filled-in copy.';
+  else if (!copies.length) note = state === 'ready' ? 'No copies yet — put this lesson on the Lesson Schedule to make one.' : 'Copies show here when this computer can reach the lesson copies folder.';
+  return h('div', { class: 'usage-grade' },
+    h('h4', { class: 'group-head' }, 'Copies on the Lesson Schedule', copies.length ? h('span', { class: 'count-badge' }, copies.length) : null),
+    note ? h('p', { class: 'hint' }, note) : null,
+    copies.length ? h('ul', { class: 'usage-copies' }, copies.map((c) => h('li', {}, c.url
+      ? h('a', { href: c.url, target: '_blank', rel: 'noopener', title: 'Opens this copy in a new tab' }, `${c.label} ↗`)
+      : ['💻 ', h('code', {}, c.path)]))) : null);
 }
 
 /** Add this lesson to the end of an eval's lesson order, right here. */

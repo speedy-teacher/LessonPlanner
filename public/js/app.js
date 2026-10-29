@@ -16,6 +16,7 @@ import { renderLessons, lessonKeys } from './views/lessons.js';
 import { installCalendarScrolling, showCalendar } from './views/calendarGrid.js';
 import { checkWatchedFolders, startWatchingDrive } from './views/deckImport.js';
 import { menuItem, popMenu } from './views/common.js';
+import { soon as checkCopies, startExportBridge } from './exportBridge.js';
 
 // Pages with `menu: 'setup'` are reached through the "Setup ▾" menu instead of their own tab.
 const TABS = [
@@ -125,6 +126,7 @@ async function start() {
       refresh();
       refreshPlansMenu();
       checkWatchedFolders();
+      checkCopies();
     },
     needsSignIn: showSignInNotice,
   });
@@ -135,6 +137,7 @@ async function start() {
     render();
   }
   startWatchingDrive();
+  startExportBridge();
   warnIfGoogleNotSetUp();
   prepareDrive(clientId());
 }

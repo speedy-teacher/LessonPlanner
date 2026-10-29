@@ -458,6 +458,24 @@ input:focus, select:focus, button:focus-visible { outline: 3px solid #cdb8ea; ou
 .notice-title { color: var(--navy); }
 .notice-actions { display: flex; gap: 8px; margin-top: 6px; }
 .notice-close { margin: -4px -2px 0 0; }
+
+/* ---------- lesson copies: background work (bottom right) ---------- */
+.copy-queue {
+  position: fixed; right: 20px; bottom: 20px; z-index: 55; width: min(320px, calc(100vw - 40px));
+  background: var(--card); color: var(--ink); border: 1.5px solid var(--line); border-left: 6px solid var(--sage);
+  border-radius: 14px; padding: 10px 14px; box-shadow: var(--shadow); font-size: 13px;
+  opacity: 0; transform: translateY(12px); transition: opacity .2s, transform .2s; pointer-events: none;
+}
+.copy-queue.show { opacity: 1; transform: none; pointer-events: auto; }
+.copy-queue-head { display: flex; align-items: center; gap: 8px; color: var(--navy); }
+.copy-queue-head .count-badge { margin-left: auto; }
+.copy-queue-now { margin-top: 4px; color: var(--ink-soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.copy-spin { display: inline-block; animation: copy-bob 1.4s ease-in-out infinite; }
+@keyframes copy-bob { 50% { transform: translateY(-3px); } }
+.copies-status { font-size: 14px; font-weight: 700; color: var(--ink-soft); }
+.copies-status.ready { color: var(--sage); }
+.copies-status.needs-permission, .copies-status.other-keeper, .copies-status.problem { color: var(--gold); }
+.usage-copies { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 .saved-tag { color: var(--sage); font-weight: 800; margin-left: 4px; }
 .drive-pill {
   display: inline-flex; align-items: center; gap: 6px; border: 1.5px solid rgba(255, 255, 255, .35); background: rgba(255, 255, 255, .12);
