@@ -63,7 +63,7 @@ test('evals are placed on the calendar, re-dated, and the schedule fills from it
   assert.equal(runCommand(s, 'getCalendar', cls)[0].endDate, '2026-09-11');
   assert.equal(runCommand(s, 'fillScheduleFromCalendar', cls).lessonsPlaced, 2);
   assert.deepEqual(lessonsIn(s, 3), ['Alpha', 'Bravo']);
-  runCommand(s, 'removeEval', { placementId: placed.id });
+  runCommand(s, 'removeEvalFromCalendar', { placementId: placed.id });
   assert.deepEqual(runCommand(s, 'getCalendar', cls), []);
 });
 

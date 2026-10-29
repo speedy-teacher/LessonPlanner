@@ -104,16 +104,21 @@ A browser app for a (non-technical) elementary music teacher to plan a school ye
 - Original bitmoji rules/data: `~/Documents/CodeProjects/lesson-organizer/HANDOFF.md` (+ `bitmoji_tags.json`).
   The user adds the pictures in the app; linking those tags up is a later data step.
 
-## Assistant commands (Claude controlling the open app)
-- The teacher asks Claude (via Claude in Chrome on their open tab) to do things in the planner. Use the page's
-  `window.lessonPlanner` with the javascript tool instead of clicking: `lessonPlanner.help()` lists commands;
-  `lessonPlanner.run(name, args)` or `run([{ command, args }, …])` (all or nothing, one undo step). Start with `overview`.
-- `agentCommands.js` (pure + tested): `COMMANDS` catalog (summary, `params` name → [text, required], `changes`, `run`),
-  things named as the app shows them or by id, active year only, weeks by number or any date in the week, 1-based positions,
-  friendly `CommandError`s that list the choices. `agentBridge.js` commits the changed copy, shows a "✨ Claude made changes"
-  notice with Undo, and also registers the commands as WebMCP tools when `navigator.modelContext` exists.
-- To add a command: add it to `COMMANDS` (reuse model/weekPlan functions), add a test in `test/agentCommands.test.js`.
-- Covers the Lesson Schedule, Outcome & Eval Calendar and Instrument Schedule so far; not yet lessons, outcomes, images.
+## Assistant commands (Claude, later Gemini, controlling the open app)
+- The teacher asks an assistant to do anything in the planner. With Claude in Chrome on their open tab, use the page's
+  `window.lessonPlanner` via the javascript tool instead of clicking: `lessonPlanner.help()` lists every command by area;
+  `lessonPlanner.run(name, args)` or `run([{ command, args }, …])` (all or nothing, one Undo step). Start with `overview`.
+- `agentCommands.js` (pure + tested) gathers the areas: `agentSchedule.js` (schedule + both calendars), `agentSetup.js`
+  (year, schools/grades/instruments, events), `agentOutcomes.js` (outcomes, evals, lesson order), `agentLessons.js`
+  (templates, folders), `agentImages.js` (pictures, tags, timing); `findRecords` reads anything else. Shared lookups/checks in
+  `agentHelpers.js`: things named as the app shows them or by id, active year only, weeks by number or any date in the week,
+  1-based positions, friendly `CommandError`s that list the choices.
+- `agentBridge.js` commits the changed copy, shows "✨ Your assistant made changes" with Undo, and registers every command as a
+  WebMCP tool (`document.modelContext`, fallback `navigator.modelContext`) for Gemini in Chrome once Google enables it
+  (Oct 2026: not yet, and its auto browse is off for school-managed accounts).
+- Not possible by command (Google needs the teacher's click): signing in, importing decks/pictures, choosing the copies folder,
+  new year / opening plans — `NEEDS_THE_TEACHER`.
+- **Every new feature that changes data needs a command too** (in its area file) + a test in `test/agentCommands*.test.js`.
 
 ## Working agreements
 - Feature work on a `feature/...` branch, commit at milestones, then recommend merging to `main` (fast-forward, delete branch).
