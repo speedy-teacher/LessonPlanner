@@ -273,6 +273,9 @@ export function showWhereSaved(trouble = null) {
   return setSaveStatus('local', driveReady() ? 'Saving to Google Drive…' : 'Saved on this computer — will save to Drive when connected');
 }
 
-// Look for changes from other computers whenever you come back to the planner.
+// Look for changes from other computers whenever you come back to the planner — and every few minutes
+// while it's open, so they arrive (and the lesson copies follow them) even in a window nobody clicks.
+const CHECK_EVERY_MS = 5 * 60 * 1000;
 window.addEventListener('focus', () => { if (isDrivePlan()) syncNow(); });
+setInterval(() => { if (isDrivePlan()) syncNow(); }, CHECK_EVERY_MS);
 window.addEventListener('online', () => { if (isDrivePlan()) syncNow(); });
