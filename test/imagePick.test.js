@@ -156,3 +156,12 @@ test('the weeks a picture fits are listed for checking its rules', () => {
   assert.equal(weekRanges([1, 3, 4, 9]), 'Weeks 1, 3–4 and 9');
   assert.equal(weekRanges([7]), 'Week 7');
 });
+
+test('each time a picture fits reads as a plain sentence', async () => {
+  const { windowSentence } = await import('../public/js/imagePick.js');
+  assert.equal(windowSentence(date('12-01', '12-13', true)), 'Dec 1 – Dec 13, every year (if the lesson starts by then)');
+  assert.equal(windowSentence(around('Halloween', 'start', 30, 0)), '30 days before Halloween');
+  assert.equal(windowSentence(around('Winter Break', 'end', 0, 10)), 'the end of Winter Break and 10 days after');
+  assert.equal(windowSentence(around('Veterans Day', 'start', 3, 1)), '3 days before to 1 day after Veterans Day');
+  assert.equal(windowSentence(around('Flag Day', 'start', 0, 0)), 'On Flag Day');
+});

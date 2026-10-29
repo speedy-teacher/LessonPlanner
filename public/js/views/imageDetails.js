@@ -67,10 +67,10 @@ function sharingLine(image) {
 function tagSection(image) {
   const groups = tagsByGroup(store.state, year().id);
   return h('section', { class: 'image-section' },
-    h('h3', {}, 'Tags'),
-    groups.length ? null : h('p', { class: 'hint' }, 'Make your own kinds of tag — e.g. “Group” (general, seasonal, instrument), “Season” or “Theme”.'),
-    groups.map(({ group, tags }) => tagGroupRow(image, group, tags)),
-    h('button', { class: 'btn small light', onclick: newTagGroup }, '+ New kind of tag'));
+    h('div', { class: 'section-head' }, h('h3', {}, 'Tags'),
+      h('button', { class: 'icon-btn add-icon', 'data-tip': 'New tag category', 'aria-label': 'New tag category', onclick: newTagGroup }, '＋')),
+    groups.length ? null : h('p', { class: 'hint' }, 'Use ＋ to make your own tag categories — e.g. “Season” or “Theme”.'),
+    groups.map(({ group, tags }) => tagGroupRow(image, group, tags)));
 }
 
 function tagGroupRow(image, group, tags) {
@@ -98,14 +98,14 @@ function tagChip(image, tag) {
 function tagGroupMenu(group) {
   const tags = store.state.tags.filter((t) => t.groupId === group.id);
   return popMenu({ label: '⋯', title: `Options for ${group.name}`, menuClass: 'folder-menu' },
-    menuItem('Rename', () => askName('Rename kind of tag', group.name, (name) => commit((s) => update(s, 'tagGroups', group.id, { name }))), { icon: '✏️' }),
+    menuItem('Rename', () => askName('Rename tag category', group.name, (name) => commit((s) => update(s, 'tagGroups', group.id, { name }))), { icon: '✏️' }),
     tags.length ? h('div', { class: 'menu-group' }, 'Remove a tag') : null,
     tags.map((t) => menuItem(t.name, () => removeTag(t), { icon: '×', tip: 'Removes this tag from every picture' })),
-    menuItem(`Remove “${group.name}”`, () => removeTagGroup(group), { icon: '🗑️', tip: 'Removes this kind of tag and its tags from every picture' }));
+    menuItem(`Remove “${group.name}”`, () => removeTagGroup(group), { icon: '🗑️', tip: 'Removes this tag category and its tags from every picture' }));
 }
 
 function newTagGroup() {
-  askName('New kind of tag', '', (name) => commit((s) => add(s, 'tagGroups', { yearId: year().id, name })), 'e.g. Season');
+  askName('New tag category', '', (name) => commit((s) => add(s, 'tagGroups', { yearId: year().id, name })), 'e.g. Season');
 }
 
 function removeTag(tag) {

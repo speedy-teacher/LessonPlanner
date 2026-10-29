@@ -6,8 +6,9 @@
 // overlap ANY window:
 //   date window    { type: 'date', from: 'MM-DD', to: 'MM-DD', startByEnd } — every year, may wrap past
 //                  New Year; with startByEnd the showing must also BEGIN by `to` (month greetings).
-//   holiday window { type: 'holiday', holiday, anchor: 'start'|'end', daysBefore, daysAfter } — around a
-//                  holiday on the year's list (matched by name, ignoring capitals; `aliases` also match).
+//   holiday window { type: 'holiday', holiday, anchor: 'start'|'end', daysBefore, daysAfter } — around one
+//                  of the year's events (schoolEvents.js: first/last day of school, U.S. holidays, your own),
+//                  matched by name, ignoring capitals; `aliases` also match.
 // Score = `when.priority` if a window fits, 1 if it may be used any time, otherwise 0 (never used).
 // The best score wins; ties prefer pictures shared with "anyone with the link" (only those can be
 // placed in a copy), then ones showing an instrument the lesson uses.
@@ -15,6 +16,7 @@
 import { addDays } from './dates.js';
 import { find } from './model.js';
 import { schoolWeeks } from './weekPlan.js';
+import { yearEvents } from './schoolEvents.js';
 
 /** How strongly a picture's windows count when they fit. */
 export const PRIORITIES = [
@@ -95,7 +97,7 @@ export function pictureForEntry(state, entry, sharing = () => null) {
   const lesson = find(state, 'lessons', entry.lessonId);
   const [image = null] = pickImages(state.images.filter((i) => i.yearId === entry.yearId), {
     start, end, sharing,
-    holidays: state.holidays.filter((h) => h.yearId === entry.yearId),
+    holidays: yearEvents(state, entry.yearId),
     instrumentIds: lesson?.instrumentIds ?? [],
   });
   return { image, week };
@@ -128,7 +130,7 @@ export function imageUses(state, imageId, sharing) {
 
 /** The school weeks where one of a picture's windows fits (not counting "any time"). */
 export function weeksImageFits(state, image) {
-  const holidays = state.holidays.filter((h) => h.yearId === image.yearId);
+  const holidays = yearEvents(state, image.yearId);
   return schoolWeeks(find(state, 'years', image.yearId))
     .filter((w) => w.days.length && image.when.windows.some((win) => windowFits(win, w.days[0], w.days.at(-1), holidays)));
 }
@@ -145,4 +147,31 @@ export function weekRanges(numbers) {
   if (!parts.length) return '';
   const list = parts.length > 1 ? `${parts.slice(0, -1).join(', ')} and ${parts.at(-1)}` : parts[0];
   return `${numbers.length === 1 ? 'Week' : 'Weeks'} ${list}`;
+}
+
+// ---------- in words ----------
+
+const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+
+function monthDayText(mmdd) {
+  const [m, d] = (mmdd || '01-01').split('-').map(Number);
+  return `${MONTH_NAMES[m - 1]} ${d}`;
+}
+
+/** "Dec 1 – Dec 13, every year" · "30 days before Halloween" · "the end of Winter Break and 10 days after". */
+export function windowSentence(win) {
+  if (win.type !== 'holiday') {
+    const start = win.startByEnd ? ' (if the lesson starts by then)' : '';
+    return `${monthDayText(win.from)} – ${monthDayText(win.to)}, every year${start}`;
+  }
+  const event = win.holiday || 'an event';
+  return eventSentence(win.anchor === 'end' ? `the end of ${event}` : event, win.daysBefore || 0, win.daysAfter || 0);
+}
+
+function eventSentence(day, before, after) {
+  if (before && after) return `${plural(before, 'day')} before to ${plural(after, 'day')} after ${day}`;
+  if (before) return `${plural(before, 'day')} before ${day}`;
+  if (after) return `${day} and ${plural(after, 'day')} after`;
+  return `On ${day}`;
 }

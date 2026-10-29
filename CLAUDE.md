@@ -91,7 +91,9 @@ A browser app for a (non-technical) elementary music teacher to plan a school ye
 - `imageFolders` + `images` (Drive only) use the same library code as lesson decks: `library.js` "shelves" (`LESSON_SHELF`
   default, `IMAGE_SHELF`), `views/folderTree.js` (shared tree), `views/deckImport.js` `importFromDrive(kind)` + watched folders.
 - Tags are user-defined: `tagGroups` → `tags`, `image.tagIds[]`; `image.instrumentIds[]`; `image.when` timing rules.
-  `holidays` (one list per year, all schools; rolls over a year later). All roll over with the year.
+  Events (`schoolEvents.js` `yearEvents`): first/last day of school (from the year's dates) + U.S. holidays inside the
+  year are computed, never stored; the user's own events are the `holidays` collection (one list, all schools; rolls over
+  a year later) and one with a built-in's name replaces it. All of the Images data rolls over with the year.
 - `imagePick.js` (pure + tested): port of lesson-organizer `pick_bitmoji.py` (date / holiday windows, priority 4/3/2,
   any time = 1; ties prefer shared, then instrument). Lessons opt in with the `image` auto field (`PICTURE_FIELDS`,
   placeholder = an `IMAGE_ANCHOR` shape, never text-replaced). Placing the picture in copies is the exporter's next step.

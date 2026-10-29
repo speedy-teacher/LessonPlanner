@@ -1,18 +1,35 @@
-// "Holidays & breaks" (Setup › School Year): one list for all schools. Pictures on the Images tab can be
-// set to fit the days around one (e.g. a week before Winter Break), wherever it falls this year.
+// "Events" (Setup › School Year): the year's school events. The first and last day of school and the
+// U.S. holidays inside the school year are added for you (schoolEvents.js) — every year, nothing to type.
+// Your own events (breaks, concerts…) are added here; one with the same name as a built-in one replaces
+// it (e.g. your district's own date). Pictures on the Images tab can be set to fit around any event.
 
 import { editable, h, iconButton, toast } from '../dom.js';
 import { add, remove, update } from '../model.js';
-import { commit, undo } from '../store.js';
+import { formatRange } from '../dates.js';
+import { yearEvents } from '../schoolEvents.js';
+import { commit, setUi, store, undo } from '../store.js';
 import { current, year } from './common.js';
 
 export function holidaysCard() {
-  const holidays = current('holidays').sort((a, b) => a.startDate.localeCompare(b.startDate));
+  const y = year();
+  const yours = current('holidays').sort((a, b) => a.startDate.localeCompare(b.startDate));
+  const builtIn = yearEvents(store.state, y.id).filter((e) => e.builtIn);
   return h('section', { class: 'card setup-card holidays-card' },
-    h('h3', {}, 'Holidays & breaks', h('span', { class: 'count-badge' }, holidays.length)),
-    h('p', { class: 'hint' }, 'One list for all your schools. Pictures (Images tab) can be set to show around these — e.g. the three weeks before Winter Break.'),
-    h('ul', { class: 'setup-list holiday-list' }, holidays.map(holidayRow)),
-    holidayAdder());
+    h('h3', {}, 'Events', h('span', { class: 'count-badge' }, yours.length + builtIn.length)),
+    h('p', { class: 'hint' }, 'Add your breaks and other school events. Pictures (Images tab) can be set to show around any event.'),
+    h('ul', { class: 'setup-list holiday-list' }, yours.map(holidayRow)),
+    holidayAdder(),
+    builtInList(builtIn));
+}
+
+/** The events added for you, folded away so the card stays short. */
+function builtInList(events) {
+  const open = Boolean(store.ui.showBuiltInEvents);
+  return h('details', { class: 'built-in-events', open, ontoggle: (e) => { if (e.target.open !== open) setUi({ showBuiltInEvents: e.target.open }); } },
+    h('summary', {}, `Added for you: ${events.length} events (first & last day of school, U.S. holidays)`),
+    h('p', { class: 'hint' }, 'These follow the school year’s dates. To use a different date for one, add an event with the same name above.'),
+    h('ul', { class: 'built-in-list' }, events.map((e) => h('li', {},
+      h('span', {}, e.name), h('span', { class: 'hint' }, formatRange(e.startDate, e.endDate))))));
 }
 
 function dateInput(value, onChange, label, limits = {}) {
@@ -34,7 +51,7 @@ function holidayRow(hol) {
 
 function holidayAdder() {
   const y = year();
-  const name = h('input', { class: 'inline-edit', placeholder: 'New holiday or break…', 'aria-label': 'Holiday name', dataset: { key: 'add-holiday' } });
+  const name = h('input', { class: 'inline-edit', placeholder: 'New event, e.g. Winter Break…', 'aria-label': 'Event name', dataset: { key: 'add-holiday' } });
   const start = h('input', { type: 'date', value: y.startDate, 'aria-label': 'First day' });
   const end = h('input', { type: 'date', value: y.startDate, 'aria-label': 'Last day' });
   start.addEventListener('change', () => { if (end.value < start.value) end.value = start.value; });
