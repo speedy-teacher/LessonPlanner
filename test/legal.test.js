@@ -32,7 +32,8 @@ test('the privacy policy opens without signing in and explains where data really
     assert.match(html, /<h1>Privacy Policy<\/h1>/);
     assert.match(html, /Last updated:/);
     for (const fact of [/no servers?/i, /GitHub Pages/, /Google Drive/, /drive\.file/, /drive\.readonly/,
-      /IndexedDB/, /Limited Use/, /never sold/i, /student/i, /terms\.html/]) {
+      /IndexedDB/, /Limited Use/, /never sold/i, /student/i, /terms\.html/,
+      /Lesson copies/, /Anyone with the link can view/, /turns that sharing off/]) {
       assert.match(html, fact);
     }
   });
