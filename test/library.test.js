@@ -403,7 +403,7 @@ test('each kind of Drive file opens in its own editor, named on the link', async
   assert.deepEqual(open('audio/mpeg'), ['https://drive.google.com/file/d/fake1/view', 'Open in Google Drive']);
 });
 
-test('details are filled in automatically only for Google Docs, Sheets and Slides', async () => {
+test('details are filled in automatically for files that open in Google Docs, Sheets or Slides', async () => {
   const { canFillIn, driveLocation, localLocation } = await import('../public/js/locations.js');
   const { autoFill, add, emptyState } = await import('../public/js/model.js');
   const lessonWith = (locations) => ({ locations });
@@ -412,7 +412,10 @@ test('details are filled in automatically only for Google Docs, Sheets and Slide
   assert.ok(canFillIn(drive('application/vnd.google-apps.document')));
   assert.ok(canFillIn(drive('application/vnd.google-apps.spreadsheet')));
   assert.ok(!canFillIn(drive(PDF)));
-  assert.ok(!canFillIn(drive('application/vnd.openxmlformats-officedocument.presentationml.presentation')), 'PowerPoint files can’t be filled in');
+  assert.ok(canFillIn(drive('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')), 'Excel files kept in Drive open in Google Sheets');
+  assert.ok(canFillIn(drive('application/vnd.openxmlformats-officedocument.presentationml.presentation')), 'PowerPoint files kept in Drive open in Google Slides');
+  assert.ok(canFillIn(drive('application/vnd.openxmlformats-officedocument.wordprocessingml.document')), 'Word files kept in Drive open in Google Docs');
+  assert.ok(!canFillIn(drive('application/vnd.google-apps.form')), 'forms can’t be filled in');
   assert.ok(!canFillIn(lessonWith([localLocation({ path: 'Beat.pptx' })])), 'files on the computer can’t be filled in');
   assert.ok(canFillIn(lessonWith([])), 'a lesson with no file yet still can');
   // A PDF lesson gets no filled-in details, even if some were ticked before.

@@ -6,7 +6,7 @@ import {
   addStep, AUTO_FIELD_PLACEHOLDERS, AUTO_FIELDS, criteriaFor, duplicateLesson, editLesson, find, lessonEvals, lessonUsageByGrade, outcomeLabel, remove,
 } from '../model.js';
 import { addDeck, foldersIn, moveDeck } from '../library.js';
-import { canFillIn, driveOpenLabel, driveOpenUrl } from '../locations.js';
+import { canFillIn, driveOpenLabel, driveOpenUrl, fillInProblem } from '../locations.js';
 import { commit, setUi, store, undo } from '../store.js';
 import { current, emptyNote, year } from './common.js';
 import { lessonPreview } from './lessonPreview.js';
@@ -77,7 +77,7 @@ function lessonEditor(l) {
         h('h3', {}, 'Instruments this lesson uses'),
         h('p', { class: 'hint' }, 'The Outcome & Eval Calendar warns you if one isn’t at the school that week.'),
         instrumentToggles(l),
-        fillable ? autoFieldsSection(l) : null)),
+        fillable ? autoFieldsSection(l) : h('p', { class: 'hint fill-note' }, `Filled in automatically: ${fillInProblem(l)}`))),
     usedIn(l),
   );
 }
@@ -142,7 +142,7 @@ function instrumentToggles(l) {
   }));
 }
 
-/** Only for Google Docs, Sheets and Slides (and lessons with no file yet) — other files can't be filled in. */
+/** Only for files that open in Google Docs, Sheets or Slides (and lessons with no file yet). */
 function autoFieldsSection(l) {
   return [
     h('h3', {}, 'Filled in automatically'),

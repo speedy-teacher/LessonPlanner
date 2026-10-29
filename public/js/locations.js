@@ -53,18 +53,25 @@ export function driveOpenLabel(location) {
   return `Open in ${EDITOR_NAMES[editorFor(location.mimeType)] ?? 'Google Drive'}`;
 }
 
-/** File kinds the planner can fill details into ({{school}}, {{lesson_number}}…): Google Docs, Sheets and Slides. */
-export const FILLABLE_TYPES = [`${GOOGLE}document`, `${GOOGLE}spreadsheet`, `${GOOGLE}presentation`];
-
 /**
- * Whether details can be filled in automatically for a lesson: its Drive file is a Google Doc, Sheet
- * or Slides deck. A lesson with no file yet still can (its file will be made later).
+ * File kinds the planner can fill details into ({{school}}, {{lesson_number}}…): everything that opens
+ * in Google Docs, Sheets or Slides — Google's own files, and Word, Excel and PowerPoint files kept in
+ * Drive (Google turns those into Docs, Sheets and Slides when the filled-in copy is made).
  */
-export function canFillIn(record) {
-  if (!record?.locations?.length) return true;
+export const FILLABLE_EDITORS = ['document', 'spreadsheets', 'presentation'];
+
+/** Why details can't be filled in for a lesson, or null if they can. */
+export function fillInProblem(record) {
+  if (!record?.locations?.length) return null; // no file yet: it can be made later
   const drive = findLocation(record, 'drive');
-  if (!drive) return false;
-  return !drive.mimeType || FILLABLE_TYPES.includes(drive.mimeType);
+  if (!drive) return 'Only files in Google Drive can be filled in — this one is on the computer.';
+  if (FILLABLE_EDITORS.includes(editorFor(drive.mimeType))) return null;
+  return 'Only files that open in Google Docs, Sheets or Slides can be filled in — this kind of file can’t.';
+}
+
+/** Whether details can be filled in automatically for a lesson (see fillInProblem). */
+export function canFillIn(record) {
+  return fillInProblem(record) === null;
 }
 
 export function localUri(rootId, path) {
