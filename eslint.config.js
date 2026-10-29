@@ -5,7 +5,7 @@ import sonarjs from 'eslint-plugin-sonarjs';
 // Code-quality limits (see scripts/quality.js for the function-length rule,
 // which allows longer functions only when they are very simple).
 export default [
-  { ignores: ['node_modules/', 'data/', 'test/fixtures/'] },
+  { ignores: ['node_modules/', 'data/', 'test/fixtures/', '.claude/'] },
   js.configs.recommended,
   {
     files: ['**/*.js'],

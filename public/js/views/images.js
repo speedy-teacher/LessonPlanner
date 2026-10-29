@@ -8,14 +8,14 @@ import { decksIn, folderPath, foldersIn, IMAGE_SHELF } from '../library.js';
 import { setUi, store } from '../store.js';
 import { deckThumbnail, onThumbnail, requestThumbnail, thumbnailFailed } from '../thumbnails.js';
 import { driveFileId } from '../locations.js';
-import { checkSharing, isShared } from '../imageSharing.js';
+import { checkSharing, shareRefused } from '../imageSharing.js';
 import { current, emptyNote, menuItem, popMenu, year } from './common.js';
 import { folderTree, newMark, newTreeFolder, openTreeFolders, treeTarget, visibleItems } from './folderTree.js';
 import { importFromDrive, setImageKind } from './deckImport.js';
 import { whenVisible } from './lessonPreview.js';
 import { imageDetails } from './imageDetails.js';
 
-const UNSHARED_TIP = 'Not shared with “Anyone with the link” in Google Drive, so it can’t be placed in lesson copies yet.';
+const UNSHARED_TIP = 'Google didn’t let the planner share this picture for a moment to place it. Share it with “Anyone with the link” in Google Drive.';
 
 function searchWords() {
   return (store.ui.imageSearch || '').trim().toLowerCase().split(/\s+/).filter(Boolean);
@@ -35,7 +35,7 @@ function shownImages() {
 }
 
 function unsharedMark(image) {
-  return isShared(image) === false ? h('span', { class: 'share-warn', 'data-tip': UNSHARED_TIP, 'aria-label': UNSHARED_TIP }, '⚠') : null;
+  return shareRefused(image) ? h('span', { class: 'share-warn', 'data-tip': UNSHARED_TIP, 'aria-label': UNSHARED_TIP }, '⚠') : null;
 }
 
 const IMAGES = {
@@ -88,12 +88,12 @@ function addMenu() {
     }));
 }
 
-/** "3 pictures aren't shared…" above the tree, when some aren't. */
+/** "2 pictures couldn't be placed…" above the tree, when Google refused to let the planner share some. */
 function sharingSummary(images) {
-  const unshared = images.filter((i) => isShared(i) === false);
-  if (!unshared.length) return null;
+  const refused = images.filter(shareRefused);
+  if (!refused.length) return null;
   return h('p', { class: 'share-summary' }, '⚠ ',
-    `${unshared.length} ${unshared.length === 1 ? 'picture isn’t' : 'pictures aren’t'} shared with “Anyone with the link”, so Google can’t place ${unshared.length === 1 ? 'it' : 'them'} in lesson copies.`);
+    `${refused.length} ${refused.length === 1 ? 'picture' : 'pictures'} couldn’t be placed in lesson copies: Google didn’t let the planner share ${refused.length === 1 ? 'it' : 'them'} for a moment. Share ${refused.length === 1 ? 'it' : 'them'} with “Anyone with the link” in Google Drive.`);
 }
 
 // ---------- the gallery ----------

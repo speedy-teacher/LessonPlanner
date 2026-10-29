@@ -12,8 +12,10 @@ import { activeYear, find } from './model.js';
 import { refresh, store, subscribe } from './store.js';
 import { google } from './google.js';
 import { current as plan } from './workspace.js';
-import { canFillIn, driveFileId, driveOpenUrl, findLocation } from './locations.js';
-import { groupCopies, keysToDo, nextStep, wantedCopies } from './exportPlan.js';
+import { canFillIn, driveFileId, driveOpenUrl, findLocation, googleTypeFor } from './locations.js';
+import { groupCopies, keysToDo, nextStep, sparesFor, wantedCopies } from './exportPlan.js';
+import { SLIDES } from './exportGoogle.js';
+import { isShared, markShareRefused } from './imageSharing.js';
 import { downloadTemplate, driveCopies } from './exportDrive.js';
 import { folderPermission, localCopies, rememberedFolder } from './exportLocal.js';
 import { dismissNotice, showNotice } from './notices.js';
@@ -106,7 +108,9 @@ function driveTarget(year, output) {
   return {
     rootKey: `drive:${output.folderId}`, keeps: true, yearId: year.id,
     adapter: driveCopies({ token: google.token, rootId: output.folderId, yearId: year.id }),
-    templateOf: driveFileId, canFill: canFillIn,
+    templateOf: driveFileId, canFill: canFillIn, sharing: isShared,
+    // Pictures go into Google Slides copies (on the template's IMAGE_ANCHOR spots).
+    canPicture: (lesson) => googleTypeFor(findLocation(lesson, 'drive')?.mimeType) === SLIDES,
   };
 }
 
@@ -168,7 +172,10 @@ function wanted(target) {
 }
 
 function stepFor(target, key) {
-  return nextStep(wanted(target).get(key) ?? null, bridge.haves.filter((c) => c.entryId === key));
+  const wants = wanted(target);
+  const want = wants.get(key) ?? null;
+  const spares = want ? sparesFor(want, bridge.haves, new Set(wants.keys())) : [];
+  return nextStep(want, bridge.haves.filter((c) => c.entryId === key), spares);
 }
 
 function signature(target, key) {
@@ -214,22 +221,55 @@ async function attempt(target, key, step) {
   }
 }
 
+const replaceHave = (old, next) => { bridge.haves = bridge.haves.map((c) => (c.id === old.id ? next : c)); };
+const dropHave = (have) => { bridge.haves = bridge.haves.filter((c) => c.id !== have.id); };
+
 async function run(target, step) {
   const { adapter } = target;
-  const lesson = find(store.state, 'lessons', step.want?.lessonId);
-  const drop = (have) => { bridge.haves = bridge.haves.filter((c) => c.id !== have.id); };
-  if (step.kind === 'create' || step.kind === 'refill') {
-    const made = await adapter.create(step.want, findLocation(lesson, 'drive'));
+  const source = findLocation(find(store.state, 'lessons', step.want?.lessonId), 'drive');
+  if (step.kind === 'create') {
+    const made = await adapter.create(step.want, source);
     bridge.haves = [...bridge.haves, made];
+    pictureProblem(made, step.want);
   }
-  if (step.kind === 'refill' || step.kind === 'remove') {
+  if (step.kind === 'refill' || step.kind === 'adopt') await updateInPlace(adapter, step, source);
+  if (step.kind === 'remove') {
     await adapter.remove(step.have);
-    drop(step.have);
+    dropHave(step.have);
   }
-  if (step.kind === 'move') {
-    const moved = await adapter.move(step.have, step.want);
-    bridge.haves = bridge.haves.map((c) => (c.id === step.have.id ? moved : c));
+  if (step.kind === 'move') replaceHave(step.have, await adapter.move(step.have, step.want));
+}
+
+/** Update the same file; when that can't be done safely, a fresh copy replaces it (the old one goes to the trash). */
+async function updateInPlace(adapter, step, source) {
+  try {
+    const updated = await adapter.update(step.have, step.want, source);
+    replaceHave(step.have, updated);
+    pictureProblem(updated, step.want);
+  } catch (err) {
+    if (err.message !== 'not_in_place') throw err;
+    const made = await adapter.create(step.want, source);
+    bridge.haves = [...bridge.haves, made];
+    await adapter.remove(step.have);
+    dropHave(step.have);
+    pictureProblem(made, step.want);
   }
+}
+
+/** The copy is fine, but its picture couldn't go in: say so (it's tried again after the next change). */
+function pictureProblem(have, want) {
+  const err = have.pictureProblem;
+  if (!err) return;
+  const image = store.state.images.find((i) => driveFileId(i) === want.picture);
+  if (err.message === 'cant_share') markShareRefused(want.picture);
+  const name = image ? `“${image.name}”` : 'its picture';
+  showNotice({
+    id: 'copies-picture', tone: 'warn', title: 'Lesson copies',
+    message: err.message === 'cant_share'
+      ? `The copy of “${lessonName(want.lessonId)}” is made, but Google didn’t let the planner share ${name} for a moment to place it. In Google Drive, share ${name} with “Anyone with the link” (it can stay that way), then the planner places it.`
+      : `The copy of “${lessonName(want.lessonId)}” is made, but Google couldn’t fetch ${name} to place it. The planner tries again after your next change.`,
+    seconds: 30,
+  });
 }
 
 function lessonName(id) {
@@ -242,6 +282,7 @@ function describe(step) {
   const name = `“${lessonName(step.want?.lessonId ?? step.have.lessonId)}”`;
   if (step.kind === 'create') return `Copying ${name} to ${where(step.want)}`;
   if (step.kind === 'refill') return `Updating the details in ${name} (${where(step.want)})`;
+  if (step.kind === 'adopt') return `Reusing a copy of ${name} for ${where(step.want)}`;
   if (step.kind === 'move') return `Moving ${name} to ${where(step.want)}`;
   return `Removing a copy of ${name} that’s no longer on the schedule`;
 }

@@ -5,7 +5,8 @@ import assert from 'node:assert/strict';
 import { add, createYear, emptyState, update } from '../public/js/model.js';
 import { addWeekLesson, moveWeekLesson, removeWeekLesson, schoolWeeks } from '../public/js/weekPlan.js';
 import { canFillIn, driveFileId, driveLocation, driveOpenLabel } from '../public/js/locations.js';
-import { entryValues, keysToDo, nextStep, safeName, wantedCopies } from '../public/js/exportPlan.js';
+import { entryValues, keysToDo, nextStep, safeName, sparesFor, wantedCopies } from '../public/js/exportPlan.js';
+import { addImage } from '../public/js/library.js';
 
 const SLIDES = 'application/vnd.google-apps.presentation';
 
@@ -30,6 +31,15 @@ function setup() {
 const DRIVE = { rootKey: 'drive:fakeRoot', yearFolder: 'Music 2026-27', templateOf: driveFileId, canFill: canFillIn };
 const wants = (s, yearId, target = DRIVE) => wantedCopies(s, yearId, target);
 
+// What each step does to the pretend folder's copies.
+const APPLY = {
+  create: (haves, step, made) => haves.push(made),
+  adopt: (haves, step) => Object.assign(step.have, { ...step.want, id: step.have.id }),
+  refill: (haves, step, made) => haves.splice(haves.indexOf(step.have), 1, made),
+  move: (haves, step) => Object.assign(step.have, { place: step.want.place, name: step.want.name, path: step.want.path }),
+  remove: (haves, step) => haves.splice(haves.indexOf(step.have), 1),
+};
+
 /** A pretend output folder that does what nextStep says, like the bridge does. */
 function syncFolder(s, yearId, haves, target = DRIVE) {
   const done = [];
@@ -38,13 +48,12 @@ function syncFolder(s, yearId, haves, target = DRIVE) {
     const list = wants(s, yearId, target);
     const [key] = keysToDo(list, haves);
     if (!key) return done;
-    const step = nextStep(list.find((w) => w.key === key) ?? null, haves.filter((h) => h.entryId === key));
+    const want = list.find((w) => w.key === key) ?? null;
+    const spares = want ? sparesFor(want, haves, new Set(list.map((w) => w.key))) : [];
+    const step = nextStep(want, haves.filter((h) => h.entryId === key), spares);
     done.push(step.kind);
-    const made = () => { n += 1; return { id: `copy${n}`, ...step.want }; };
-    if (step.kind === 'create') haves.push(made());
-    if (step.kind === 'refill') haves.splice(haves.indexOf(step.have), 1, made());
-    if (step.kind === 'move') Object.assign(step.have, { place: step.want.place, name: step.want.name, path: step.want.path });
-    if (step.kind === 'remove') haves.splice(haves.indexOf(step.have), 1);
+    n += 1;
+    APPLY[step.kind](haves, step, { id: `copy${n}`, ...step.want });
   }
   throw new Error('never settled');
 }
@@ -182,4 +191,35 @@ test('the picture spot (IMAGE_ANCHOR) is never replaced as text in lesson copies
   plain.autoFields.push('image');
   addWeekLesson(s, { ...cls, weekStart: weeks[0].weekStart, lessonId: plain.id });
   assert.deepEqual(Object.keys(wants(s, year.id)[0].values), ['{{school}}']);
+});
+
+test('taking a lesson off the schedule and putting it in another week reuses its copy (nothing to the trash)', () => {
+  const { s, year, plain, cls, weeks } = setup();
+  const haves = [];
+  const first = addWeekLesson(s, { ...cls, weekStart: weeks[0].weekStart, lessonId: plain.id });
+  syncFolder(s, year.id, haves);
+  const copyId = haves[0].id;
+  removeWeekLesson(s, first.id);
+  const again = addWeekLesson(s, { ...cls, weekStart: weeks[3].weekStart, lessonId: plain.id });
+  assert.deepEqual(syncFolder(s, year.id, haves), ['adopt']);
+  assert.equal(haves.length, 1);
+  assert.equal(haves[0].id, copyId, 'the same file');
+  assert.equal(haves[0].entryId, again.id);
+});
+
+test('a lesson with a picture spot gets the week’s picture in its copy; a new picture means an update', () => {
+  const { s, year, weekly, cls, weeks } = setup();
+  weekly.autoFields.push('image');
+  const pic = (name, fileId, when) => Object.assign(addImage(s, { yearId: year.id, name, locations: [driveLocation({ fileId, mimeType: 'image/png' })] }), { when });
+  pic('Waving', 'fakeWave', { anytime: true, priority: 2, windows: [] });
+  pic('Leaves', 'fakeLeaves', { anytime: false, priority: 2, windows: [{ type: 'date', from: '09-14', to: '09-30' }] });
+  const slidesTarget = { ...DRIVE, canPicture: () => true };
+  const entry = addWeekLesson(s, { ...cls, weekStart: weeks[0].weekStart, lessonId: weekly.id });
+  const haves = [];
+  syncFolder(s, year.id, haves, slidesTarget);
+  assert.equal(haves[0].picture, 'fakeWave');
+  moveWeekLesson(s, entry.id, weeks[3].weekStart, 0); // mid-September
+  assert.equal(wants(s, year.id, slidesTarget)[0].picture, 'fakeLeaves');
+  assert.deepEqual(syncFolder(s, year.id, haves, slidesTarget), ['refill']);
+  assert.equal(wants(s, year.id)[0].picture, '', 'no picture where pictures can’t go (e.g. not Google Slides)');
 });

@@ -1,35 +1,24 @@
 // Lesson copies in Google Drive (see exportPlan.js for what goes where).
 // Each copy carries a small hidden label (Drive "appProperties", only the planner sees them) saying
-// which year, schedule entry and template it was made from, so the planner can find its copies
-// again from any computer — nothing about the copies has to be saved in the plan itself.
+// which year, schedule entry and template it was made from, and what details were typed into it — so
+// the planner can find its copies again from any computer, and update them in place later
+// (exportFill.js), without saving anything about the copies in the plan itself.
 // Template files are only ever read (copied, or downloaded for a folder on the computer).
 
 import { DriveError } from './drive.js';
 import { googleTypeFor } from './locations.js';
+import { copyHash } from './exportPlan.js';
+import { NotInPlace } from './exportFill.js';
+import { googleFiles } from './exportGoogle.js';
 
 const API = 'https://www.googleapis.com/drive/v3/files';
 const FOLDER_MIME = 'application/vnd.google-apps.folder';
 const COPY_FIELDS = 'id,name,mimeType,parents,appProperties';
 export const COPY_LABEL = 'lessonPlannerCopy';
-
-// Where filled-in details are typed in, by kind of Google file.
-const FILLERS = {
-  'application/vnd.google-apps.presentation': {
-    api: 'Google Slides API',
-    url: (id) => `https://slides.googleapis.com/v1/presentations/${id}:batchUpdate`,
-    request: (find, text) => ({ replaceAllText: { containsText: { text: find, matchCase: true }, replaceText: text } }),
-  },
-  'application/vnd.google-apps.document': {
-    api: 'Google Docs API',
-    url: (id) => `https://docs.googleapis.com/v1/documents/${id}:batchUpdate`,
-    request: (find, text) => ({ replaceAllText: { containsText: { text: find, matchCase: true }, replaceText: text } }),
-  },
-  'application/vnd.google-apps.spreadsheet': {
-    api: 'Google Sheets API',
-    url: (id) => `https://sheets.googleapis.com/v4/spreadsheets/${id}:batchUpdate`,
-    request: (find, text) => ({ findReplace: { find, replacement: text, allSheets: true, matchCase: true } }),
-  },
-};
+const PROP_BYTES = 124; // Drive's limit for one label (name + value)
+const TOO_LONG = '…'; // a detail too long to remember: that copy is remade instead of updated in place
+// Problems placing a picture that still leave a good copy (the picture is tried again after the next change).
+const PICTURE_PROBLEMS = ['cant_share', 'drive_failed', 'no_access', 'not_found'];
 
 // What a Google file is saved as on the computer.
 const EXPORTS = {
@@ -63,21 +52,43 @@ async function call(fetchFn, token, url, init = {}) {
 
 const jsonInit = (method, body) => ({ method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
 const quote = (text) => `'${text.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;
+const bytes = (text) => new TextEncoder().encode(text).length;
+
+// Details are remembered as labels "v_school", "v_week_number"… (from {{school}}, {{week_number}}…).
+const labelOf = (placeholder) => `v_${placeholder.replace(/[{}]/g, '')}`;
+const placeholderOf = (label) => `{{${label.slice(2)}}}`;
+
+/** The labels that describe a copy's contents (old detail labels it no longer has are cleared). */
+function contentLabels(want, picture, before = {}) {
+  const labels = { hash: copyHash(want.template, want.values, picture), tpl: want.template, pic: picture || null };
+  for (const key of Object.keys(before)) if (key.startsWith('v_')) labels[key] = null;
+  for (const [placeholder, value] of Object.entries(want.values)) {
+    const label = labelOf(placeholder);
+    labels[label] = bytes(label) + bytes(value) <= PROP_BYTES ? value : TOO_LONG;
+  }
+  return labels;
+}
 
 function haveFrom(file) {
   const p = file.appProperties ?? {};
+  const details = Object.entries(p).filter(([k]) => k.startsWith('v_'));
   return {
-    id: file.id, entryId: p.entryId, lessonId: p.lessonId, hash: p.hash, place: p.place,
+    id: file.id, entryId: p.entryId, lessonId: p.lessonId, hash: p.hash, place: p.place, template: p.tpl ?? null,
+    picture: p.pic ?? '', labels: p,
+    values: details.some(([, v]) => v === TOO_LONG) ? null : Object.fromEntries(details.map(([k, v]) => [placeholderOf(k), v])),
     name: file.name, mimeType: file.mimeType, parentId: file.parents?.[0] ?? null,
   };
 }
 
+const sameValues = (a, b) => JSON.stringify(Object.entries(a).sort()) === JSON.stringify(Object.entries(b).sort());
+
 /**
  * The lesson copies of a year inside a Drive output folder.
- * `rootId` = the output folder; returns { list, create, move, remove } (see exportBridge.js).
+ * `rootId` = the output folder; returns { list, create, update, move, remove } (see exportBridge.js).
  */
 export function driveCopies({ token, rootId, yearId, fetchFn = fetch }) {
   const send = (url, init) => call(fetchFn, token, url, init);
+  const files = googleFiles(send);
   const folders = new Map(); // "a/b/c" → folder id, for this visit
 
   async function childFolder(parentId, name) {
@@ -118,18 +129,34 @@ export function driveCopies({ token, rootId, yearId, fetchFn = fetch }) {
   }
 
   async function copyInto(want, source) {
-    const fill = Object.keys(want.values).length > 0;
     const meta = {
       name: want.name, parents: [await folderFor(want.path)],
-      appProperties: { [COPY_LABEL]: yearId, entryId: want.entryId, lessonId: want.lessonId, hash: want.hash, place: want.place },
+      appProperties: { [COPY_LABEL]: yearId, entryId: want.entryId, lessonId: want.lessonId, place: want.place, ...contentLabels(want, '') },
     };
-    const googleType = fill ? googleTypeFor(source.mimeType) : null;
+    const googleType = Object.keys(want.values).length || want.picture ? googleTypeFor(source.mimeType) : null;
     if (googleType) meta.mimeType = googleType;
     const url = `${API}/${encodeURIComponent(source.fileId)}/copy?supportsAllDrives=true&fields=${COPY_FIELDS}`;
     return haveFrom(await (await send(url, jsonInit('POST', meta))).json());
   }
 
-  /** Copy the template into its week folder and fill in the details. */
+  async function relabel(have, labels) {
+    const res = await send(`${API}/${encodeURIComponent(have.id)}?supportsAllDrives=true&fields=${COPY_FIELDS}`, jsonInit('PATCH', { appProperties: labels }));
+    return haveFrom(await res.json());
+  }
+
+  /** Put the picture in (sharing it for a moment). A picture problem leaves the copy as it is, noted on it. */
+  async function addPicture(have, want, { swap = false } = {}) {
+    if (!want.picture || want.picture === have.picture) return { picture: have.picture, problem: null };
+    try {
+      await files.placePicture(have, want.picture, { swap });
+      return { picture: want.picture, problem: null };
+    } catch (err) {
+      if (!PICTURE_PROBLEMS.includes(err.message)) throw err;
+      return { picture: have.picture, problem: err };
+    }
+  }
+
+  /** Copy the template into its week folder, fill in the details and place the picture. */
   async function create(want, source) {
     let have;
     try {
@@ -140,27 +167,34 @@ export function driveCopies({ token, rootId, yearId, fetchFn = fetch }) {
       have = await copyInto(want, source);
     }
     try {
-      await fillIn(have, want.values);
+      await files.fill(have, want.values);
     } catch (err) {
       await remove(have).catch(() => {}); // never leave a half-made copy behind
       throw err;
     }
-    return have;
+    const { picture, problem } = await addPicture(have, want);
+    const done = picture ? await relabel(have, contentLabels(want, picture, have.labels)) : have;
+    return { ...done, pictureProblem: problem };
   }
 
-  async function fillIn(have, values) {
-    const filler = FILLERS[have.mimeType];
-    const pairs = Object.entries(values);
-    if (!filler || !pairs.length) return;
-    try {
-      await send(filler.url(encodeURIComponent(have.id)), jsonInit('POST', { requests: pairs.map(([find, text]) => filler.request(find, text)) }));
-    } catch (err) {
-      err.api = filler.api;
-      throw err;
+  /**
+   * Bring a copy up to date in the same file: move it if needed, swap its old details for the new ones,
+   * and swap its picture. Throws NotInPlace ('not_in_place') when that can't be done safely.
+   */
+  async function update(have, want, source) {
+    if (!have.values || have.template !== want.template || have.lessonId !== want.lessonId) throw new NotInPlace('not known');
+    if (!want.picture && have.picture) throw new NotInPlace('picture taken away');
+    const moved = have.place !== want.place || have.name !== want.name || have.entryId !== want.entryId;
+    const current = moved ? await move(have, want) : have;
+    if (!sameValues(have.values, want.values)) {
+      await files.refill({ id: source.fileId, mimeType: source.mimeType }, current, have.values, want.values);
     }
+    const { picture, problem } = await addPicture(current, want, { swap: Boolean(have.picture) });
+    const done = await relabel(current, contentLabels(want, picture, have.labels));
+    return { ...done, pictureProblem: problem };
   }
 
-  /** Put a copy in its new folder and/or give it its new name. */
+  /** Put a copy in its new folder and/or give it its new name (and its new schedule entry, when reused). */
   async function move(have, want) {
     const parentId = await folderFor(want.path);
     const params = new URLSearchParams({ supportsAllDrives: 'true', fields: COPY_FIELDS });
@@ -168,7 +202,8 @@ export function driveCopies({ token, rootId, yearId, fetchFn = fetch }) {
       params.set('addParents', parentId);
       if (have.parentId) params.set('removeParents', have.parentId);
     }
-    const res = await send(`${API}/${encodeURIComponent(have.id)}?${params}`, jsonInit('PATCH', { name: want.name, appProperties: { place: want.place } }));
+    const labels = { place: want.place, entryId: want.entryId };
+    const res = await send(`${API}/${encodeURIComponent(have.id)}?${params}`, jsonInit('PATCH', { name: want.name, appProperties: labels }));
     return haveFrom(await res.json());
   }
 
@@ -181,7 +216,7 @@ export function driveCopies({ token, rootId, yearId, fetchFn = fetch }) {
     }
   }
 
-  return { kind: 'drive', list, create, move, remove };
+  return { kind: 'drive', list, create, update, move, remove };
 }
 
 /**

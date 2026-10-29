@@ -12,6 +12,7 @@ const FRESH_MS = 10 * 60 * 1000;
 const MAX_AT_ONCE = 4;
 
 const known = new Map(); // fileId → { shared: true | false | null, at }
+const refused = new Set(); // pictures Google wouldn't let the planner share for a moment (this visit)
 const queue = [];
 let running = 0;
 let redraw = null;
@@ -20,6 +21,18 @@ let redraw = null;
 export function isShared(image) {
   const fileId = driveFileId(image);
   return fileId ? known.get(fileId)?.shared ?? null : null;
+}
+
+/** Google refused to let the planner share this picture for a moment (so it couldn't be placed). */
+export function markShareRefused(fileId) {
+  if (refused.has(fileId)) return;
+  refused.add(fileId);
+  redrawSoon();
+}
+
+/** Whether placing this picture failed because it couldn't be shared for a moment. */
+export function shareRefused(image) {
+  return refused.has(driveFileId(image));
 }
 
 /** Look up the sharing of these pictures (those not checked in the last few minutes, unless `again`). */
@@ -45,6 +58,7 @@ async function load(fileId) {
   const before = known.get(fileId)?.shared;
   try {
     known.set(fileId, { shared: await fetchLinkSharing(google.token, fileId), at: Date.now() });
+    if (known.get(fileId).shared) refused.delete(fileId); // shared by hand since: placing will work
   } catch {
     known.set(fileId, { shared: null, at: Date.now() });
   }

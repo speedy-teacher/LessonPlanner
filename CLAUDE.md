@@ -75,6 +75,18 @@ A browser app for a (non-technical) elementary music teacher to plan a school ye
   Templates are only ever copied. Shared plans: only the keeper (who chose the folder, by Google `permissionId`) changes copies;
   others get a notice naming the keeper and how many copies are behind. Copies aren't in the plan data, so undo never touches them.
 
+- **Copies are updated in place** (`exportFill.js`, pure + tested): each copy's labels remember what was typed in
+  (`v_<placeholder>`, `pic`, `tpl`); the template still has its placeholders, so the copy must read template-filled-with-old
+  values at every placeholder spot, and exactly those spots are swapped (Slides deleteText/insertText, Docs
+  deleteContentRange/insertText, Sheets updateCells). Any mismatch (teacher edited that spot, template changed, Office
+  template, header/footer placeholders) → `NotInPlace` → fresh copy + old one trashed. A schedule entry that needs a copy
+  first reuses a "spare" copy of the same lesson whose entry left the schedule (`sparesFor`, step `adopt`). Only lessons
+  truly gone are trashed.
+- **Pictures** (`exportGoogle.js`): Slides copies only; `createImage` on `IMAGE_ANCHOR` spots (anchor deleted, picture id
+  `lpPicture…`), later `replaceImage`. The picture is shared "anyone with the link" only while Google fetches it, then that
+  permission is deleted (untouched if it was already shared). Refused → copy kept without picture, notice, ⚠ on Images.
+  Not yet tried against real Google (URL `drive.google.com/uc?export=view&id=`, fallback `lh3.googleusercontent.com/d/`).
+
 ## Images tab (pictures for lesson copies, e.g. bitmojis)
 - `imageFolders` + `images` (Drive only) use the same library code as lesson decks: `library.js` "shelves" (`LESSON_SHELF`
   default, `IMAGE_SHELF`), `views/folderTree.js` (shared tree), `views/deckImport.js` `importFromDrive(kind)` + watched folders.

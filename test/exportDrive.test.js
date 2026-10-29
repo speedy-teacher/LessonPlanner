@@ -4,6 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { downloadTemplate, driveCopies, COPY_LABEL } from '../public/js/exportDrive.js';
+import { copyHash } from '../public/js/exportPlan.js';
 import { localCopies, LIST_FILE } from '../public/js/exportLocal.js';
 
 const SLIDES = 'application/vnd.google-apps.presentation';
@@ -64,7 +65,9 @@ test('a copy is made in School › Grade › Week folders inside the output fold
   assert.equal(have.parentId, folders[3].id);
   assert.equal(have.name, '1 - Beat');
   const [found] = await copies(drive).list();
-  assert.deepEqual({ entryId: found.entryId, lessonId: found.lessonId, hash: found.hash, place: found.place }, { entryId: 'wk1', lessonId: 'les1', hash: 'h1', place: 'p1' });
+  assert.deepEqual({ entryId: found.entryId, lessonId: found.lessonId, place: found.place }, { entryId: 'wk1', lessonId: 'les1', place: 'p1' });
+  assert.equal(found.hash, copyHash('tmplSlides', want().values));
+  assert.deepEqual(found.values, want().values, 'what was typed in is remembered, to update it in place later');
 });
 
 test('existing folders are reused, not made again', async () => {
@@ -181,4 +184,123 @@ test('on the computer: a name already taken in the week folder gets a number', a
   await c.create(want(), {});
   const second = await c.create(want({ entryId: 'wk2' }), {});
   assert.equal(second.fileName, '1 - Beat (2).pptx');
+});
+
+// ---------- updating in place, and pictures ----------
+
+const run = (content) => ({ textRun: { content } });
+const box = (objectId, text, more = {}) => ({ objectId, ...more, shape: { text: { textElements: [run(text)] } } });
+const deck = (...pageElements) => ({ slides: [{ objectId: 's1', pageElements }] });
+
+/**
+ * A pretend Drive plus Google Slides: copies get the template's slides, Slides requests are recorded,
+ * and pictures can be shared ("anyone with the link") — or sharing can be refused.
+ */
+function fakeGoogle({ template, refuseSharing = false, alreadyShared = false } = {}) {
+  const drive = fakeDrive();
+  const decks = new Map([['tmplSlides', template]]);
+  const slideRequests = [];
+  const permissions = new Map(); // picture id → permission ids
+  const sharing = (u, method) => {
+    const [, fileId, permissionId] = u.pathname.match(/\/files\/([^/]+)\/permissions\/?([^/]*)/);
+    if (method === 'POST') {
+      if (refuseSharing) return json({}, 403);
+      permissions.set(fileId, ['perm1']);
+      return json({ id: 'perm1' });
+    }
+    permissions.set(fileId, (permissions.get(fileId) ?? []).filter((p) => p !== permissionId));
+    return new Response(null, { status: 204 });
+  };
+  const fetchFn = async (url, init = {}) => {
+    const u = new URL(url);
+    const method = init.method || 'GET';
+    if (u.host === 'slides.googleapis.com') {
+      drive.calls.push({ method, url: u, body: init.body ? JSON.parse(init.body) : null });
+      const id = u.pathname.split('/presentations/')[1].split(':')[0];
+      if (method === 'POST') { slideRequests.push({ id, requests: JSON.parse(init.body).requests, sharedNow: [...permissions.values()].flat().length > 0 }); return json({}); }
+      return json(decks.get(id));
+    }
+    if (u.pathname.includes('/permissions')) return sharing(u, method);
+    if (u.searchParams.get('fields') === 'permissionIds') return json({ permissionIds: alreadyShared ? ['anyoneWithLink'] : [] });
+    const res = await drive.fetchFn(url, init);
+    if (u.pathname.endsWith('/copy')) { const made = await res.clone().json(); decks.set(made.id, structuredClone(decks.get(u.pathname.split('/')[4]))); }
+    return res;
+  };
+  return { ...drive, fetchFn, decks, slideRequests, permissions };
+}
+
+const SOURCE = { fileId: 'tmplSlides', mimeType: SLIDES };
+const ANCHOR = { title: 'IMAGE_ANCHOR', size: { width: { magnitude: 1 } }, transform: { scaleX: 1 } };
+
+test('changed details are swapped in the same file — no new copy, nothing in the trash', async () => {
+  const google = fakeGoogle({ template: deck(box('week', 'Week {{week_number}}')) });
+  const c = copies(google);
+  const have = await c.create(want(), SOURCE);
+  google.decks.set(have.id, deck(box('week', 'Week 3'))); // what the copy reads after filling in
+  const before = google.files.size;
+  const updated = await c.update(have, want({ values: { '{{school}}': 'School A', '{{week_number}}': '4' } }), SOURCE);
+  assert.equal(updated.id, have.id, 'the same file, so its link stays the same');
+  assert.equal(google.files.size, before, 'no new copy');
+  assert.ok(![...google.files.values()].some((f) => f.trashed));
+  assert.deepEqual(google.slideRequests.at(-1).requests, [
+    { deleteText: { objectId: 'week', textRange: { type: 'FIXED_RANGE', startIndex: 5, endIndex: 6 } } },
+    { insertText: { objectId: 'week', insertionIndex: 5, text: '4' } },
+  ]);
+  assert.equal(updated.values['{{week_number}}'], '4', 'the new details are remembered for next time');
+});
+
+test('a copy that was edited where a detail goes says it can’t be updated in place', async () => {
+  const google = fakeGoogle({ template: deck(box('week', 'Week {{week_number}}')) });
+  const c = copies(google);
+  const have = await c.create(want(), SOURCE);
+  google.decks.set(have.id, deck(box('week', 'Week three, my edit')));
+  await assert.rejects(c.update(have, want({ values: { '{{school}}': 'School A', '{{week_number}}': '4' } }), SOURCE), { message: 'not_in_place' });
+});
+
+test('a reused copy moves to its new week and belongs to its new schedule entry', async () => {
+  const google = fakeGoogle({ template: deck(box('week', 'Week {{week_number}}')) });
+  const c = copies(google);
+  const have = await c.create(want(), SOURCE);
+  const moved = await c.update(have, want({ entryId: 'wk9', path: ['Music', 'School A', 'Grade 1', 'Week 5'], place: 'p5' }), SOURCE);
+  assert.equal(moved.id, have.id);
+  assert.equal(moved.entryId, 'wk9');
+  assert.equal(google.files.get(moved.parentId).name, 'Week 5');
+});
+
+test('a picture is placed on its spot while shared for a moment — then sharing is turned off again', async () => {
+  const google = fakeGoogle({ template: deck({ objectId: 'spot', ...ANCHOR }) });
+  const made = await copies(google).create(want({ picture: 'fakePic' }), SOURCE);
+  const placing = google.slideRequests.find((r) => r.requests.some((q) => q.createImage));
+  assert.ok(placing.sharedNow, 'shared while Google fetched it');
+  assert.match(placing.requests[0].createImage.url, /fakePic/);
+  assert.deepEqual(placing.requests[1], { deleteObject: { objectId: 'spot' } });
+  assert.deepEqual(google.permissions.get('fakePic'), [], 'not shared any more');
+  assert.equal(made.picture, 'fakePic');
+  assert.equal(made.pictureProblem, null);
+});
+
+test('a picture that’s already shared with anyone with the link is placed without touching its sharing', async () => {
+  const google = fakeGoogle({ template: deck({ objectId: 'spot', ...ANCHOR }), alreadyShared: true });
+  await copies(google).create(want({ picture: 'fakePic' }), SOURCE);
+  assert.ok(!google.calls.some((call) => call.url.pathname.includes('/permissions')));
+});
+
+test('when Google won’t let the planner share a picture, the copy is still made and the problem is reported', async () => {
+  const google = fakeGoogle({ template: deck({ objectId: 'spot', ...ANCHOR }), refuseSharing: true });
+  const made = await copies(google).create(want({ picture: 'fakePic' }), SOURCE);
+  assert.equal(made.pictureProblem.message, 'cant_share');
+  assert.equal(made.picture, '');
+  assert.notEqual(made.hash, copyHash('tmplSlides', want().values, 'fakePic'), 'it’s tried again after the next change');
+  assert.ok(!google.files.get(made.id).trashed);
+});
+
+test('a new picture for the week replaces the old one where it is', async () => {
+  const google = fakeGoogle({ template: deck({ objectId: 'spot', ...ANCHOR }) });
+  const c = copies(google);
+  const have = await c.create(want({ picture: 'fakePic' }), SOURCE);
+  google.decks.set(have.id, deck({ objectId: 'lpPicture0_spot' }));
+  await c.update(have, want({ picture: 'otherPic' }), SOURCE);
+  const swap = google.slideRequests.at(-1).requests[0];
+  assert.equal(swap.replaceImage.imageObjectId, 'lpPicture0_spot');
+  assert.match(swap.replaceImage.url, /otherPic/);
 });

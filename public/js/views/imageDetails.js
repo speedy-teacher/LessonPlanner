@@ -6,7 +6,7 @@ import { add, find, remove, update } from '../model.js';
 import { addTag, editImage, tagsByGroup } from '../library.js';
 import { driveOpenUrl, findLocation } from '../locations.js';
 import { commit, setUi, store, undo } from '../store.js';
-import { checkSharing, isShared } from '../imageSharing.js';
+import { checkSharing, isShared, shareRefused } from '../imageSharing.js';
 import { imageUses } from '../imagePick.js';
 import { google } from '../google.js';
 import { current, emptyNote, menuItem, popMenu, year } from './common.js';
@@ -49,14 +49,17 @@ function driveLine(image) {
 
 function sharingLine(image) {
   const shared = isShared(image);
-  if (shared === true) return h('p', { class: 'share-line ok' }, '✓ Shared with “Anyone with the link” — it can be placed in lesson copies.');
+  if (shareRefused(image)) {
+    return h('div', { class: 'share-line warn-box' },
+      h('strong', {}, '⚠ Couldn’t be placed in lesson copies'),
+      h('span', {}, 'Google didn’t let the planner share it for a moment to place it. In Google Drive: open the picture → Share → General access → “Anyone with the link” (Viewer). It can stay that way.'),
+      h('button', { class: 'btn small light', onclick: () => checkSharing([image], { again: true }) }, 'Check again'));
+  }
+  if (shared === true) return h('p', { class: 'share-line ok' }, '✓ Shared with “Anyone with the link” in Google Drive.');
   if (shared === null) {
     return h('p', { class: 'share-line' }, google.status === 'connected' ? 'Checking how it’s shared…' : 'Connect Google Drive to check how it’s shared.');
   }
-  return h('div', { class: 'share-line warn-box' },
-    h('strong', {}, '⚠ Not shared with “Anyone with the link”'),
-    h('span', {}, 'Google can only put a picture into slides, docs and sheets when it is. In Google Drive: open the picture → Share → General access → “Anyone with the link” (Viewer).'),
-    h('button', { class: 'btn small light', onclick: () => checkSharing([image], { again: true }) }, 'Check again'));
+  return h('p', { class: 'share-line' }, '🔒 Private. To place it in a lesson copy, the planner shares it with “Anyone with the link” for a few seconds while Google fetches it, then turns that off again.');
 }
 
 // ---------- tags ----------
@@ -141,7 +144,7 @@ function usedBy(image) {
   return h('section', { class: 'image-section' },
     h('h3', {}, 'Lessons that get this picture', uses.length ? h('span', { class: 'count-badge' }, uses.length) : null),
     uses.length ? null : emptyNote('None on the Lesson Schedule right now. (Only lessons with “Picture” ticked under “Filled in automatically” get one.)'),
-    uses.length && isShared(image) === false ? h('p', { class: 'warn-box' }, '⚠ These lessons can’t show it until it’s shared with “Anyone with the link”.') : null,
+    uses.length && shareRefused(image) ? h('p', { class: 'warn-box' }, '⚠ These lessons can’t show it until it’s shared with “Anyone with the link” in Google Drive.') : null,
     h('ul', { class: 'usage-copies' }, uses.map(({ entry, week }) => h('li', {},
       h('button', { class: 'link-btn', onclick: () => setUi({ tab: 'lessons', lessonId: entry.lessonId }) },
         `${nameOf('lessons', entry.lessonId)} — ${nameOf('schools', entry.schoolId)} › ${nameOf('grades', entry.gradeId)} › Week ${week?.number ?? '?'}`)))));

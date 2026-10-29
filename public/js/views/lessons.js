@@ -14,7 +14,7 @@ import { deckTree, instrumentFilter, openFolders, visibleDecks } from './deckTre
 import { addMenu } from './deckImport.js';
 import { copiesOfLesson, copyStatus } from '../exportBridge.js';
 import { lessonPictures, wantsPicture } from '../imagePick.js';
-import { checkSharing, isShared } from '../imageSharing.js';
+import { checkSharing, isShared, shareRefused } from '../imageSharing.js';
 
 function selectedLesson() {
   const l = find(store.state, 'lessons', store.ui.lessonId);
@@ -205,17 +205,17 @@ function lessonPictureList(l) {
   if (!wantsPicture(l)) return null;
   checkSharing(current('images'));
   const pictures = lessonPictures(store.state, l.id, isShared);
-  const unshared = pictures.filter((p) => p.image && isShared(p.image) === false);
+  const unshared = pictures.filter((p) => p.image && shareRefused(p.image));
   const missing = pictures.filter((p) => !p.image);
   return h('div', { class: 'usage-grade' },
     h('h4', { class: 'group-head' }, 'Pictures on the Lesson Schedule'),
     pictures.length ? null : h('p', { class: 'hint' }, 'Put this lesson on the Lesson Schedule and each week gets a picture from the Images tab.'),
-    unshared.length ? h('p', { class: 'warn-box' }, `⚠ ${unshared.length === 1 ? 'A picture this lesson uses isn’t' : `${unshared.length} pictures this lesson uses aren’t`} shared with “Anyone with the link”, so Google can’t place ${unshared.length === 1 ? 'it' : 'them'} in the lesson copies. Share ${unshared.length === 1 ? 'it' : 'them'} in Google Drive (see the Images tab).`) : null,
+    unshared.length ? h('p', { class: 'warn-box' }, `⚠ Google didn’t let the planner share ${unshared.length === 1 ? 'a picture this lesson uses' : `${unshared.length} pictures this lesson uses`} for a moment, so ${unshared.length === 1 ? 'it isn’t' : 'they aren’t'} in the lesson copies. Share ${unshared.length === 1 ? 'it' : 'them'} with “Anyone with the link” in Google Drive (see the Images tab).`) : null,
     missing.length ? h('p', { class: 'warn-box' }, `⚠ No picture fits ${missing.length === 1 ? 'one of its weeks' : `${missing.length} of its weeks`} — tick “OK any time” on a picture, or give one a time that fits.`) : null,
     h('ul', { class: 'usage-copies' }, pictures.map(({ entry, week, image }) => h('li', {},
       `${placeLabel(entry)} › Week ${week?.number ?? '?'}: `,
       image ? h('button', { class: 'link-btn', onclick: () => setUi({ tab: 'images', imageId: image.id, imageFolderId: image.folderId }) }, image.name) : h('em', {}, 'no picture fits'),
-      image && isShared(image) === false ? h('span', { class: 'share-warn', 'data-tip': 'Not shared with “Anyone with the link”' }, ' ⚠') : null))));
+      image && shareRefused(image) ? h('span', { class: 'share-warn', 'data-tip': 'Not shared with “Anyone with the link”' }, ' ⚠') : null))));
 }
 
 function placeLabel(entry) {

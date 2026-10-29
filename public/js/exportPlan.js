@@ -7,15 +7,18 @@
 // so the same steps are used whether copies go to Google Drive or to a folder on the computer
 // (exportDrive.js / exportLocal.js do the actual work, exportBridge.js runs it in the background).
 //
-// A wanted copy: { key, entryId, lessonId, template, path: [folder names], name, values, hash, place }
+// A wanted copy: { key, entryId, lessonId, template, path: [folder names], name, values, picture, hash, place }
 //   template = the template file's id/address; values = { '{{school}}': 'School A', … } to fill in;
-//   hash     = fingerprint of the template + values (changes only when the copy's contents would);
+//   picture  = the Drive file id of the picture for its IMAGE_ANCHOR spot ('' for none, see imagePick.js);
+//   hash     = fingerprint of the template + values + picture (changes only when the copy's contents would);
 //   place    = fingerprint of where it goes (output folder + path).
 // A copy that exists: { id, entryId, lessonId, hash, place, name, … } (more fields per kind of folder).
 
 import { formatRange } from './dates.js';
 import { AUTO_FIELD_PLACEHOLDERS, find, lessonInstruments, outcomeLabel, PICTURE_FIELDS } from './model.js';
 import { entryCriterion, placementsInWeek, schoolWeeks } from './weekPlan.js';
+import { pictureForEntry, wantsPicture } from './imagePick.js';
+import { driveFileId } from './locations.js';
 
 /** Letters files and folders can't have on a computer (and Drive shows oddly). */
 export function safeName(text) {
@@ -75,7 +78,8 @@ function fillValues(lesson, all) {
 /**
  * The copies the schedule asks for, in schedule order.
  * `target` = { rootKey (which output folder), yearFolder (plan name), templateOf(lesson) → id or null,
- *              canFill(lesson) → whether details can be filled in there }.
+ *              canFill(lesson) → whether details can be filled in there,
+ *              canPicture?(lesson) → whether a picture can be placed, sharing?(image) → see imagePick.js }.
  * Lessons with no template file the folder can copy from are left out.
  */
 export function wantedCopies(state, yearId, target) {
@@ -87,38 +91,66 @@ export function wantedCopies(state, yearId, target) {
     .filter(Boolean);
 }
 
-function wantedCopy(state, entry, { week, numbers }, { rootKey, yearFolder, templateOf, canFill }) {
+function wantedCopy(state, entry, { week, numbers }, target) {
+  const { rootKey, yearFolder, templateOf, canFill } = target;
   const lesson = find(state, 'lessons', entry.lessonId);
   const template = lesson ? templateOf(lesson) : null;
   if (!template) return null;
   const all = entryValues(state, entry, week, numbers);
   const values = canFill(lesson) ? fillValues(lesson, all) : {};
+  const picture = pictureFor(state, entry, lesson, target);
   const path = [yearFolder, all.school, all.grade, `Week ${week.number}`].map(safeName);
   return {
-    key: entry.id, entryId: entry.id, lessonId: lesson.id, template, path, values,
+    key: entry.id, entryId: entry.id, lessonId: lesson.id, template, path, values, picture,
     name: safeName(`${entry.position + 1} - ${lesson.name}`),
-    hash: fingerprint(JSON.stringify([template, values])),
+    hash: copyHash(template, values, picture),
     place: fingerprint(JSON.stringify([rootKey, path])),
   };
 }
 
+/** The fingerprint of a copy's contents (also worked out for a copy whose picture couldn't be placed). */
+export function copyHash(template, values, picture = '') {
+  return fingerprint(JSON.stringify(picture ? [template, values, picture] : [template, values]));
+}
+
+/** The picture's Drive file id, when the lesson has a picture spot and the copy can take a picture. */
+function pictureFor(state, entry, lesson, { canFill, canPicture = () => false, sharing }) {
+  if (!wantsPicture(lesson) || !canFill(lesson) || !canPicture(lesson)) return '';
+  return driveFileId(pictureForEntry(state, entry, sharing).image) ?? '';
+}
+
 /**
- * What to do for one schedule entry, given the copy it wants (or null) and the copies of it that exist:
+ * What to do for one schedule entry, given the copy it wants (or null), the copies of it that exist,
+ * and `spares` — copies of the same lesson whose entry left the schedule (see sparesFor):
+ *   { kind: 'adopt', want, have }     — reuse a spare copy (moved, and updated if its details differ)
  *   { kind: 'create', want }          — make a copy from the template
  *   { kind: 'refill', want, have }    — the details changed: a fresh copy replaces the old one
  *   { kind: 'move', want, have }      — same contents, new folder or name
  *   { kind: 'remove', have }          — not on the schedule any more (or a spare copy)
  *   null                              — nothing to do
  */
-export function nextStep(want, haves) {
+export function nextStep(want, haves, spares = []) {
   if (!want) return haves.length ? { kind: 'remove', have: haves[0] } : null;
-  if (!haves.length) return { kind: 'create', want };
+  if (!haves.length) return spares.length ? { kind: 'adopt', want, have: spares[0] } : { kind: 'create', want };
   const best = haves.find((h) => h.hash === want.hash && h.lessonId === want.lessonId) ?? haves[0];
   const spare = haves.find((h) => h !== best);
-  if (spare) return { kind: 'remove', have: spare };
-  if (best.hash !== want.hash || best.lessonId !== want.lessonId) return { kind: 'refill', want, have: best };
-  if (best.place !== want.place || best.name !== want.name) return { kind: 'move', want, have: best };
+  return spare ? { kind: 'remove', have: spare } : stepForCopy(want, best);
+}
+
+/** One copy of a wanted entry: update it, move it, or leave it. */
+function stepForCopy(want, have) {
+  if (have.hash !== want.hash || have.lessonId !== want.lessonId) return { kind: 'refill', want, have };
+  if (have.place !== want.place || have.name !== want.name) return { kind: 'move', want, have };
   return null;
+}
+
+/**
+ * Copies of the same lesson as `want` that belong to no wanted entry (the lesson was taken off the
+ * schedule somewhere), best first: same contents, then same folder. Reusing one saves a trip to the trash.
+ */
+export function sparesFor(want, haves, wantedKeys) {
+  const score = (h) => (h.hash === want.hash ? 0 : 2) + (h.place === want.place ? 0 : 1);
+  return haves.filter((h) => h.lessonId === want.lessonId && !wantedKeys.has(h.entryId)).sort((a, b) => score(a) - score(b));
 }
 
 /** Copies that exist, grouped by the schedule entry they belong to. */

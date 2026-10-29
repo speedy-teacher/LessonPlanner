@@ -5,6 +5,7 @@
 // Works in browsers that let web pages save into a folder you pick (Chrome and Edge).
 
 import { newId } from './model.js';
+import { NotInPlace } from './exportFill.js';
 
 export const LIST_FILE = 'lesson-planner-copies.json';
 
@@ -89,7 +90,7 @@ export function localCopies({ dir, yearId, readTemplate }) {
     const blob = await (await from.getFileHandle(have.fileName)).getFile();
     const saved = await put(want, blob, have.ext ?? '');
     await from.removeEntry(have.fileName).catch(() => {});
-    const moved = { ...have, place: want.place, name: want.name, path: want.path, ...saved };
+    const moved = { ...have, entryId: want.entryId, place: want.place, name: want.name, path: want.path, ...saved };
     all = (await load()).map((c) => (c.id === have.id ? moved : c));
     await save();
     return moved;
@@ -102,7 +103,12 @@ export function localCopies({ dir, yearId, readTemplate }) {
     await save();
   }
 
-  return { kind: 'local', list, create, move, remove };
+  /** Copies on the computer are never filled in, so there's nothing to update in place: they're remade. */
+  async function update() {
+    throw new NotInPlace('computer folder');
+  }
+
+  return { kind: 'local', list, create, update, move, remove };
 }
 
 // ---------- the picked folder, remembered in this browser only ----------
