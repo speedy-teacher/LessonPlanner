@@ -19,6 +19,7 @@ import { isShared, markShareRefused, onSharingNews } from './imageSharing.js';
 import { downloadTemplate, driveCopies } from './exportDrive.js';
 import { folderPermission, localCopies, rememberedFolder } from './exportLocal.js';
 import { dismissNotice, showNotice } from './notices.js';
+import { holdPicture, isHeld, picturePlaced, pictureHolds, pictureReport, releaseHeld } from './pictureHolds.js';
 
 const WAIT_MS = 1500; // after a sign-in or a new folder; after your own changes it's a minute (SETTLE_MS)
 const RECHECK_MS = 10 * 60 * 1000;
@@ -36,10 +37,12 @@ const bridge = {
   running: false,
   doing: '', // what the bridge is doing right now (for the panel)
   failed: new Map(), // entry id → signature it failed with (not retried until something changes)
-  // Pictures that couldn't be placed this visit (Drive file id → problem): copies are made without them
-  // for now — one warning, not one per copy. Retried after your next change, or (when Google wouldn't
-  // let the planner share it) once the picture is found shared or picked again.
-  picturesOnHold: new Map(),
+  // Pictures that couldn't be placed this visit (see pictureHolds.js): copies are made without them
+  // for now — one warning, not one per copy. Retried after your next change, on the regular recheck and
+  // when the sign-in is renewed, or (when Google wouldn't let the planner share it) once the picture is
+  // found shared or picked again.
+  picturesOnHold: pictureHolds(),
+  token: null, // the Google sign-in the last look used (a renewed one retries held pictures)
   version: 0, // counts changes, so wanted copies are only worked out again when needed
   wants: null, // { version, targetId, map }
 };
@@ -63,8 +66,19 @@ export function copyStatus() {
   const output = (store.state && activeYear(store.state)?.output) ?? null;
   if (!output) return { state: 'none' };
   // A folder just chosen (or another year): say so until it's been looked at.
-  return bridge.statusFor === JSON.stringify(output) ? bridge.status : { state: 'checking' };
+  const status = bridge.statusFor === JSON.stringify(output) ? bridge.status : { state: 'checking' };
+  const pictures = picturesStatus();
+  return pictures.length ? { ...status, pictures } : status;
 }
+
+/** Pictures that couldn't be placed this visit, with what went wrong (see pictureReport). */
+function picturesStatus() {
+  return pictureReport(bridge.picturesOnHold).map((p) => ({
+    ...p, picture: imageNamed(p.fileId)?.name ?? null, lesson: p.lessonId ? lessonName(p.lessonId) : null,
+  }));
+}
+
+const imageNamed = (fileId) => store.state?.images.find((i) => driveFileId(i) === fileId) ?? null;
 
 /** Start watching for changes (once, when the planner opens). */
 export function startExportBridge() {
@@ -75,23 +89,32 @@ export function startExportBridge() {
     if (store.state === seenState && store.editedAt === seenEdit) return;
     seenState = store.state;
     seenEdit = store.editedAt;
-    releasePictures(([, problem]) => problem !== 'cant_share');
+    releasePictures('change');
     bridge.version += 1;
     soon();
   });
   // A picture now shared with anyone with the link (or picked again) can be placed: try it again.
-  onSharingNews((fileIds) => releasePictures(([fileId]) => fileIds.includes(fileId), true));
-  setInterval(() => { bridge.target = null; soon(); }, RECHECK_MS);
+  onSharingNews((fileIds) => { if (releasePictures('sharing', fileIds)) soon(); });
+  setInterval(() => {
+    releasePictures('recheck'); // e.g. Google couldn't fetch a picture a few minutes ago
+    bridge.target = null;
+    soon();
+  }, RECHECK_MS);
   soon();
 }
 
-/** Take pictures off hold (those `which([fileId, problem])` picks), so the next look places them. */
-function releasePictures(which, lookNow = false) {
-  const ids = [...bridge.picturesOnHold].filter(which).map(([fileId]) => fileId);
-  if (!ids.length) return;
-  ids.forEach((id) => bridge.picturesOnHold.delete(id));
+/** Take pictures off hold (see releaseHeld), so the next look places them. True when any were. */
+function releasePictures(why, fileIds = []) {
+  if (!releaseHeld(bridge.picturesOnHold, why, fileIds).length) return false;
   bridge.version += 1;
-  if (lookNow) soon();
+  return true;
+}
+
+/** A renewed (or different) Google sign-in: held pictures get another try. */
+function noticeSignIn() {
+  if (!google.token || google.token === bridge.token) return;
+  if (bridge.token) releasePictures('signin');
+  bridge.token = google.token;
 }
 
 /**
@@ -160,7 +183,7 @@ function driveTarget(year, output) {
     rootKey: `drive:${output.folderId}`, keeps: true, yearId: year.id,
     adapter: driveCopies({ token: google.token, rootId: output.folderId, yearId: year.id }),
     templateOf: driveFileId, canFill: canFillIn, sharing: isShared,
-    pictureOnHold: (fileId) => bridge.picturesOnHold.has(fileId),
+    pictureOnHold: (fileId) => isHeld(bridge.picturesOnHold, fileId),
     // Pictures go into Google Slides copies (on the template's IMAGE_ANCHOR spots).
     canPicture: (lesson) => googleTypeFor(findLocation(lesson, 'drive')?.mimeType) === SLIDES,
   };
@@ -197,6 +220,7 @@ async function look() {
   const blocked = blocker(output);
   if (blocked?.state === 'other-keeper') return warnBehind(await checkBehind(year, output, blocked));
   if (blocked) return setStatus(blocked);
+  noticeSignIn();
   const target = await makeTarget(year, output).catch((err) => ({ blocked: { state: 'problem', reason: err.message } }));
   if (target.blocked) return showBlocked(target.blocked);
   return queueWork(target);
@@ -315,21 +339,27 @@ async function updateInPlace(adapter, step, source) {
 
 /**
  * The copy is fine, but its picture couldn't go in: put the picture on hold (other copies are made
- * without it, without trying again) and say so once.
+ * without it until it's tried again) and say so once per problem. A picture that went in is off the list.
  */
 function pictureProblem(have, want) {
   const err = have.pictureProblem;
-  if (!err || bridge.picturesOnHold.has(want.picture)) return;
-  bridge.picturesOnHold.set(want.picture, err.message);
+  if (!err) {
+    if (want.picture && have.picture === want.picture) picturePlaced(bridge.picturesOnHold, want.picture);
+    return;
+  }
+  if (isHeld(bridge.picturesOnHold, want.picture)) return;
+  console.warn('Lesson copies: picture not placed:', err.message, err);
+  const tell = holdPicture(bridge.picturesOnHold, want.picture, { reason: err.message, lessonId: want.lessonId });
   bridge.version += 1;
-  const image = store.state.images.find((i) => driveFileId(i) === want.picture);
   if (err.message === 'cant_share') markShareRefused(want.picture);
+  if (!tell) return; // the same problem as last time: already said
+  const image = imageNamed(want.picture);
   const name = image ? `“${image.name}”` : 'its picture';
   showNotice({
     id: `copies-picture-${want.picture}`, tone: 'warn', title: 'Lesson copies',
     message: err.message === 'cant_share'
       ? `Copies of “${lessonName(want.lessonId)}” are made, but Google didn’t let the planner share ${name} for a moment to place it, so those copies don’t have it yet. In Google Drive, share ${name} with “Anyone with the link” (it can stay that way), and the planner places it.`
-      : `Copies of “${lessonName(want.lessonId)}” are made, but Google couldn’t fetch ${name} to place it, so those copies don’t have it yet. The planner tries again after your next change.`,
+      : `Copies of “${lessonName(want.lessonId)}” are made, but Google couldn’t fetch ${name} to place it, so those copies don’t have it yet. The planner tries again by itself in a few minutes.`,
     seconds: 30,
   });
 }

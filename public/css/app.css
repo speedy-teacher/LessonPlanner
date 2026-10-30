@@ -507,6 +507,8 @@ input:focus, select:focus, button:focus-visible { outline: 3px solid #cdb8ea; ou
 @keyframes copy-bob { 50% { transform: translateY(-3px); } }
 .copies-status { font-size: 14px; font-weight: 700; color: var(--ink-soft); }
 .copies-status.ready { color: var(--sage); }
+.copies-pictures { margin: 0; padding-left: 18px; font-size: 14px; color: var(--gold); }
+.copies-pictures .hint { color: var(--ink-soft); }
 .copies-status.needs-permission, .copies-status.other-keeper, .copies-status.problem { color: var(--gold); }
 .usage-copies { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 .saved-tag { color: var(--sage); font-weight: 800; margin-left: 4px; }

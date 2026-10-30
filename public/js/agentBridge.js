@@ -15,6 +15,7 @@ import { commit, hasPendingSave, store, undo } from './store.js';
 import { google } from './google.js';
 import { current } from './workspace.js';
 import { showNotice } from './notices.js';
+import { copyStatus } from './exportBridge.js';
 import { COMMANDS, CommandError, NEEDS_THE_TEACHER, describeCommands, runCommands } from './agentCommands.js';
 import { AUTO_FIELDS, COLLECTIONS } from './model.js';
 
@@ -63,6 +64,7 @@ function status() {
     signedInToGoogle: facts.signedIn, googleStatus: google.status,
     allChangesSaved: !facts.pending && store.saveStatus !== 'error', saveStatus: store.saveStatus,
     nextStep: nextStepFor(facts),
+    lessonCopies: facts.planOpen ? copyStatus() : null, // { state, pictures?: pictures that couldn't be placed, and why }
   };
 }
 
