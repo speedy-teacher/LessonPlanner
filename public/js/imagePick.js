@@ -13,8 +13,11 @@
 // The best score wins; ties prefer pictures shared with "anyone with the link" (only those can be
 // placed in a copy), then ones showing an instrument the lesson uses.
 // On the Lesson Schedule every school week gets one picture (the same for every class that week), and
-// pictures take turns: of the best fits for a week, the one used longest ago (or never) is chosen, so
-// a picture only comes back once every other picture that fits has had its turn.
+// pictures take turns: weeks with only one picture that fits get it first, then every other week takes
+// the best fit that is used farthest away (never used comes first), so a picture only comes back once
+// every other picture that fits has had its turn, and never right before a week that needs it.
+// (Sharing doesn't count here: the planner shares a picture for a moment while placing it, which would
+// make the choice change from minute to minute and from computer to computer.)
 
 import { addDays } from './dates.js';
 import { find } from './model.js';
@@ -101,10 +104,16 @@ function chosenForLesson(state, entry) {
     .map((i) => ({ ...i, when: { ...i.when, anytime: true } }));
 }
 
-/** The week's best picture taking turns: never used first, then the one used longest ago. */
-function leastRecent(best, lastUsed) {
-  const used = (image) => lastUsed.get(image.id) ?? -1;
-  return best.reduce((a, b) => (used(b) < used(a) ? b : a));
+/** How far (in weeks) a picture is from its nearest other use; Infinity when it isn't used yet. */
+function gapToUses(imageId, n, assigned) {
+  let gap = Infinity;
+  for (const [m, image] of assigned) if (image.id === imageId) gap = Math.min(gap, Math.abs(n - m));
+  return gap;
+}
+
+/** Of a week's best fits, the one used farthest away (never used first; ties keep the list order). */
+function farthestFromUses(best, n, assigned) {
+  return best.reduce((a, b) => (gapToUses(b.id, n, assigned) > gapToUses(a.id, n, assigned) ? b : a));
 }
 
 let lastPlan = { key: '', plan: new Map() };
@@ -113,29 +122,24 @@ let lastPlan = { key: '', plan: new Map() };
  * One picture for every school week of the year (Map weekStart → image): the best fit for the week,
  * taking turns with the other best fits so none repeats until all of them have been used.
  */
-export function weeklyPictures(state, yearId, sharing = () => null) {
+export function weeklyPictures(state, yearId) {
   const images = state.images.filter((i) => i.yearId === yearId);
   const holidays = yearEvents(state, yearId);
   const year = find(state, 'years', yearId);
   // The plan is worked out again only when something it depends on changed (the plan is edited in place).
-  const key = JSON.stringify([year, holidays, images.map((i) => [i.id, i.when, i.instrumentIds, sharing(i)])]);
-  if (lastPlan.key !== key) lastPlan = { key, plan: planWeeks(year, images, holidays, sharing) };
+  const key = JSON.stringify([year, holidays, images.map((i) => [i.id, i.when])]);
+  if (lastPlan.key !== key) lastPlan = { key, plan: planWeeks(year, images, holidays) };
   return lastPlan.plan;
 }
 
-
-function planWeeks(year, images, holidays, sharing) {
-  const lastUsed = new Map();
-  const plan = new Map();
-  schoolWeeks(year).forEach((week, n) => {
-    if (!week.days.length) return;
-    const best = pickImages(images, { start: week.days[0], end: week.days.at(-1), holidays, sharing });
-    if (!best.length) return;
-    const image = leastRecent(best, lastUsed);
-    lastUsed.set(image.id, n);
-    plan.set(week.weekStart, image);
-  });
-  return plan;
+function planWeeks(year, images, holidays) {
+  const weeks = schoolWeeks(year).map((week, n) => ({
+    week, n, best: week.days.length ? pickImages(images, { start: week.days[0], end: week.days.at(-1), holidays }) : [],
+  })).filter((w) => w.best.length);
+  const assigned = new Map();
+  weeks.filter((w) => w.best.length === 1).forEach((w) => assigned.set(w.n, w.best[0]));
+  weeks.filter((w) => w.best.length > 1).forEach((w) => assigned.set(w.n, farthestFromUses(w.best, w.n, assigned)));
+  return new Map(weeks.map((w) => [w.week.weekStart, assigned.get(w.n)]));
 }
 
 /** The picture chosen for a schedule entry ({ image, week } — image null when none fits). */
@@ -143,7 +147,7 @@ export function pictureForEntry(state, entry, sharing = () => null) {
   const { week, start, end } = entryDates(state, entry);
   const chosen = chosenForLesson(state, entry);
   if (!chosen.length && week?.days.length) {
-    const image = weeklyPictures(state, entry.yearId, sharing).get(entry.weekStart);
+    const image = weeklyPictures(state, entry.yearId).get(entry.weekStart);
     return { image: image ? find(state, 'images', image.id) : null, week };
   }
   const lesson = find(state, 'lessons', entry.lessonId);

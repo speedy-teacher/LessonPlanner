@@ -211,3 +211,28 @@ test('a greeting week still gets its greeting, even right after it was used', ()
   assert.equal(pictureForEntry(s, one).image.id, welcome.id);
   assert.equal(pictureForEntry(s, two).image.id, welcome.id, 'the only greeting that fits week 2 too');
 });
+
+test('a picture that is the only fit for next week isn’t used the week before when another fits', () => {
+  const { s, year, lesson, weeks, cls } = planner();
+  const image = (name, windows) => Object.assign(addImage(s, { yearId: year.id, name }), { when: { anytime: false, priority: 3, windows } });
+  const span = (from, to) => ({ type: 'date', from, to });
+  // Week 5 fits both; week 6 fits only "Heritage".
+  const fiveStart = weeks[4].days[0].slice(5);
+  const sixEnd = weeks[5].days.at(-1).slice(5);
+  const heritage = image('Heritage', [span(fiveStart, sixEnd)]);
+  const flag = image('Flag', [span(fiveStart, weeks[4].days.at(-1).slice(5))]);
+  const five = addWeekLesson(s, { ...cls, weekStart: weeks[4].weekStart, lessonId: lesson.id });
+  const six = addWeekLesson(s, { ...cls, weekStart: weeks[5].weekStart, lessonId: lesson.id });
+  assert.equal(pictureForEntry(s, six).image.id, heritage.id);
+  assert.equal(pictureForEntry(s, five).image.id, flag.id, 'the flag, so Heritage isn’t shown two weeks running');
+});
+
+test('the picture for a week doesn’t change with which pictures happen to be shared right now', () => {
+  const { s, year, lesson, weeks, cls } = planner();
+  ['Hello', 'Sunny'].forEach((name) => Object.assign(addImage(s, { yearId: year.id, name }), { when: { anytime: true, priority: 2, windows: [] } }));
+  const entry = addWeekLesson(s, { ...cls, weekStart: weeks[6].weekStart, lessonId: lesson.id });
+  const plain = pictureForEntry(s, entry).image.id;
+  for (const id of s.images.map((i) => i.id)) {
+    assert.equal(pictureForEntry(s, entry, (i) => i.id === id).image.id, plain);
+  }
+});
