@@ -13,9 +13,9 @@ import { commit, setUi, store, undo } from '../store.js';
 import { formatRange, todayISO } from '../dates.js';
 import { contextMenu, current, emptyNote, gradePills, instrumentTag, pickId, pills, year } from './common.js';
 import { driveOpenLabel, driveOpenUrl, findLocation } from '../locations.js';
-import { copiesOfLesson } from '../exportBridge.js';
+import { copiesOfLesson, copyFileOfEntry } from '../exportBridge.js';
 import { outcomeColor } from './plan.js';
-import { slideCanvas } from './lessonPreview.js';
+import { slideCanvas, copyCanvas } from './lessonPreview.js';
 
 const NO_EVAL_COLOR = '#9a8b7a';
 
@@ -173,7 +173,7 @@ function entryCard(entry, index, week, placements) {
     ondragstart: (e) => e.dataTransfer.setData('text/plain', JSON.stringify({ entryId: entry.id })),
     onclick: (e) => { if (!e.target.closest('.ls-x')) cardMenu(e, entry, lesson); },
   },
-  h('div', { class: 'ls-thumb' }, slideCanvas(lesson)),
+  h('div', { class: 'ls-thumb' }, copyCanvas(lesson, copyFileOfEntry(entry.id))),
   h('div', { class: 'ls-card-caption' },
     h('span', { class: 'slide-num' }, index + 1),
     missing.length ? h('span', { class: 'warn', 'aria-label': 'Instrument warning' }, '⚠') : null,

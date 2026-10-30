@@ -3,6 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { google } from '../public/js/google.js';
+import { driveLocation } from '../public/js/locations.js';
 import { deckThumbnail, onThumbnail, requestThumbnail } from '../public/js/thumbnails.js';
 
 const deck = (i) => ({ id: `les${i}`, name: `Pretend deck ${i}`, locations: [{ kind: 'drive', uri: `https://drive.google.com/open?id=deck${i}`, fileId: `deck${i}` }] });
@@ -42,4 +43,19 @@ test('decks not in Drive, or Drive not connected, say why there is no preview', 
   assert.match(deckThumbnail({ id: 'x', locations: [] }).reason, /only shown for decks in Google Drive/);
   Object.assign(google, { status: 'idle', token: null });
   assert.match(deckThumbnail(deck(99)).reason, /Connect Google Drive/);
+});
+
+test('a lesson standing in for its filled-in copy gets the copy’s own picture, not the template’s', async () => {
+  Object.assign(google, { status: 'connected', token: 'pretend' });
+  globalThis.fetch = async (url) => {
+    const id = new URL(url).pathname.split('/').pop();
+    return new Response(JSON.stringify({ hasThumbnail: true, thumbnailLink: `https://pictures.example/${id}=s220` }));
+  };
+  const template = deck(500);
+  const copy = { ...template, locations: [driveLocation({ fileId: 'copy500' })] };
+  requestThumbnail(template);
+  requestThumbnail(copy);
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  assert.equal(deckThumbnail(template).url, 'https://pictures.example/deck500=s640');
+  assert.equal(deckThumbnail(copy).url, 'https://pictures.example/copy500=s640');
 });

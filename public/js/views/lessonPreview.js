@@ -7,7 +7,7 @@ import { find, lessonInstruments } from '../model.js';
 import { store } from '../store.js';
 import { formatDate } from '../dates.js';
 import { deckThumbnail, onThumbnail, requestThumbnail, thumbnailFailed } from '../thumbnails.js';
-import { driveFileId } from '../locations.js';
+import { driveFileId, driveLocation } from '../locations.js';
 import { instrumentTag } from './common.js';
 
 /**
@@ -30,10 +30,19 @@ export function slideCanvas(lesson) {
   const thumb = lesson ? deckThumbnail(lesson) : { status: 'none', reason: 'This lesson deck was removed.' };
   const el = drawCanvas(lesson, thumb);
   const fileId = lesson ? driveFileId(lesson) : null;
-  if (fileId) el.dataset.thumbFile = fileId;
+  if (fileId) { el.dataset.thumbFile = fileId; shownDecks.set(fileId, lesson); }
   if (thumb.status === 'waiting') whenVisible(el, () => requestThumbnail(lesson));
   return el;
 }
+
+/** The picture of a filled-in copy (a Drive file) in place of its template; the lesson's name stays. */
+export function copyCanvas(lesson, copyFile) {
+  if (!lesson || !copyFile) return slideCanvas(lesson);
+  return slideCanvas({ ...lesson, locations: [driveLocation(copyFile)] });
+}
+
+// The deck (or copy) behind each picture on screen, so an arriving picture redraws with the right one.
+const shownDecks = new Map();
 
 function drawCanvas(lesson, thumb) {
   if (thumb.status === 'ready') {
@@ -67,7 +76,7 @@ export function whenVisible(el, fn) {
 // When a picture arrives, update just the cards showing that deck (not the whole page).
 onThumbnail((fileId) => {
   for (const el of document.querySelectorAll(`[data-thumb-file="${CSS.escape(fileId)}"]`)) {
-    const lesson = store.state.lessons.find((l) => driveFileId(l) === fileId);
+    const lesson = shownDecks.get(fileId) ?? store.state.lessons.find((l) => driveFileId(l) === fileId);
     if (watcher) { watcher.unobserve(el); waitingToShow.delete(el); }
     el.replaceWith(slideCanvas(lesson));
   }

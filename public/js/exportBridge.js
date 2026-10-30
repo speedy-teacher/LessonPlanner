@@ -569,6 +569,13 @@ function drawWaiting(el, count) {
       h('button', { class: 'btn small light', onclick: updateNow }, 'Update now')));
 }
 
+/** The Drive file of a schedule entry's filled-in copy: { fileId, mimeType }, or null (no copy yet, or kept on the computer). */
+export function copyFileOfEntry(entryId) {
+  if (!bridge.target || bridge.status.state !== 'ready') return null;
+  const copy = bridge.haves.find((c) => c.entryId === entryId && !c.fileName);
+  return copy ? { fileId: copy.id, mimeType: copy.mimeType } : null;
+}
+
 // ---------- for the Lesson Templates page ----------
 
 /**
