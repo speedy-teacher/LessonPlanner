@@ -1,7 +1,8 @@
 // Assistant commands for the three calendars: the Lesson Schedule, the Outcome & Eval
 // Calendar and the Instrument Schedule. See agentCommands.js for how commands are run.
 
-import { weekdaysBetween } from './dates.js';
+import { addDays, weekdaysBetween } from './dates.js';
+import { yearEvents } from './schoolEvents.js';
 import {
   blocksFor, find, outcomeLabel, outcomeOf, paintInstrument, placeCriterion, placementWarnings, placementsFor, remove, resizeRange,
 } from './model.js';
@@ -39,6 +40,13 @@ function allClasses(state) {
   return ofYear(state, 'schools').flatMap((s) => ofYear(state, 'grades').map((g) => ({ yearId, schoolId: s.id, gradeId: g.id, school: s, grade: g })));
 }
 
+function eventsInWeek(state, weekStart) {
+  const friday = addDays(weekStart, 4);
+  return yearEvents(state, year(state).id)
+    .filter((e) => e.startDate <= friday && (e.endDate ?? e.startDate) >= weekStart)
+    .map((e) => ({ name: e.name, startDate: e.startDate, endDate: e.endDate }));
+}
+
 const CLASS = { school: ['School name', true], grade: ['Grade name', true] };
 const WEEK = ['Week number or a date in that week', true];
 
@@ -55,16 +63,19 @@ export const SCHEDULE_COMMANDS = {
     },
   },
   getWeek: {
-    summary: 'One school week for every class: the lessons each class has that week and the evals on the calendar.',
+    summary: 'One school week for every class: the lessons each class has that week, the evals on the calendar, and holidays or events that week.',
     params: { week: WEEK },
     run: (state, a) => {
       const week = weekOf(state, a.week);
+      const classes = allClasses(state).map((c) => {
+        const { lessons, evalsOnCalendar } = weekInfo(state, c, week);
+        return { school: c.school.name, grade: c.grade.name, lessons, evalsOnCalendar };
+      });
+      const empty = classes.every((c) => !c.lessons.length && !c.evalsOnCalendar.length);
       return {
-        week: week.number, weekStart: week.weekStart,
-        classes: allClasses(state).map((c) => {
-          const { lessons, evalsOnCalendar } = weekInfo(state, c, week);
-          return { school: c.school.name, grade: c.grade.name, lessons, evalsOnCalendar };
-        }).filter((c) => c.lessons.length || c.evalsOnCalendar.length),
+        week: week.number, weekStart: week.weekStart, weekEnd: addDays(week.weekStart, 4), schoolDays: week.days.length,
+        events: eventsInWeek(state, week.weekStart), classes,
+        ...(empty ? { note: 'Nothing is scheduled or on the calendar for any class this week.' } : {}),
       };
     },
   },

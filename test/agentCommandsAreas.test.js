@@ -142,3 +142,13 @@ test('raw records can be read when no command shows them, and one request can sp
   assert.equal(runCommand(state, 'findRecords', { collection: 'weekLessons' }).length, 1);
   assert.throws(() => runCommand(state, 'findRecords', { collection: 'secrets' }), /Collections:/);
 });
+
+test('a week shows every class, says when nothing is planned, and lists that week\'s holidays', () => {
+  const s = setup();
+  run(s, 'addEvent', { name: 'Fake Field Day', startDate: '2026-09-11' });
+  const week = run(s, 'getWeek', { week: '2026-09-09' });
+  assert.deepEqual(week.classes.map((c) => [c.school, c.grade, c.lessons]), [['Test School', 'Grade 3', []]]);
+  assert.match(week.note, /Nothing is scheduled/);
+  assert.equal(week.weekEnd, '2026-09-11');
+  assert.deepEqual(week.events.map((e) => e.name), ['Labor Day', 'Fake Field Day']);
+});
