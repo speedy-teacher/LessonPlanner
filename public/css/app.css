@@ -142,6 +142,10 @@ input:focus, select:focus, button:focus-visible { outline: 3px solid #cdb8ea; ou
 }
 .pill:hover { border-color: var(--royal); }
 .pill.active { background: var(--royal); border-color: var(--royal); color: #fff; }
+/* Grade buttons wear their grade's color */
+.pill.tinted { border-color: color-mix(in srgb, var(--pill-color) 55%, #fff); background: color-mix(in srgb, var(--pill-color) 12%, #fff); }
+.pill.tinted:hover { border-color: var(--pill-color); }
+.pill.tinted.active { background: var(--pill-color); border-color: var(--pill-color); color: #fff; }
 .side h3 { font-size: 13px; color: var(--ink-soft); text-transform: uppercase; letter-spacing: .5px; display: flex; gap: 6px; align-items: center; }
 
 /* ---------- layouts ---------- */
@@ -215,6 +219,10 @@ input:focus, select:focus, button:focus-visible { outline: 3px solid #cdb8ea; ou
 .palette-chip.armed { box-shadow: 0 0 0 3px var(--chip); }
 .count { background: #fff; border-radius: 999px; padding: 0 7px; font-size: 11px; font-weight: 800; color: var(--chip); }
 .palette-group { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; }
+/* "All grades" view of the Outcome & Eval Calendar: grade label on each bar, and the color key */
+.grade-tag { color: var(--chip); background: #fff; font-weight: 800; border-radius: 6px; padding: 0 4px; font-size: 11px; flex: none; margin-left: 2px; }
+.grade-legend { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; }
+.grade-legend .outcome-chip { cursor: pointer; }
 .palette-outcome { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 800; color: var(--chip); margin-top: 4px; }
 
 /* Calendar entries: one bar per eval, drawn as connected pieces across days. */
@@ -327,7 +335,7 @@ input:focus, select:focus, button:focus-visible { outline: 3px solid #cdb8ea; ou
   border: 1.5px solid var(--line); background: #fff; border-radius: 10px; min-width: 34px; height: 30px;
   font-weight: 800; cursor: pointer; color: var(--ink-soft);
 }
-.grade-toggle.on { background: var(--sage); border-color: var(--sage); color: #fff; }
+.grade-toggle.on { background: var(--grade, var(--sage)); border-color: var(--grade, var(--sage)); color: #fff; }
 .slide-list { list-style: none; padding: 0; margin: 8px 0; display: flex; flex-direction: column; gap: 6px; }
 .slide-item {
   display: flex; align-items: center; gap: 10px; background: #fff; border: 1.5px solid var(--line);

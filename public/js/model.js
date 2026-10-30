@@ -18,12 +18,15 @@ export const SCHEMA_VERSION = 6;
 /** Default colors handed out to new outcomes and instruments (earthy & royal). */
 export const PALETTE = ['#6b8f5e', '#6a4c93', '#b5654a', '#3f6e8c', '#c49a3a', '#8c4f6b', '#4f7d7a', '#7a6248'];
 
+/** Default grade colors (K, 1, 2…): a soft rainbow, so grades side by side are easy to tell apart. */
+export const GRADE_PALETTE = ['#c27c4e', '#c49a2c', '#6f9a52', '#3f8a8c', '#5f6fb8', '#8f5fa8', '#b25d6e', '#7a8a45'];
+
 /** Collections and what each record looks like (documentation + normalizing). */
 export const COLLECTIONS = {
   years: 'id, name, startDate, endDate',
   instruments: 'id, yearId, name, color',
   schools: 'id, yearId, name',
-  grades: 'id, yearId, name, short',
+  grades: 'id, yearId, name, short, color',
   outcomes: 'id, yearId, code, title, color',
   // Folders picked on a computer (not tied to a year). Each computer connects its own copy once;
   // decks and folders from it point here from their locations (see locations.js).
@@ -154,7 +157,7 @@ export function normalize(raw) {
   state.imageFolders.forEach(normalizeFolder);
   state.images.forEach(normalizeImage);
   state.settings = { ...DEFAULT_SETTINGS, ...(state.settings || {}) };
-  for (const year of state.years) assignOutcomeColors(state, year.id);
+  for (const year of state.years) assignColors(state, year.id);
   if (!state.years.some((y) => y.id === state.activeYearId)) {
     state.activeYearId = state.years.at(-1)?.id ?? null;
   }
@@ -290,16 +293,21 @@ function lessonFromSlide(state, slide) {
   return lesson;
 }
 
-function assignOutcomeColors(state, yearId) {
-  inYear(state, 'outcomes', yearId).forEach((o, i) => {
-    if (!o.color) o.color = PALETTE[i % PALETTE.length];
-  });
+/** Outcomes and grades without a color get one from their palette, in list order. */
+function assignColors(state, yearId) {
+  for (const collection of ['outcomes', 'grades']) {
+    const palette = paletteFor(collection);
+    inYear(state, collection, yearId).forEach((r, i) => { if (!r.color) r.color = palette[i % palette.length]; });
+  }
 }
 
-/** A color for the next new outcome/instrument in a year that isn't used yet, if possible. */
+const paletteFor = (collection) => (collection === 'grades' ? GRADE_PALETTE : PALETTE);
+
+/** A color for the next new outcome/instrument/grade in a year that isn't used yet, if possible. */
 export function nextColor(state, collection, yearId) {
+  const palette = paletteFor(collection);
   const used = new Set(inYear(state, collection, yearId).map((r) => r.color));
-  return PALETTE.find((c) => !used.has(c)) ?? PALETTE[used.size % PALETTE.length];
+  return palette.find((c) => !used.has(c)) ?? palette[used.size % palette.length];
 }
 
 // ---------- generic record helpers ----------
@@ -506,6 +514,12 @@ export function setGrades(state, criterionId, gradeIds) {
   if (!crit) return;
   gradeIds.filter((g) => !crit.gradeIds.includes(g)).forEach((g) => toggleGrade(state, criterionId, g));
   crit.gradeIds.filter((g) => !gradeIds.includes(g)).forEach((g) => toggleGrade(state, criterionId, g));
+}
+
+/** An eval's name with its grades, e.g. "Plays the beat (K, 1, 2)", grades in Setup order. */
+export function evalLabel(state, criterion) {
+  const grades = state.grades.filter((g) => criterion.gradeIds.includes(g.id)).map((g) => g.short || g.name);
+  return `${criterion.title} (${grades.length ? grades.join(', ') : 'no grade yet'})`;
 }
 
 /** Eval criteria of an outcome that apply to a grade. */

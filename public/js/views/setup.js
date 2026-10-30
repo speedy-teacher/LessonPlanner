@@ -11,7 +11,7 @@ import { openNewYear } from './plans.js';
 
 const LISTS = [
   { collection: 'schools', title: 'Schools', placeholder: 'New school…', note: 'Removing a school also removes its calendar entries and instrument schedule.' },
-  { collection: 'grades', title: 'Grades', placeholder: 'New grade…', note: 'The short label shows on buttons (K, 1, 2…).' },
+  { collection: 'grades', title: 'Grades', placeholder: 'New grade…', note: 'The short label shows on buttons (K, 1, 2…). The color marks the grade on buttons and on the calendar’s “All” view.' },
   { collection: 'instruments', title: 'Instruments', placeholder: 'New instrument…', note: 'Pick a color for the schedule calendar.' },
 ];
 
@@ -64,15 +64,15 @@ function listCard({ collection, title, placeholder, note }) {
 function newRecord(collection, name) {
   const base = { yearId: year().id, name };
   if (collection === 'instruments') return { ...base, color: nextColor(store.state, 'instruments', base.yearId) };
-  if (collection === 'grades') return { ...base, short: name.replace(/^grade\s*/i, '').slice(0, 3) };
+  if (collection === 'grades') return { ...base, short: name.replace(/^grade\s*/i, '').slice(0, 3), color: nextColor(store.state, 'grades', base.yearId) };
   return base;
 }
 
 function extraBefore(collection, item) {
-  if (collection !== 'instruments') return null;
+  if (collection === 'schools') return null;
   return h('input', {
     type: 'color', class: 'color-pick', value: item.color, title: 'Change color',
-    onchange: (e) => commit((s) => update(s, 'instruments', item.id, { color: e.target.value })),
+    onchange: (e) => commit((s) => update(s, collection, item.id, { color: e.target.value })),
   });
 }
 

@@ -6,7 +6,7 @@ import {
   add, addStep, autoFill, copyOrder, nextColor, criteriaFor, find, moveStep, remove, stepsFor, toggleGrade, update,
 } from '../model.js';
 import { commit, setUi, store, undo } from '../store.js';
-import { current, emptyNote, pickId, pills, year } from './common.js';
+import { current, emptyNote, gradePills, pickId, year } from './common.js';
 import { outcomeColor } from './plan.js';
 import { instrumentTags, lessonPreview } from './lessonPreview.js';
 import { newLesson } from './lessons.js';
@@ -73,6 +73,7 @@ function criterionCard(crit) {
         class: `grade-toggle ${crit.gradeIds.includes(g.id) ? 'on' : ''}`,
         title: `${crit.gradeIds.includes(g.id) ? 'Remove' : 'Add'} ${g.name}`,
         'aria-pressed': crit.gradeIds.includes(g.id) ? 'true' : 'false',
+        style: { '--grade': g.color },
         onclick: () => commit((s) => toggleGrade(s, crit.id, g.id)),
       }, g.short || g.name))),
     lessonList(crit),
@@ -129,7 +130,7 @@ function gradeSwitch(crit, gradeId) {
   const name = grades.find((g) => g.id === gradeId)?.name;
   return h('div', { class: 'order-grades' },
     h('span', { class: 'mini-label' }, 'Order for:'),
-    pills(grades, gradeId, (id) => setUi({ gradeId: id }), { label: (g) => g.name }),
+    gradePills(grades, gradeId, (id) => setUi({ gradeId: id }), { label: (g) => g.name, hint: () => null }),
     allSame ? h('span', { class: 'hint' }, '(the same for every grade)') : h('button', {
       class: 'link-btn', title: `Every grade of this eval gets ${name}’s lessons in ${name}’s order`,
       onclick: () => {

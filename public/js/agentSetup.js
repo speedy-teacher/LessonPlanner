@@ -21,9 +21,10 @@ function listNamed(name) {
 
 function newItem(state, collection, a) {
   const base = { yearId: year(state).id, name: text(a.name, 'name') };
-  if (collection === 'instruments') return { ...base, color: a.color ? color(a.color) : nextColor(state, 'instruments', base.yearId) };
-  if (collection === 'grades') return { ...base, short: a.short ?? base.name.replace(/^grade\s*/i, '').slice(0, 3) };
-  return base;
+  if (collection === 'schools') return base;
+  const colored = { ...base, color: a.color ? color(a.color) : nextColor(state, collection, base.yearId) };
+  if (collection === 'grades') return { ...colored, short: a.short ?? base.name.replace(/^grade\s*/i, '').slice(0, 3) };
+  return colored;
 }
 
 const LIST = ['"schools", "grades" or "instruments"', true];
@@ -45,7 +46,7 @@ export const SETUP_COMMANDS = {
   addSetupItem: {
     summary: 'Add a school, grade or instrument to the year.',
     changes: true,
-    params: { list: LIST, name: ['Its name', true], short: ['Grades only: short label, e.g. K or 3'], color: ['Instruments only: color like #b5654a'] },
+    params: { list: LIST, name: ['Its name', true], short: ['Grades only: short label, e.g. K or 3'], color: ['Grades and instruments: color like #b5654a; default a free one'] },
     run: (state, a) => {
       const [collection] = listNamed(a.list);
       const item = add(state, collection, newItem(state, collection, a));
@@ -53,9 +54,9 @@ export const SETUP_COMMANDS = {
     },
   },
   editSetupItem: {
-    summary: 'Rename a school, grade or instrument, or change a grade\'s short label or an instrument\'s color.',
+    summary: 'Rename a school, grade or instrument, or change a grade\'s short label or a grade\'s or instrument\'s color.',
     changes: true,
-    params: { list: LIST, item: ['Its current name', true], name: ['New name'], short: ['Grades only: short label'], color: ['Instruments only: color'] },
+    params: { list: LIST, item: ['Its current name', true], name: ['New name'], short: ['Grades only: short label'], color: ['Grades and instruments: color'] },
     run: (state, a) => {
       const [collection, kind] = listNamed(a.list);
       const item = kind.find(state, a.item);

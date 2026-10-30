@@ -35,6 +35,10 @@ A browser app for a (non-technical) elementary music teacher to plan a school ye
   isn't for falls back to its first order; no grade = all steps). `addStep` without a grade adds to every grade;
   `toggleGrade`/`setGrades` copy the first order to a new grade; `copyOrder` = "Use X's order for every grade".
   The Outcomes page switches grades with pills that share `ui.gradeId` with the Lesson Schedule.
+- Grades have a `color` (`GRADE_PALETTE`, filled in on load like outcome colors; picker in Setup). Grade buttons use
+  `gradePills()` (tinted) and `--grade` on `.grade-toggle`. Calendar "All" (`ui.planAllGrades`, key A): every grade's
+  placements, bar = grade color, outcome code keeps the outcome color; view/move only (adding needs one grade).
+  `evalLabel()` = "Eval (K, 1, 2)" for lists that mix grades.
 - **A lesson is one slide deck**: name, category, `autoFields[]`, `instrumentIds[]`. Decks are reusable across evals.
   "Used in the following content" traverses deck → steps → criteria → grades/outcome.
 - Calendars: `placements` (criterion for school+grade, date range, colored by outcome) and `instrumentBlocks`

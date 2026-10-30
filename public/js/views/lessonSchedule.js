@@ -4,14 +4,14 @@
 // and which instruments are at the school.
 
 import { h, iconButton, openModal, toast } from '../dom.js';
-import { find, inYear, lessonInstruments, outcomeLabel } from '../model.js';
+import { evalLabel, find, inYear, lessonInstruments, outcomeLabel } from '../model.js';
 import {
   addWeekLesson, autoFillWeek, autoFillWeeks, entryOutcome, filterLessons, instrumentsInWeek, missingInstruments,
   moveWeekLesson, placementsInWeek, removeWeekLesson, schoolWeeks, weekLessonsFor,
 } from '../weekPlan.js';
 import { commit, setUi, store, undo } from '../store.js';
 import { formatRange, todayISO } from '../dates.js';
-import { contextMenu, current, emptyNote, instrumentTag, pickId, pills, year } from './common.js';
+import { contextMenu, current, emptyNote, gradePills, instrumentTag, pickId, pills, year } from './common.js';
 import { driveOpenLabel, driveOpenUrl, findLocation } from '../locations.js';
 import { copiesOfLesson } from '../exportBridge.js';
 import { outcomeColor } from './plan.js';
@@ -55,7 +55,7 @@ function header(ctx) {
       h('div', { class: 'ls-pick' }, h('span', { class: 'mini-label' }, 'School ', h('kbd', { title: 'Press [ or ] to switch school' }, '[ ]')),
         pills(ctx.schools, ctx.cls.schoolId, (id) => setUi({ schoolId: id }))),
       h('div', { class: 'ls-pick' }, h('span', { class: 'mini-label' }, 'Grade ', h('kbd', { title: 'Press the grade’s number key (K = 0)' }, '0–5')),
-        pills(ctx.grades, ctx.cls.gradeId, (id) => setUi({ gradeId: id }), { label: (g) => g.short || g.name, hint: (g) => g.name })),
+        gradePills(ctx.grades, ctx.cls.gradeId, (id) => setUi({ gradeId: id }))),
       h('button', {
         class: 'btn ls-fill', onclick: () => openAutoFill(ctx),
         'data-tip': 'Puts each eval’s lessons, in order, into the weeks it’s on the Outcome & Eval Calendar.',
@@ -286,7 +286,7 @@ function filterSelects(ctx, f) {
   return h('div', { class: 'ls-filters' },
     filterSelect('Grade', 'lsGrade', f.gradeId, ctx.grades.map((g) => [g.id, g.name])),
     filterSelect('Outcome', 'lsOutcome', f.outcomeId, outcomes.map((o) => [o.id, outcomeLabel(o)])),
-    filterSelect('Eval', 'lsEval', f.criterionId, criteria.map((c) => [c.id, c.title])),
+    filterSelect('Eval', 'lsEval', f.criterionId, criteria.map((c) => [c.id, evalLabel(store.state, c)])),
     categories.length ? filterSelect('Category', 'lsCategory', f.category, categories.map((c) => [c, c])) : null,
     anyOn ? h('button', { class: 'btn small light', onclick: () => setUi({ lsGrade: '', lsOutcome: '', lsEval: '', lsCategory: '' }) }, 'Clear filters') : null);
 }

@@ -21,16 +21,24 @@ export function pickId(list, remembered) {
 }
 
 /** Row of pill buttons for picking one item. */
-export function pills(items, activeId, onPick, { label = (r) => r.name, hint, colorOf } = {}) {
+export function pills(items, activeId, onPick, { label = (r) => r.name, hint, colorOf, tintOf } = {}) {
   return h('div', { class: 'pills', role: 'tablist' },
-    items.map((item, i) => h('button', {
-      class: `pill ${item.id === activeId ? 'active' : ''}`,
-      role: 'tab',
-      'aria-selected': item.id === activeId ? 'true' : 'false',
-      title: hint ? hint(item, i) : null,
-      style: colorOf ? { '--pill-color': colorOf(item) } : null,
-      onclick: () => onPick(item.id),
-    }, colorOf ? h('span', { class: 'dot', style: { background: colorOf(item) } }) : null, label(item))));
+    items.map((item, i) => {
+      const tint = tintOf?.(item);
+      return h('button', {
+        class: `pill ${item.id === activeId ? 'active' : ''} ${tint ? 'tinted' : ''}`,
+        role: 'tab',
+        'aria-selected': item.id === activeId ? 'true' : 'false',
+        title: hint ? hint(item, i) : null,
+        style: colorOf || tint ? { '--pill-color': tint || colorOf(item) } : null,
+        onclick: () => onPick(item.id),
+      }, colorOf ? h('span', { class: 'dot', style: { background: colorOf(item) } }) : null, label(item));
+    }));
+}
+
+/** Grade buttons, each in its grade's color (Setup › School Year). Extra items (e.g. "All") stay plain. */
+export function gradePills(grades, activeId, onPick, { label = (g) => g.short || g.name, hint = (g) => g.name } = {}) {
+  return pills(grades, activeId, onPick, { label, hint, tintOf: (g) => g.color });
 }
 
 /**
