@@ -92,6 +92,12 @@ A browser app for a (non-technical) elementary music teacher to plan a school ye
   fill-in) share that path. `exportBridge.js` runs it in the background, bottom-right queue panel: a minute after your
   last data change (`SETTLE_MS`, `store.editedAt` = commit/undo/redo only; a change mid-run pauses the queue), with a
   countdown + "Update now"; opening/loading a plan, signing in or choosing a folder update after 1.5 s.
+  Drive: 4 entries at once (`JOBS`; each entry one step at a time, a copy another job uses isn't touched/reused),
+  "slow down" answers (429/5xx/rate-limit 403) retried after 1/3/8 s; local folders 1 at a time. Week folders are
+  looked up once per path (promise cache); same-name twins are combined into the oldest (`combineInto`, contents moved,
+  twin trashed). One computer/tab per plan works at a time (`copyLock.js`, pure + tested): note `lpWorker`/`lpWorkerUntil`
+  on the plan's folder, 3-min claim renewed every minute, read back after 1.5 s; a fresh claim re-lists the copies;
+  others show "Your other computer is updating the lesson copies" and look again in a minute.
   Templates are only ever copied. Shared plans: only the keeper (who chose the folder, by Google `permissionId`) changes copies;
   others get a notice naming the keeper and how many copies are behind. Copies aren't in the plan data, so undo never touches them.
 
