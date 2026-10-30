@@ -152,10 +152,26 @@ export function lessonInfo(state, l) {
   };
 }
 
-export function evalInfo(state, c) {
+/**
+ * An eval for the assistant. Each grade has its own lesson order: `lessons` when they're all the
+ * same (or for `gradeId` only), otherwise `lessonsByGrade` (grade name → lessons).
+ */
+export function evalInfo(state, c, gradeId) {
+  const order = (g) => namesOf(state, 'lessons', stepsFor(state, c.id, g).map((s) => s.lessonId));
+  const grades = gradeId ? [gradeId] : c.gradeIds;
+  const orders = grades.length ? grades.map((g) => [find(state, 'grades', g)?.name, order(g)]) : [[null, order(null)]];
+  const same = orders.every(([, list]) => list.join('\n') === orders[0][1].join('\n'));
   return {
     id: c.id, title: c.title, outcome: outcomeLabel(outcomeOf(state, c.id)),
     grades: namesOf(state, 'grades', c.gradeIds),
-    lessons: namesOf(state, 'lessons', stepsFor(state, c.id).map((s) => s.lessonId)),
+    ...(same ? { lessons: orders[0][1] } : { lessonsByGrade: Object.fromEntries(orders) }),
   };
+}
+
+/** The grades a lesson-order command changes: the one asked for (it must be one of the eval's), or all of them. */
+export function orderGrades(state, c, ref) {
+  if (!ref) return c.gradeIds.length ? c.gradeIds : [null];
+  const g = grade(state, ref);
+  if (!c.gradeIds.includes(g.id)) fail(`${c.title} isn't for ${g.name}. Its grades: ${namesOf(state, 'grades', c.gradeIds).join(', ') || 'none yet'}.`);
+  return [g.id];
 }

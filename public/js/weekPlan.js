@@ -107,7 +107,7 @@ export function missingInstruments(state, entry, week) {
  */
 export function entryCriterion(state, entry, weekPlacements) {
   if (entry.criterionId && find(state, 'criteria', entry.criterionId)) return find(state, 'criteria', entry.criterionId);
-  const match = weekPlacements.find((p) => stepsFor(state, p.criterionId).some((s) => s.lessonId === entry.lessonId));
+  const match = weekPlacements.find((p) => stepsFor(state, p.criterionId, p.gradeId).some((s) => s.lessonId === entry.lessonId));
   return match ? find(state, 'criteria', match.criterionId) : null;
 }
 
@@ -140,7 +140,7 @@ function lessonsInEvals(state, yearId, { gradeId, outcomeId, criterionId }) {
   const outcomeIds = state.outcomes.filter((o) => o.yearId === yearId && (!outcomeId || o.id === outcomeId)).map((o) => o.id);
   const criteria = state.criteria.filter((c) => outcomeIds.includes(c.outcomeId)
     && (!gradeId || c.gradeIds.includes(gradeId)) && (!criterionId || c.id === criterionId));
-  const ids = [...new Set(criteria.flatMap((c) => stepsFor(state, c.id).map((s) => s.lessonId)))];
+  const ids = [...new Set(criteria.flatMap((c) => stepsFor(state, c.id, gradeId || undefined).map((s) => s.lessonId)))];
   return ids.map((id) => find(state, 'lessons', id)).filter(Boolean);
 }
 
@@ -154,7 +154,7 @@ export function calendarPlan(state, cls, weeks) {
     .sort((a, b) => a.startDate.localeCompare(b.startDate));
   return sorted.flatMap((p) => {
     const covered = weeks.filter((w) => p.startDate <= w.friday && p.endDate >= w.weekStart);
-    const steps = stepsFor(state, p.criterionId);
+    const steps = stepsFor(state, p.criterionId, p.gradeId);
     if (!covered.length) return [];
     return steps.map((step, i) => ({
       weekStart: covered[Math.floor((i * covered.length) / steps.length)].weekStart,

@@ -122,7 +122,7 @@ export function warningText(placement, warnings) {
 
 function detailPanel(p) {
   const criterion = find(store.state, 'criteria', p.criterionId);
-  const steps = stepsFor(store.state, p.criterionId);
+  const steps = stepsFor(store.state, p.criterionId, p.gradeId);
   const warnIds = new Set(placementWarnings(store.state, p).map((w) => w.step.id));
   const range = p.startDate === p.endDate ? formatDate(p.startDate) : `${formatDate(p.startDate)} – ${formatDate(p.endDate)}`;
   return h('aside', { class: 'detail card', style: { '--chip': outcomeColor(outcomeOf(store.state, p.criterionId)?.id) } },

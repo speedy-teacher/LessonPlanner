@@ -51,11 +51,11 @@ function placementLabel(p) {
 /** Clicking an eval on the calendar: its lessons' instruments, the eval itself, or remove it. */
 function placementMenu(e, p) {
   const criterion = find(store.state, 'criteria', p.criterionId);
-  const lessons = stepsFor(store.state, p.criterionId).map((s) => find(store.state, 'lessons', s.lessonId));
+  const lessons = stepsFor(store.state, p.criterionId, p.gradeId).map((s) => find(store.state, 'lessons', s.lessonId));
   const instruments = [...new Map(lessons.flatMap((l) => lessonInstruments(store.state, l)).map((i) => [i.id, i])).values()];
   contextMenu(e, [
     ...instruments.map((i) => ({ icon: '📖', label: `Lessons that use ${i.name}`, run: () => showInstrumentLessons(i.id) })),
-    { icon: '🌱', label: 'Open this eval in Outcomes, Evals & Lesson Order', run: () => showEval(criterion) },
+    { icon: '🌱', label: 'Open this eval in Outcomes, Evals & Lesson Order', run: () => showEval(criterion, p.gradeId) },
     { icon: '🗑', label: 'Remove from calendar', run: () => removePlacement(p) },
   ]);
 }

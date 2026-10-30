@@ -1,11 +1,13 @@
 // Assistant commands for Setup › Outcomes, Evals & Lesson Order: essential outcomes,
 // their eval criteria (with grades) and each eval's lessons in teaching order. See agentCommands.js.
 
-import { add, addStep, moveStep, nextColor, remove, stepsFor, update } from './model.js';
+import { add, addStep, copyOrder, moveStep, nextColor, remove, setGrades, stepsFor, update } from './model.js';
 import { addDeck } from './library.js';
 import {
-  color, evalInfo, evalOf, fail, grade, idsOf, indexOf, lesson, listOf, ofYear, outcome, patchFrom, text, year, yearCriteria,
+  color, evalInfo, evalOf, fail, grade, idsOf, indexOf, lesson, listOf, ofYear, orderGrades, outcome, patchFrom, text, year, yearCriteria,
 } from './agentHelpers.js';
+
+const GRADE_PARAM = ['Only this grade\'s lesson order (each grade has its own); default every grade of the eval'];
 
 /** A lesson by name; with `create`, a new lesson template is made when none has that name. */
 function lessonOrNew(state, ref, create) {
@@ -24,14 +26,14 @@ export const OUTCOME_COMMANDS = {
     })),
   },
   listEvals: {
-    summary: 'Eval criteria with their outcome, grades and lessons in teaching order.',
-    params: { grade: ['Only evals for this grade'], outcome: ['Only evals of this outcome'] },
+    summary: 'Eval criteria with their outcome, grades and lessons in teaching order (each grade has its own order).',
+    params: { grade: ['Only evals for this grade, with that grade\'s lesson order'], outcome: ['Only evals of this outcome'] },
     run: (state, a) => {
       const g = a.grade ? grade(state, a.grade) : null;
       const o = a.outcome ? outcome(state, a.outcome) : null;
       return yearCriteria(state)
         .filter((c) => (!g || c.gradeIds.includes(g.id)) && (!o || c.outcomeId === o.id))
-        .map((c) => evalInfo(state, c));
+        .map((c) => evalInfo(state, c, g?.id));
     },
   },
   addOutcome: {
@@ -89,7 +91,7 @@ export const OUTCOME_COMMANDS = {
       if (a.outcome) patch.outcomeId = outcome(state, a.outcome).id;
       const base = a.grades === undefined ? c.gradeIds : idsOf(state, a.grades, grade);
       const off = new Set(idsOf(state, a.removeGrades, grade));
-      patch.gradeIds = [...new Set([...base, ...idsOf(state, a.addGrades, grade)])].filter((id) => !off.has(id));
+      setGrades(state, c.id, [...new Set([...base, ...idsOf(state, a.addGrades, grade)])].filter((id) => !off.has(id)));
       update(state, 'criteria', c.id, patch);
       return evalInfo(state, c);
     },
@@ -107,37 +109,60 @@ export const OUTCOME_COMMANDS = {
   setEvalLessons: {
     summary: 'Set an eval\'s whole lesson list in teaching order (replaces it). New lesson templates are made for names not found when createMissing is true.',
     changes: true,
-    params: { eval: ['Its title', true], lessons: ['Lesson names in teaching order', true], createMissing: ['true to make new lesson templates'] },
+    params: {
+      eval: ['Its title', true], lessons: ['Lesson names in teaching order', true], grade: GRADE_PARAM, createMissing: ['true to make new lesson templates'],
+    },
     run: (state, a) => {
       const c = evalOf(state, a.eval);
+      const grades = orderGrades(state, c, a.grade);
       const ids = listOf(a.lessons).map((ref) => lessonOrNew(state, ref, a.createMissing === true).id);
-      stepsFor(state, c.id).forEach((s) => remove(state, 'criterionLessons', s.id));
-      ids.forEach((id) => addStep(state, c.id, id));
+      for (const g of grades) {
+        stepsFor(state, c.id, g).forEach((s) => remove(state, 'criterionLessons', s.id));
+        ids.forEach((id) => addStep(state, c.id, id, g));
+      }
       return evalInfo(state, c);
     },
   },
   addLessonToEval: {
     summary: 'Add a lesson to an eval\'s teaching order (a new lesson template is made if createMissing is true and none has that name).',
     changes: true,
-    params: { eval: ['Its title', true], lesson: ['Lesson name', true], position: ['Place in the order (1 = first); default last'], createMissing: ['true to make a new lesson template'] },
+    params: {
+      eval: ['Its title', true], lesson: ['Lesson name', true], grade: GRADE_PARAM,
+      position: ['Place in the order (1 = first); default last'], createMissing: ['true to make a new lesson template'],
+    },
     run: (state, a) => {
       const c = evalOf(state, a.eval);
-      const step = addStep(state, c.id, lessonOrNew(state, a.lesson, a.createMissing === true).id);
-      if (indexOf(a.position) !== undefined) moveStep(state, step.id, indexOf(a.position));
+      const grades = orderGrades(state, c, a.grade);
+      const lessonId = lessonOrNew(state, a.lesson, a.createMissing === true).id;
+      for (const g of grades) {
+        const step = addStep(state, c.id, lessonId, g);
+        if (indexOf(a.position) !== undefined) moveStep(state, step.id, indexOf(a.position));
+      }
       return evalInfo(state, c);
     },
   },
   removeLessonFromEval: {
     summary: 'Take a lesson out of an eval\'s teaching order (the template is kept).',
     changes: true,
-    params: { eval: ['Its title', true], lesson: ['Lesson name', true] },
+    params: { eval: ['Its title', true], lesson: ['Lesson name', true], grade: GRADE_PARAM },
     run: (state, a) => {
       const c = evalOf(state, a.eval);
       const l = lesson(state, a.lesson);
-      const steps = stepsFor(state, c.id).filter((s) => s.lessonId === l.id);
+      const steps = orderGrades(state, c, a.grade).flatMap((g) => stepsFor(state, c.id, g)).filter((s) => s.lessonId === l.id);
       if (!steps.length) fail(`${l.name} isn't in ${c.title}.`);
       steps.forEach((s) => remove(state, 'criterionLessons', s.id));
-      stepsFor(state, c.id).forEach((s, i) => { s.position = i; });
+      return evalInfo(state, c);
+    },
+  },
+  copyEvalOrder: {
+    summary: 'Give other grades of an eval the same lesson order as one grade (replaces theirs).',
+    changes: true,
+    params: { eval: ['Its title', true], from: ['The grade to copy', true], to: ['Grades to change; default every other grade of the eval'] },
+    run: (state, a) => {
+      const c = evalOf(state, a.eval);
+      const [from] = orderGrades(state, c, a.from);
+      const to = a.to === undefined ? c.gradeIds : listOf(a.to).flatMap((ref) => orderGrades(state, c, ref));
+      copyOrder(state, c.id, from, to);
       return evalInfo(state, c);
     },
   },

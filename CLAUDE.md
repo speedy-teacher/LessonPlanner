@@ -30,6 +30,11 @@ A browser app for a (non-technical) elementary music teacher to plan a school ye
 - Per-browser only (`deviceSettings.js`): recent plans, last plan, `driveConnected`. View state in `lesson-planner-ui`.
 - Everything is per academic year (`yearId`); a new year copies `ROLLOVER` collections with `copiedFromId`; calendars start empty.
 - Essential outcome (code, `color`) → eval criteria (`gradeIds[]`) → `criterionLessons` (ordered: lessonId, position) → `lessons`.
+  **Each grade of an eval has its own lesson order** (`criterionLessons.gradeId`; null = eval has no grades yet; schema v6
+  copied the old shared order to every grade). Always pass the grade: `stepsFor(state, critId, gradeId)` (a grade the eval
+  isn't for falls back to its first order; no grade = all steps). `addStep` without a grade adds to every grade;
+  `toggleGrade`/`setGrades` copy the first order to a new grade; `copyOrder` = "Use X's order for every grade".
+  The Outcomes page switches grades with pills that share `ui.gradeId` with the Lesson Schedule.
 - **A lesson is one slide deck**: name, category, `autoFields[]`, `instrumentIds[]`. Decks are reusable across evals.
   "Used in the following content" traverses deck → steps → criteria → grades/outcome.
 - Calendars: `placements` (criterion for school+grade, date range, colored by outcome) and `instrumentBlocks`

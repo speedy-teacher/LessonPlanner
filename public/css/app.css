@@ -684,6 +684,12 @@ button.ins-tag:hover { filter: brightness(.92); box-shadow: 0 0 0 1.5px var(--in
 .crit-lessons > summary::before { content: '▸'; color: var(--royal); transition: transform .15s; }
 .crit-lessons[open] > summary::before { transform: rotate(90deg); }
 .crit-lessons > summary:hover { color: var(--royal); }
+/* Each grade's own lesson order */
+.order-grades { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin: 8px 0 2px; }
+.order-grades .pills { margin: 0; }
+/* An eval opened from somewhere else glows for a moment */
+.crit-card { scroll-margin-top: 12px; }
+.crit-card.flash { animation: gallery-flash 1.6s ease-out; }
 .crit-lessons > .hint { margin: 2px 0 6px; }
 
 /* Lesson Templates: the text to type in the slides, next to each automatic detail */

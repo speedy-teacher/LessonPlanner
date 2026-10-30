@@ -10,6 +10,7 @@ import { canFillIn, driveOpenLabel, driveOpenUrl, fillInProblem } from '../locat
 import { commit, setUi, store, undo } from '../store.js';
 import { current, emptyNote, year } from './common.js';
 import { lessonPreview } from './lessonPreview.js';
+import { showEval } from './outcomes.js';
 import { deckTree, instrumentFilter, openFolders, visibleDecks } from './deckTree.js';
 import { addMenu } from './deckImport.js';
 import { copiesOfLesson, copyStatus } from '../exportBridge.js';
@@ -193,7 +194,11 @@ function usedIn(l) {
           onclick: () => setUi({ tab: 'outcomes', outcomeId: outcome?.id }),
         }, outcomeLabel(outcome)),
         h('ul', { class: 'usage-evals' }, evals.map(({ criterion, positions }) => h('li', {},
-          criterion.title,
+          h('button', {
+            class: 'link-btn',
+            title: grade ? `Open this eval, with ${grade.name}’s lesson order` : 'Open this eval',
+            onclick: () => showEval(criterion, grade?.id),
+          }, criterion.title),
           h('span', { class: 'hint' }, ` — lesson ${positions.join(' & ')}`))))))))),
     addToEval(l),
     lessonPictureList(l),

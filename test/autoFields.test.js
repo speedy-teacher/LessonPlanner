@@ -24,9 +24,10 @@ test('a lesson deck added to an eval goes last in its lesson order', () => {
   const yearId = s.years[0].id;
   const crit = criteriaFor(s, inYear(s, 'outcomes', yearId)[0].id)[0];
   const lesson = inYear(s, 'lessons', yearId).find((l) => !lessonEvals(s, l.id).some((e) => e.criterion.id === crit.id));
-  const before = stepsFor(s, crit.id).length;
+  const [grade] = crit.gradeIds;
+  const before = stepsFor(s, crit.id, grade).length;
   addStep(s, crit.id, lesson.id);
-  const steps = stepsFor(s, crit.id);
+  const steps = stepsFor(s, crit.id, grade);
   assert.equal(steps.length, before + 1);
   assert.equal(steps.at(-1).lessonId, lesson.id);
   assert.ok(lessonEvals(s, lesson.id).some((e) => e.criterion.id === crit.id && e.positions.includes(before + 1)));

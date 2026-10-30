@@ -13,7 +13,7 @@
 import { addDays, daysBetween, isWeekday, mondayOf, nextWeekday, weekdaysBetween } from './dates.js';
 import { canFillIn, driveLocation, localLocation } from './locations.js';
 
-export const SCHEMA_VERSION = 5;
+export const SCHEMA_VERSION = 6;
 
 /** Default colors handed out to new outcomes and instruments (earthy & royal). */
 export const PALETTE = ['#6b8f5e', '#6a4c93', '#b5654a', '#3f6e8c', '#c49a3a', '#8c4f6b', '#4f7d7a', '#7a6248'];
@@ -38,7 +38,8 @@ export const COLLECTIONS = {
   lessons: 'id, yearId, name, category, autoFields[], instrumentIds[], folderId, locations[], isNew',
   criteria: 'id, outcomeId, title, gradeIds[]',
   // The lessons an eval criterion is taught with, in teaching order (a lesson can be in several evals).
-  criterionLessons: 'id, criterionId, lessonId, position',
+  // Each grade of the eval has its own order (`gradeId`); null = the eval has no grades yet.
+  criterionLessons: 'id, criterionId, gradeId, lessonId, position',
   placements: 'id, yearId, schoolId, gradeId, criterionId, startDate, endDate',
   instrumentBlocks: 'id, yearId, schoolId, instrumentId, startDate, endDate',
   // The Lesson Schedule: lesson decks taught to a class (school + grade) in a school week
@@ -111,7 +112,7 @@ const RELATIONS = {
   ],
   instruments: [['instrumentBlocks', 'instrumentId', 'delete'], ['lessons', 'instrumentIds', 'pull'], ['images', 'instrumentIds', 'pull']],
   schools: [['placements', 'schoolId', 'delete'], ['instrumentBlocks', 'schoolId', 'delete'], ['weekLessons', 'schoolId', 'delete']],
-  grades: [['placements', 'gradeId', 'delete'], ['criteria', 'gradeIds', 'pull'], ['weekLessons', 'gradeId', 'delete']],
+  grades: [['placements', 'gradeId', 'delete'], ['criteria', 'gradeIds', 'pull'], ['criterionLessons', 'gradeId', 'delete'], ['weekLessons', 'gradeId', 'delete']],
   outcomes: [['criteria', 'outcomeId', 'delete']],
   lessons: [['criterionLessons', 'lessonId', 'delete'], ['weekLessons', 'lessonId', 'delete'], ['images', 'lessonIds', 'pull']],
   deckFolders: [['deckFolders', 'parentId', 'delete'], ['lessons', 'folderId', 'null']],
@@ -167,6 +168,7 @@ function migrate(state) {
   if (version < 2) migrateToV2(state);
   if (version < 3) migrateToV3(state);
   if (version < 5) migrateToV5(state);
+  if (version < 6) migrateToV6(state);
 }
 
 function normalizeLesson(lesson) {
@@ -192,6 +194,16 @@ function normalizeFolder(folder) {
   if (!Array.isArray(folder.locations)) folder.locations = [];
   if (!Array.isArray(folder.seenDriveIds)) folder.seenDriveIds = [];
   folder.watch = Boolean(folder.watch);
+}
+
+/** Version 6: each grade of an eval gets its own lesson order (a copy of the one shared order). */
+function migrateToV6(state) {
+  state.criterionLessons = state.criterionLessons.flatMap((step) => {
+    if (step.gradeId !== undefined) return [step];
+    const gradeIds = find(state, 'criteria', step.criterionId)?.gradeIds ?? [];
+    if (!gradeIds.length) return [{ ...step, gradeId: null }];
+    return gradeIds.map((gradeId, i) => ({ ...step, id: i ? newId('cl') : step.id, gradeId }));
+  });
 }
 
 /**
@@ -320,7 +332,7 @@ export function remove(state, collection, id) {
   for (const [other, field, action] of RELATIONS[collection] || []) {
     applyRelation(state, other, field, action, id);
   }
-  if (collection === 'criterionLessons') renumberSteps(state, record.criterionId);
+  if (collection === 'criterionLessons') renumberSteps(state, record.criterionId, record.gradeId);
   if (collection === 'years' && state.activeYearId === id) {
     state.activeYearId = state.years.at(-1)?.id ?? null;
   }
@@ -386,7 +398,7 @@ function copyCriteria(state, fromOutcomeId, toOutcomeId, mapId) {
     });
     for (const step of stepsFor(state, crit.id)) {
       add(state, 'criterionLessons', {
-        criterionId: newCrit.id, lessonId: mapId(step.lessonId), position: step.position, copiedFromId: step.id,
+        criterionId: newCrit.id, gradeId: mapId(step.gradeId), lessonId: mapId(step.lessonId), position: step.position, copiedFromId: step.id,
       });
     }
   }
@@ -416,40 +428,84 @@ export function criteriaFor(state, outcomeId) {
 }
 
 /**
- * The "steps" of an eval criterion: its lessons in teaching order.
- * Each step is a criterionLessons record pointing at a lesson.
+ * The "steps" of an eval criterion: its lessons in teaching order for one grade (each grade has its
+ * own order; an eval with no grades yet keeps one order, gradeId null). A grade the eval isn't for
+ * (e.g. placed on that grade's calendar anyway) gets the eval's first order.
+ * Without a grade: every grade's steps. Each step is a criterionLessons record pointing at a lesson.
  */
-export function stepsFor(state, criterionId) {
-  return state.criterionLessons
-    .filter((s) => s.criterionId === criterionId)
-    .sort((a, b) => a.position - b.position);
+export function stepsFor(state, criterionId, gradeId) {
+  const all = state.criterionLessons.filter((s) => s.criterionId === criterionId);
+  const forGrade = (g) => all.filter((s) => (s.gradeId ?? null) === g);
+  let steps = gradeId === undefined ? all : forGrade(gradeId);
+  if (gradeId !== undefined && !steps.length) steps = forGrade(stepGrades(state, criterionId)[0]);
+  return steps.sort((a, b) => a.position - b.position);
 }
 
-/** Add a lesson to the end of an eval criterion's teaching order. */
-export function addStep(state, criterionId, lessonId) {
-  return add(state, 'criterionLessons', { criterionId, lessonId, position: stepsFor(state, criterionId).length });
+/** The grades an eval's lesson orders belong to: its grades, or [null] when it has none yet. */
+function stepGrades(state, criterionId) {
+  const gradeIds = find(state, 'criteria', criterionId)?.gradeIds ?? [];
+  return gradeIds.length ? gradeIds : [null];
 }
 
-/** Move a step to a new place (0-based) in its criterion's order. */
+/** Steps of exactly one grade (null included), in no particular order. */
+function gradeSteps(state, criterionId, gradeId) {
+  return state.criterionLessons.filter((s) => s.criterionId === criterionId && (s.gradeId ?? null) === gradeId);
+}
+
+/** Add a lesson to the end of an eval's teaching order for one grade (default: every grade). Returns the first new step. */
+export function addStep(state, criterionId, lessonId, gradeId) {
+  const grades = gradeId === undefined ? stepGrades(state, criterionId) : [gradeId];
+  return grades.map((g) => add(state, 'criterionLessons', {
+    criterionId, gradeId: g, lessonId, position: gradeSteps(state, criterionId, g).length,
+  }))[0];
+}
+
+/** Move a step to a new place (0-based) in its grade's order. */
 export function moveStep(state, stepId, newIndex) {
   const step = find(state, 'criterionLessons', stepId);
   if (!step) return;
-  const ordered = stepsFor(state, step.criterionId).filter((s) => s.id !== stepId);
+  const ordered = stepsFor(state, step.criterionId, step.gradeId ?? null).filter((s) => s.id !== stepId);
   const index = Math.max(0, Math.min(newIndex, ordered.length));
   ordered.splice(index, 0, step);
   ordered.forEach((s, i) => { s.position = i; });
 }
 
-function renumberSteps(state, criterionId) {
-  stepsFor(state, criterionId).forEach((s, i) => { s.position = i; });
+function renumberSteps(state, criterionId, gradeId) {
+  gradeSteps(state, criterionId, gradeId ?? null).sort((a, b) => a.position - b.position).forEach((s, i) => { s.position = i; });
 }
 
+/** Give other grades of an eval the same lesson order as `fromGradeId` (replacing theirs). */
+export function copyOrder(state, criterionId, fromGradeId, toGradeIds) {
+  const from = stepsFor(state, criterionId, fromGradeId);
+  for (const gradeId of toGradeIds.filter((g) => g !== fromGradeId)) {
+    const old = new Set(gradeSteps(state, criterionId, gradeId));
+    state.criterionLessons = state.criterionLessons.filter((s) => !old.has(s));
+    from.forEach((s, i) => add(state, 'criterionLessons', { criterionId, gradeId, lessonId: s.lessonId, position: i }));
+  }
+}
+
+/**
+ * Turn a grade on or off for an eval. A grade that's added starts with a copy of another grade's
+ * lesson order; a grade taken off takes its order with it (the last one stays, for the next grade).
+ */
 export function toggleGrade(state, criterionId, gradeId) {
   const crit = find(state, 'criteria', criterionId);
   if (!crit) return;
-  crit.gradeIds = crit.gradeIds.includes(gradeId)
-    ? crit.gradeIds.filter((g) => g !== gradeId)
-    : [...crit.gradeIds, gradeId];
+  const on = !crit.gradeIds.includes(gradeId);
+  const [first] = stepGrades(state, criterionId);
+  crit.gradeIds = on ? [...crit.gradeIds, gradeId] : crit.gradeIds.filter((g) => g !== gradeId);
+  if (on && first === null) gradeSteps(state, criterionId, null).forEach((s) => { s.gradeId = gradeId; });
+  else if (on) copyOrder(state, criterionId, first, [gradeId]);
+  else if (!crit.gradeIds.length) gradeSteps(state, criterionId, gradeId).forEach((s) => { s.gradeId = null; });
+  else gradeSteps(state, criterionId, gradeId).forEach((s) => remove(state, 'criterionLessons', s.id));
+}
+
+/** Set an eval's grades to exactly `gradeIds` (lesson orders follow, as with toggleGrade). */
+export function setGrades(state, criterionId, gradeIds) {
+  const crit = find(state, 'criteria', criterionId);
+  if (!crit) return;
+  gradeIds.filter((g) => !crit.gradeIds.includes(g)).forEach((g) => toggleGrade(state, criterionId, g));
+  crit.gradeIds.filter((g) => !gradeIds.includes(g)).forEach((g) => toggleGrade(state, criterionId, g));
 }
 
 /** Eval criteria of an outcome that apply to a grade. */
@@ -566,7 +622,7 @@ export function placementWarnings(state, placement) {
   const criterion = find(state, 'criteria', placement.criterionId);
   const days = weekdaysBetween(startDate, endDate);
   const warnings = [];
-  for (const step of stepsFor(state, placement.criterionId)) {
+  for (const step of stepsFor(state, placement.criterionId, placement.gradeId)) {
     const lesson = find(state, 'lessons', step.lessonId);
     for (const instrumentId of lesson?.instrumentIds ?? []) {
       const missingDates = days.filter((d) => !instrumentsAt(state, yearId, schoolId, d).includes(instrumentId));
@@ -635,8 +691,8 @@ export function lessonNumber(state, placement, step) {
   const earlier = placementsFor(state, yearId, schoolId, gradeId)
     .sort((a, b) => a.startDate.localeCompare(b.startDate))
     .filter((p, i, list) => list.indexOf(placement) > i);
-  const before = earlier.reduce((sum, p) => sum + stepsFor(state, p.criterionId).length, 0);
-  const steps = stepsFor(state, placement.criterionId);
+  const before = earlier.reduce((sum, p) => sum + stepsFor(state, p.criterionId, gradeId).length, 0);
+  const steps = stepsFor(state, placement.criterionId, gradeId);
   const index = steps.findIndex((s) => (step.id ? s.id === step.id : s.lessonId === step.lessonId));
   return before + Math.max(0, index) + 1;
 }
@@ -656,16 +712,18 @@ export function lessonsByCategory(state, yearId) {
     .map(([category, lessons]) => ({ category, lessons }));
 }
 
-/** The evals a lesson is taught in: [{ criterion, outcome, positions: [1-based] }]. */
-export function lessonEvals(state, lessonId) {
-  const steps = state.criterionLessons.filter((s) => s.lessonId === lessonId);
+/**
+ * The evals a lesson is taught in: [{ criterion, outcome, positions: [1-based] }].
+ * With a grade, only that grade's lesson orders (null = evals with no grades yet).
+ */
+export function lessonEvals(state, lessonId, gradeId) {
+  const steps = state.criterionLessons.filter((s) => s.lessonId === lessonId && (gradeId === undefined || (s.gradeId ?? null) === gradeId));
   return [...Map.groupBy(steps, (s) => s.criterionId).entries()].map(([criterionId, list]) => {
     const criterion = find(state, 'criteria', criterionId);
-    const order = stepsFor(state, criterionId);
     return {
       criterion,
       outcome: find(state, 'outcomes', criterion?.outcomeId),
-      positions: list.map((s) => order.indexOf(s) + 1).sort((a, b) => a - b),
+      positions: [...new Set(list.map((s) => s.position + 1))].sort((a, b) => a - b),
     };
   });
 }
@@ -677,12 +735,11 @@ export function lessonEvals(state, lessonId) {
  * Grades and outcomes keep their usual order; evals with no grade yet come last (grade null).
  */
 export function lessonUsageByGrade(state, lessonId) {
-  const evals = lessonEvals(state, lessonId).filter((e) => e.criterion);
-  const groups = state.grades
-    .map((grade) => ({ grade, evals: evals.filter((e) => e.criterion.gradeIds.includes(grade.id)) }))
+  const evalsFor = (gradeId) => lessonEvals(state, lessonId, gradeId)
+    .filter((e) => e.criterion && (gradeId === null ? !e.criterion.gradeIds.length : e.criterion.gradeIds.includes(gradeId)));
+  const groups = [...state.grades, null]
+    .map((grade) => ({ grade, evals: evalsFor(grade?.id ?? null) }))
     .filter((g) => g.evals.length);
-  const ungraded = evals.filter((e) => !e.criterion.gradeIds.length);
-  if (ungraded.length) groups.push({ grade: null, evals: ungraded });
   return groups.map(({ grade, evals: list }) => ({ grade, outcomes: groupByOutcome(state, list) }));
 }
 

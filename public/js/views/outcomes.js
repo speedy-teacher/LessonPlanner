@@ -3,10 +3,10 @@
 
 import { adder, editable, h, iconButton, toast } from '../dom.js';
 import {
-  add, addStep, autoFill, nextColor, criteriaFor, find, moveStep, remove, stepsFor, toggleGrade, update,
+  add, addStep, autoFill, copyOrder, nextColor, criteriaFor, find, moveStep, remove, stepsFor, toggleGrade, update,
 } from '../model.js';
 import { commit, setUi, store, undo } from '../store.js';
-import { current, emptyNote, pickId, year } from './common.js';
+import { current, emptyNote, pickId, pills, year } from './common.js';
 import { outcomeColor } from './plan.js';
 import { instrumentTags, lessonPreview } from './lessonPreview.js';
 import { newLesson } from './lessons.js';
@@ -60,7 +60,7 @@ function removeOutcome(outcome) {
 
 function criterionCard(crit) {
   const grades = current('grades');
-  return h('article', { class: 'crit-card' },
+  return h('article', { class: 'crit-card', dataset: { critCard: crit.id } },
     h('div', { class: 'crit-head' },
       editable(crit.title, (title) => commit((s) => update(s, 'criteria', crit.id, { title })), { class: 'inline-edit crit-title' }),
       iconButton('🗑', 'Delete this eval criterion', () => {
@@ -83,23 +83,60 @@ function criterionCard(crit) {
 // Lists you open stay open while you work (until the page is reloaded).
 const openLists = new Set();
 
-/** Show an eval on Outcomes, Evals & Lesson Order with its lesson list open (e.g. from the calendar). */
-export function showEval(criterion) {
+/**
+ * Show an eval on Outcomes, Evals & Lesson Order (e.g. from the calendar or a lesson template):
+ * scrolled to, glowing for a moment, with its lesson list open — for `gradeId`'s order when given.
+ */
+export function showEval(criterion, gradeId = null) {
   if (!criterion) return;
   openLists.add(criterion.id);
-  setUi({ tab: 'outcomes', outcomeId: criterion.outcomeId });
+  setUi({ tab: 'outcomes', outcomeId: criterion.outcomeId, ...(gradeId ? { gradeId } : {}) });
+  const card = document.querySelector(`[data-crit-card="${CSS.escape(criterion.id)}"]`);
+  if (!card) return;
+  card.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  card.classList.add('flash');
+  setTimeout(() => card.classList.remove('flash'), 1600);
+}
+
+/**
+ * Each grade has its own lesson order. The grade shown is the one picked last (shared with the
+ * Lesson Schedule, so all evals switch together), or the eval's first grade; null = no grades yet.
+ */
+function shownGrade(crit) {
+  return crit.gradeIds.includes(store.ui.gradeId) ? store.ui.gradeId : crit.gradeIds[0] ?? null;
 }
 
 function lessonList(crit) {
-  const steps = stepsFor(store.state, crit.id);
+  const gradeId = shownGrade(crit);
+  const steps = stepsFor(store.state, crit.id, gradeId);
   return h('details', {
     class: 'crit-lessons', open: openLists.has(crit.id),
     ontoggle: (e) => { if (e.target.open) openLists.add(crit.id); else openLists.delete(crit.id); },
   },
     h('summary', { class: 'mini-label' }, `Lessons, in teaching order (${steps.length})`),
-    h('p', { class: 'hint' }, 'Drag ⠿ to reorder.'),
+    gradeSwitch(crit, gradeId),
+    h('p', { class: 'hint' }, crit.gradeIds.length > 1 ? 'Each grade has its own order. Drag ⠿ to reorder.' : 'Drag ⠿ to reorder.'),
     h('ol', { class: 'slide-list' }, steps.map((s, i, all) => stepRow(s, i, all.length))),
-    addLessonRow(crit));
+    addLessonRow(crit, gradeId));
+}
+
+/** Pills to switch between the eval's grades, and a button to give every grade this order. */
+function gradeSwitch(crit, gradeId) {
+  if (crit.gradeIds.length < 2) return null;
+  const grades = current('grades').filter((g) => crit.gradeIds.includes(g.id));
+  const order = (g) => stepsFor(store.state, crit.id, g).map((s) => s.lessonId).join();
+  const allSame = crit.gradeIds.every((g) => order(g) === order(gradeId));
+  const name = grades.find((g) => g.id === gradeId)?.name;
+  return h('div', { class: 'order-grades' },
+    h('span', { class: 'mini-label' }, 'Order for:'),
+    pills(grades, gradeId, (id) => setUi({ gradeId: id }), { label: (g) => g.name }),
+    allSame ? h('span', { class: 'hint' }, '(the same for every grade)') : h('button', {
+      class: 'link-btn', title: `Every grade of this eval gets ${name}’s lessons in ${name}’s order`,
+      onclick: () => {
+        commit((s) => copyOrder(s, crit.id, gradeId, crit.gradeIds));
+        toast(`Every grade now uses ${name}’s order for this eval.`, { label: 'Undo', run: undo });
+      },
+    }, `Use ${name}’s order for every grade`));
 }
 
 function stepRow(step, index, total) {
@@ -135,18 +172,18 @@ function stepRow(step, index, total) {
   li.addEventListener('drop', (e) => {
     const id = e.dataTransfer.getData('application/x-step');
     const moving = find(store.state, 'criterionLessons', id);
-    if (!moving || moving.criterionId !== step.criterionId) return;
+    if (!moving || moving.criterionId !== step.criterionId || moving.gradeId !== step.gradeId) return;
     e.preventDefault();
     commit((s) => moveStep(s, id, index));
   });
   return li;
 }
 
-/** Add a lesson from the library, or make a brand-new deck and add it. */
-function addLessonRow(crit) {
+/** Add a lesson (to the grade shown) from the library, or make a brand-new deck and add it. */
+function addLessonRow(crit, gradeId) {
   return h('div', { class: 'add-lesson-row' },
-    lessonPicker(null, (lessonId) => { if (lessonId) commit((s) => addStep(s, crit.id, lessonId)); }, 'Add a lesson', '＋ Pick from your decks…'),
-    adder('…or a new lesson deck', (name) => commit((s) => addStep(s, crit.id, newLesson(s, name).id)), `add-lesson-${crit.id}`));
+    lessonPicker(null, (lessonId) => { if (lessonId) commit((s) => addStep(s, crit.id, lessonId, gradeId)); }, 'Add a lesson', '＋ Pick from your decks…'),
+    adder('…or a new lesson deck', (name) => commit((s) => addStep(s, crit.id, newLesson(s, name).id, gradeId)), `add-lesson-${crit.id}`));
 }
 
 /** Lesson dropdown, grouped by folder so dozens of decks stay findable. */

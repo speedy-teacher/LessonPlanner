@@ -57,7 +57,7 @@ One JSON file of flat collections linked by id (see `public/js/model.js`):
 `folderId` and the `locations` of its file — Drive and/or a picked computer folder in `localRoots`;
 all year-scoped, copied each new year
 with a `copiedFromId` link back), `criteria` (belong to an outcome) → `criterionLessons` (the lessons
-of an eval in teaching order, by `position`), and the calendars
+of an eval in teaching order, by `position` — each grade of the eval has its own order, by `gradeId`), and the calendars
 `placements` (an eval criterion for a school + grade from `startDate` to `endDate`) and
 `instrumentBlocks` (year-scoped, never copied). Outcomes carry a `color` shared by all their evals.
 Older saved files are upgraded automatically when loaded (`schemaVersion`).
