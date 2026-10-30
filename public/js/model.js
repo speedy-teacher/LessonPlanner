@@ -105,7 +105,7 @@ export const PICTURE_FIELDS = ['image'];
 
 // What happens to related records when a record is removed:
 // delete them, clear the link (null), or pull the id out of a list.
-const RELATIONS = {
+export const RELATIONS = {
   years: [
     ['instruments', 'yearId', 'delete'], ['schools', 'yearId', 'delete'],
     ['grades', 'yearId', 'delete'], ['outcomes', 'yearId', 'delete'],

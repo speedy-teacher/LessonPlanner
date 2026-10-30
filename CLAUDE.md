@@ -25,8 +25,12 @@ A browser app for a (non-technical) elementary music teacher to plan a school ye
 - Where it lives (`workspace.js`): Drive file in a folder the user picks (`views/planFolders.js`, Google folder picker,
   default a "Lesson Planner" folder; "Move to another folder…" = addParents/removeParents), found by property `lessonPlanner=workspace`
   (`driveFiles.js`), or "this computer only". Every plan is cached in IndexedDB (`localCache.js`, + localStorage rescue on
-  page close). Saves: cache at once, Drive 2 s later; `syncAction` compares `headRevisionId` → upload / download / ask
-  (conflict: "Use the Drive version" keeps mine as a "(my changes)" plan). One Drive revision kept forever per day.
+  page close). Saves: cache at once, Drive 2 s later; `syncAction` compares `headRevisionId` → upload / download / combine.
+  Combine (`planMerge.js`, pure + tested): three-way merge by record id against `base` (the file text at `rev`, kept in
+  the cached record only, never in Drive); id lists merged item by item, locations by `uri`, `lastSeenAt` newest wins,
+  positions renumbered, dangling links tidied via `RELATIONS`. Differing edits / delete-vs-edit keep mine, one notice
+  offers "Use the other computer's" (`useTheirs`, a normal undoable commit). Records cached before `base` existed
+  still get the old ask ("Use the Drive version" keeps mine as a "(my changes)" plan). One Drive revision kept forever per day.
 - Per-browser only (`deviceSettings.js`): recent plans, last plan, `driveConnected`. View state in `lesson-planner-ui`.
 - Everything is per academic year (`yearId`); a new year copies `ROLLOVER` collections with `copiedFromId`; calendars start empty.
 - Essential outcome (code, `color`) → eval criteria (`gradeIds[]`) → `criterionLessons` (ordered: lessonId, position) → `lessons`.

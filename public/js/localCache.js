@@ -2,8 +2,9 @@
 // planner opens instantly, works without internet, and never loses a change
 // that hasn't reached Google Drive yet.
 //
-// Record: { key, name, fileId, state, rev, changed, keptDay, canEdit }
+// Record: { key, name, fileId, state, rev, base, changed, keptDay, canEdit }
 //   rev     = the Drive revision this copy matches (null for plans on this computer only)
+//   base    = the plan file's text at that revision (for combining changes, see planMerge.js)
 //   changed = has changes Google Drive doesn't have yet
 
 const DB_NAME = 'lesson-planner';
@@ -49,9 +50,10 @@ export function allPlans() {
 
 // If the page closes before the browser finishes saving, a quick copy is kept here instead.
 
-/** Keep a copy right now (used while the page is closing). */
+/** Keep a copy right now (used while the page is closing). `base` is left out to keep it small: the saved copy has it. */
 export function rescue(record) {
-  try { localStorage.setItem(RESCUE_KEY, JSON.stringify({ ...record, rescuedAt: Date.now() })); } catch { /* too big or unavailable */ }
+  const { base: _base, ...small } = record;
+  try { localStorage.setItem(RESCUE_KEY, JSON.stringify({ ...small, rescuedAt: Date.now() })); } catch { /* too big or unavailable */ }
 }
 
 function takeRescue(key) {
@@ -67,7 +69,7 @@ function newest(saved, rescued) {
   if (!rescued) return saved;
   if (!saved || (rescued.rescuedAt || 0) > (saved.savedAt || 0)) {
     const { rescuedAt: _r, ...record } = rescued;
-    return record;
+    return { ...record, base: saved?.rev === record.rev ? saved.base : null };
   }
   return saved;
 }

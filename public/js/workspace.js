@@ -3,10 +3,12 @@
 //
 // Every change is saved on this computer first, then sent to Drive a moment
 // later. Before sending, the planner checks whether the Drive file was changed
-// somewhere else, so one computer never quietly overwrites another's work.
+// somewhere else, so one computer never quietly overwrites another's work:
+// when both changed, the two are combined (planMerge.js), and only things both
+// changed differently are put to the teacher.
 
 import { newId } from './model.js';
-import { refresh, setPersist, setSaveStatus, store, useState } from './store.js';
+import { commit, refresh, setPersist, setSaveStatus, store, useState } from './store.js';
 import { device, setDevice } from './deviceSettings.js';
 import { google } from './google.js';
 import { allPlans, deletePlan, getPlan, putPlan, rescue } from './localCache.js';
@@ -14,11 +16,16 @@ import { createPlanFile, folderName, keepRevision, movePlanFile, planFileInfo, r
 import {
   forgetPlan, fromWorkspaceFile, rememberPlan, shouldKeepRevision, splitYears, syncAction, toWorkspaceFile,
 } from './workspaceFile.js';
+import { conflictSummary, mergePlans, useTheirs } from './planMerge.js';
 import { showNotice } from './notices.js';
 
 const UPLOAD_DELAY_MS = 2000;
 
-/** The open plan: { key, name, fileId, folderId, rev, changed, keptDay, canEdit, savedAt, state }. */
+/**
+ * The open plan: { key, name, fileId, folderId, rev, base, changed, keptDay, canEdit, savedAt, state }.
+ * `base` = the plan file's text at revision `rev` (what this computer last saved or loaded), so
+ * changes made here and on another computer can be told apart and combined.
+ */
 export let current = null;
 
 let uploadTimer = null;
@@ -71,7 +78,7 @@ export async function openDrivePlan(fileId) {
     return syncNow();
   }
   const file = await readPlanFile(google.token, fileId);
-  const record = { key: driveKey(fileId), name: file.name, fileId, folderId: file.folderId, rev: file.rev, canEdit: file.canEdit, changed: false, keptDay: null, state: fromWorkspaceFile(file.text) };
+  const record = { key: driveKey(fileId), name: file.name, fileId, folderId: file.folderId, rev: file.rev, base: file.text, canEdit: file.canEdit, changed: false, keptDay: null, state: fromWorkspaceFile(file.text) };
   await putPlan(record);
   return show(record);
 }
@@ -89,8 +96,9 @@ export async function openSavedPlan(key) {
 export async function createPlan({ name, state }, { open = true, folderId = null } = {}) {
   let record = { key: `computer:${newId('plan')}`, name, fileId: null, folderId: null, rev: null, canEdit: true, changed: false, keptDay: null, state };
   if (driveReady()) {
-    const file = await createPlanFile(google.token, { name, text: toWorkspaceFile(state), folderId });
-    record = { ...record, key: driveKey(file.fileId), fileId: file.fileId, folderId: file.folderId, rev: file.rev };
+    const text = toWorkspaceFile(state);
+    const file = await createPlanFile(google.token, { name, text, folderId });
+    record = { ...record, key: driveKey(file.fileId), fileId: file.fileId, folderId: file.folderId, rev: file.rev, base: text };
   }
   await putPlan(record);
   if (open) show(record);
@@ -130,8 +138,9 @@ export async function removeComputerPlan(key) {
 /** Copy a plan that's only on this computer into Google Drive (it becomes a Drive plan). */
 export async function moveToDrive({ folderId = null } = {}) {
   const old = current;
-  const file = await createPlanFile(google.token, { name: old.name, text: toWorkspaceFile(store.state), folderId });
-  const record = { ...old, key: driveKey(file.fileId), fileId: file.fileId, folderId: file.folderId, rev: file.rev, changed: false, state: store.state };
+  const text = toWorkspaceFile(store.state);
+  const file = await createPlanFile(google.token, { name: old.name, text, folderId });
+  const record = { ...old, key: driveKey(file.fileId), fileId: file.fileId, folderId: file.folderId, rev: file.rev, base: text, changed: false, state: store.state };
   await putPlan(record);
   await deletePlan(old.key);
   setDevice({ recent: forgetPlan(device.recent, old.key) });
@@ -204,15 +213,16 @@ async function syncOnce() {
   const action = syncAction({ localChanges: current.changed && info.canEdit, knownRev: current.rev, remoteRev: info.rev });
   if (action === 'upload') await upload();
   if (action === 'download') await download('Loaded the newest version of this plan from Google Drive (it was changed on another computer).');
-  if (action === 'conflict') askWhichToKeep();
+  if (action === 'conflict') await combineWithDrive();
   showWhereSaved();
 }
 
 async function upload() {
   setSaveStatus('saving', 'Saving to Google Drive…');
   const sentAt = saves;
-  const rev = await savePlanFile(google.token, current.fileId, toWorkspaceFile(current.state));
-  current = { ...current, rev, changed: saves !== sentAt };
+  const text = toWorkspaceFile(current.state);
+  const rev = await savePlanFile(google.token, current.fileId, text);
+  current = { ...current, rev, base: text, changed: saves !== sentAt };
   if (rev && shouldKeepRevision(current.keptDay)) {
     await keepRevision(google.token, current.fileId, rev).then(() => { current.keptDay = new Date().toISOString().slice(0, 10); }, () => {});
   }
@@ -221,10 +231,43 @@ async function upload() {
 
 async function download(message) {
   const file = await readPlanFile(google.token, current.fileId);
-  const record = { ...current, name: file.name, rev: file.rev, canEdit: file.canEdit, changed: false, state: fromWorkspaceFile(file.text) };
+  const record = { ...current, name: file.name, rev: file.rev, base: file.text, canEdit: file.canEdit, changed: false, state: fromWorkspaceFile(file.text) };
   await putPlan(record);
   show(record);
   if (message) showNotice({ id: 'plan-sync', tone: 'info', title: 'Google Drive', message });
+}
+
+/**
+ * Both this computer and Drive have changes: combine them and save the result. Things both changed
+ * differently keep this computer's version, and the teacher can switch them with one click.
+ * (Copies saved before the planner remembered `base` can't be combined, so they still ask.)
+ */
+async function combineWithDrive() {
+  if (!current.base) return askWhichToKeep();
+  const file = await readPlanFile(google.token, current.fileId);
+  const theirs = fromWorkspaceFile(file.text);
+  const { state, conflicts } = mergePlans(fromWorkspaceFile(current.base), store.state, theirs);
+  saves += 1;
+  current = { ...current, name: file.name, rev: file.rev, base: file.text, canEdit: file.canEdit, changed: true, state };
+  await putPlan(current);
+  show(current);
+  await upload();
+  return tellCombined(conflicts, theirs);
+}
+
+function tellCombined(conflicts, theirs) {
+  if (!conflicts.length) {
+    return showNotice({ id: 'plan-sync', tone: 'info', title: 'Google Drive', message: 'Combined your changes with changes made on another computer.' });
+  }
+  return showNotice({
+    id: 'plan-sync', tone: 'warn', title: 'Both computers changed the same thing',
+    message: `Everything else was combined. For these, your version was kept: ${conflictSummary(store.state, theirs, conflicts)}.`,
+    seconds: null,
+    actions: [
+      { label: 'Keep mine', run: () => {} },
+      { label: 'Use the other computer’s', run: () => commit((s) => useTheirs(s, conflicts, theirs)) },
+    ],
+  });
 }
 
 function askWhichToKeep() {
@@ -248,7 +291,7 @@ async function keepMine() {
 /** Load the Drive version, keeping this computer's changes as a separate plan (so nothing is lost). */
 async function useDriveVersion() {
   const mine = current;
-  await putPlan({ ...mine, key: `computer:${newId('plan')}`, name: `${mine.name} (my changes)`, fileId: null, rev: null, changed: false });
+  await putPlan({ ...mine, key: `computer:${newId('plan')}`, name: `${mine.name} (my changes)`, fileId: null, rev: null, base: null, changed: false });
   await download('Loaded the Drive version. Your changes are kept as a separate plan, “(my changes)”, under the plan menu.');
 }
 
