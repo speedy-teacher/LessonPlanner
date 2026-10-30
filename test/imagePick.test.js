@@ -182,3 +182,32 @@ test('a lesson chosen by hand always gets that picture — even in weeks another
   remove(s, 'lessons', plain.id);
   assert.deepEqual(waving.lessonIds, [], 'a removed lesson leaves the picture’s list');
 });
+
+test('pictures take turns week to week: none repeats until every picture that fits has been used', () => {
+  const { s, year, lesson, welcome, waving, weeks, cls } = planner();
+  const image = (name) => Object.assign(addImage(s, { yearId: year.id, name }), { when: { anytime: true, priority: 2, windows: [] } });
+  const hello = image('Hello');
+  const sunny = image('Sunny');
+  const entries = [2, 3, 4, 5, 6, 7].map((n) => addWeekLesson(s, { ...cls, weekStart: weeks[n].weekStart, lessonId: lesson.id }));
+  const names = entries.map((e) => pictureForEntry(s, e).image.name);
+  assert.deepEqual(names.slice(0, 3).sort(), ['Hello', 'Sunny', 'Waving'], 'three weeks, three different pictures');
+  assert.deepEqual(names.slice(3), names.slice(0, 3), 'then they come round again in the same order');
+  assert.ok(![hello, sunny, waving].some((i) => i.id === welcome.id));
+});
+
+test('every class gets the same picture in the same week', () => {
+  const { s, year, lesson, weeks, cls } = planner();
+  Object.assign(addImage(s, { yearId: year.id, name: 'Hello' }), { when: { anytime: true, priority: 2, windows: [] } });
+  const school = add(s, 'schools', { yearId: year.id, name: 'School B' });
+  const a = addWeekLesson(s, { ...cls, weekStart: weeks[6].weekStart, lessonId: lesson.id });
+  const b = addWeekLesson(s, { ...cls, schoolId: school.id, weekStart: weeks[6].weekStart, lessonId: lesson.id });
+  assert.equal(pictureForEntry(s, a).image.id, pictureForEntry(s, b).image.id);
+});
+
+test('a greeting week still gets its greeting, even right after it was used', () => {
+  const { s, lesson, welcome, weeks, cls } = planner();
+  const one = addWeekLesson(s, { ...cls, weekStart: weeks[0].weekStart, lessonId: lesson.id });
+  const two = addWeekLesson(s, { ...cls, weekStart: weeks[1].weekStart, lessonId: lesson.id });
+  assert.equal(pictureForEntry(s, one).image.id, welcome.id);
+  assert.equal(pictureForEntry(s, two).image.id, welcome.id, 'the only greeting that fits week 2 too');
+});

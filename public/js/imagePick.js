@@ -12,6 +12,9 @@
 // Score = `when.priority` if a window fits, 1 if it may be used any time, otherwise 0 (never used).
 // The best score wins; ties prefer pictures shared with "anyone with the link" (only those can be
 // placed in a copy), then ones showing an instrument the lesson uses.
+// On the Lesson Schedule every school week gets one picture (the same for every class that week), and
+// pictures take turns: of the best fits for a week, the one used longest ago (or never) is chosen, so
+// a picture only comes back once every other picture that fits has had its turn.
 
 import { addDays } from './dates.js';
 import { find } from './model.js';
@@ -91,21 +94,61 @@ export function entryDates(state, entry) {
   return { week, start: days[0], end: days.at(-1) };
 }
 
+/** Pictures picked for this entry's lesson by hand (they fit any week, and the best for the week wins). */
+function chosenForLesson(state, entry) {
+  return state.images
+    .filter((i) => i.yearId === entry.yearId && i.lessonIds?.includes(entry.lessonId))
+    .map((i) => ({ ...i, when: { ...i.when, anytime: true } }));
+}
+
+/** The week's best picture taking turns: never used first, then the one used longest ago. */
+function leastRecent(best, lastUsed) {
+  const used = (image) => lastUsed.get(image.id) ?? -1;
+  return best.reduce((a, b) => (used(b) < used(a) ? b : a));
+}
+
+let lastPlan = { key: '', plan: new Map() };
+
 /**
- * The pictures a schedule entry chooses from: the ones picked for its lesson by hand (they fit any week,
- * and the best for the week wins), otherwise every picture of the year.
+ * One picture for every school week of the year (Map weekStart → image): the best fit for the week,
+ * taking turns with the other best fits so none repeats until all of them have been used.
  */
-function candidates(state, entry) {
-  const all = state.images.filter((i) => i.yearId === entry.yearId);
-  const chosen = all.filter((i) => i.lessonIds?.includes(entry.lessonId));
-  return chosen.length ? chosen.map((i) => ({ ...i, when: { ...i.when, anytime: true } })) : all;
+export function weeklyPictures(state, yearId, sharing = () => null) {
+  const images = state.images.filter((i) => i.yearId === yearId);
+  const holidays = yearEvents(state, yearId);
+  const year = find(state, 'years', yearId);
+  // The plan is worked out again only when something it depends on changed (the plan is edited in place).
+  const key = JSON.stringify([year, holidays, images.map((i) => [i.id, i.when, i.instrumentIds, sharing(i)])]);
+  if (lastPlan.key !== key) lastPlan = { key, plan: planWeeks(year, images, holidays, sharing) };
+  return lastPlan.plan;
+}
+
+
+function planWeeks(year, images, holidays, sharing) {
+  const lastUsed = new Map();
+  const plan = new Map();
+  schoolWeeks(year).forEach((week, n) => {
+    if (!week.days.length) return;
+    const best = pickImages(images, { start: week.days[0], end: week.days.at(-1), holidays, sharing });
+    if (!best.length) return;
+    const image = leastRecent(best, lastUsed);
+    lastUsed.set(image.id, n);
+    plan.set(week.weekStart, image);
+  });
+  return plan;
 }
 
 /** The picture chosen for a schedule entry ({ image, week } — image null when none fits). */
 export function pictureForEntry(state, entry, sharing = () => null) {
   const { week, start, end } = entryDates(state, entry);
+  const chosen = chosenForLesson(state, entry);
+  if (!chosen.length && week?.days.length) {
+    const image = weeklyPictures(state, entry.yearId, sharing).get(entry.weekStart);
+    return { image: image ? find(state, 'images', image.id) : null, week };
+  }
   const lesson = find(state, 'lessons', entry.lessonId);
-  const [best] = pickImages(candidates(state, entry), {
+  const pool = chosen.length ? chosen : state.images.filter((i) => i.yearId === entry.yearId);
+  const [best] = pickImages(pool, {
     start, end, sharing,
     holidays: yearEvents(state, entry.yearId),
     instrumentIds: lesson?.instrumentIds ?? [],
