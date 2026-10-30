@@ -236,3 +236,47 @@ test('the picture for a week doesn’t change with which pictures happen to be s
     assert.equal(pictureForEntry(s, entry, (i) => i.id === id).image.id, plain);
   }
 });
+
+test('lessons in a row get different pictures — also two lessons in the same week', () => {
+  const { s, year, lesson, weeks, cls } = planner();
+  ['Hello', 'Sunny'].forEach((name) => Object.assign(addImage(s, { yearId: year.id, name }), { when: { anytime: true, priority: 2, windows: [] } }));
+  const one = addWeekLesson(s, { ...cls, weekStart: weeks[6].weekStart, lessonId: lesson.id, position: 0 });
+  const two = addWeekLesson(s, { ...cls, weekStart: weeks[6].weekStart, lessonId: lesson.id, position: 1 });
+  const three = addWeekLesson(s, { ...cls, weekStart: weeks[7].weekStart, lessonId: lesson.id, position: 0 });
+  const names = [one, two, three].map((e) => pictureForEntry(s, e).image.name);
+  assert.equal(new Set(names).size, 3, `three lessons in a row, three pictures: ${names}`);
+});
+
+test('a special period rotates through its themed pictures, lesson to lesson', () => {
+  const { s, year, lesson, weeks, cls } = planner();
+  const span = { type: 'date', from: weeks[8].days[0].slice(5), to: weeks[9].days.at(-1).slice(5) };
+  const themed = ['Pumpkin', 'Bat'].map((name) => Object.assign(addImage(s, { yearId: year.id, name }), { when: { anytime: false, priority: 3, windows: [span] } }));
+  const entries = [[8, 0], [8, 1], [9, 0], [9, 1]].map(([w, position]) => addWeekLesson(s, { ...cls, weekStart: weeks[w].weekStart, lessonId: lesson.id, position }));
+  const ids = entries.map((e) => pictureForEntry(s, e).image.id);
+  assert.ok(ids.every((id) => themed.some((t) => t.id === id)), 'only the themed pictures in that period');
+  assert.ok(ids.every((id, i) => !i || id !== ids[i - 1]), 'never the same twice in a row');
+});
+
+test('each grade has its own sequence; both schools teaching a grade share it', () => {
+  const { s, year, lesson, weeks, cls } = planner();
+  ['Hello', 'Sunny'].forEach((name) => Object.assign(addImage(s, { yearId: year.id, name }), { when: { anytime: true, priority: 2, windows: [] } }));
+  const other = add(s, 'grades', { yearId: year.id, name: 'Grade 2', short: '2' });
+  const school = add(s, 'schools', { yearId: year.id, name: 'School B' });
+  // Grade 1 has two lessons in week 7; Grade 2 has one. Grade 2's next lesson (week 8) still differs from its week-7 one.
+  const g1 = [0, 1].map((position) => addWeekLesson(s, { ...cls, weekStart: weeks[6].weekStart, lessonId: lesson.id, position }));
+  const g2 = [6, 7].map((w) => addWeekLesson(s, { ...cls, gradeId: other.id, weekStart: weeks[w].weekStart, lessonId: lesson.id, position: 0 }));
+  const g1b = addWeekLesson(s, { ...cls, schoolId: school.id, weekStart: weeks[6].weekStart, lessonId: lesson.id, position: 0 });
+  assert.notEqual(pictureForEntry(s, g1[0]).image.id, pictureForEntry(s, g1[1]).image.id);
+  assert.notEqual(pictureForEntry(s, g2[0]).image.id, pictureForEntry(s, g2[1]).image.id);
+  assert.equal(pictureForEntry(s, g1b).image.id, pictureForEntry(s, g1[0]).image.id, 'same grade, same lesson number, same picture');
+});
+
+test('a special period uses every picture whose time fits — the strongest first, then the others take turns', () => {
+  const { s, year, lesson, weeks, cls } = planner();
+  const span = { type: 'date', from: weeks[8].days[0].slice(5), to: weeks[9].days.at(-1).slice(5) };
+  const greeting = Object.assign(addImage(s, { yearId: year.id, name: 'Greeting' }), { when: { anytime: false, priority: 4, windows: [span] } });
+  const season = Object.assign(addImage(s, { yearId: year.id, name: 'Season' }), { when: { anytime: false, priority: 2, windows: [span] } });
+  const entries = [[8, 0], [8, 1], [9, 0]].map(([w, position]) => addWeekLesson(s, { ...cls, weekStart: weeks[w].weekStart, lessonId: lesson.id, position }));
+  const ids = entries.map((e) => pictureForEntry(s, e).image.id);
+  assert.deepEqual(ids, [greeting.id, season.id, greeting.id], 'the greeting first, then the season picture, then round again');
+});

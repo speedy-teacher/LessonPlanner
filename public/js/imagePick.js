@@ -12,10 +12,15 @@
 // Score = `when.priority` if a window fits, 1 if it may be used any time, otherwise 0 (never used).
 // The best score wins; ties prefer pictures shared with "anyone with the link" (only those can be
 // placed in a copy), then ones showing an instrument the lesson uses.
-// On the Lesson Schedule every school week gets one picture (the same for every class that week), and
-// pictures take turns: weeks with only one picture that fits get it first, then every other week takes
-// the best fit that is used farthest away (never used comes first), so a picture only comes back once
-// every other picture that fits has had its turn, and never right before a week that needs it.
+// On the Lesson Schedule each grade's lessons are a sequence through the year (1st lesson, 2nd, 3rd …,
+// in week order and teaching order within a week; both schools teaching a grade share its sequence).
+// A lesson in a special period (a week where some pictures' times fit: a month greeting, a holiday, a
+// season) picks from that themed set — every picture whose time fits, strongest first; other lessons pick
+// from the any-time pictures. Lessons in a row take turns: lessons where only one picture fits get it
+// first, then every other lesson takes the one used farthest back or ahead in that grade's sequence
+// (never used first, then the strongest). So the any-time pictures rotate lesson to lesson all year, a
+// special period starts with its strongest picture (e.g. the month greeting) and then rotates its set.
+// Grades are planned on their own.
 // (Sharing doesn't count here: the planner shares a picture for a moment while placing it, which would
 // make the choice change from minute to minute and from computer to computer.)
 
@@ -104,42 +109,89 @@ function chosenForLesson(state, entry) {
     .map((i) => ({ ...i, when: { ...i.when, anytime: true } }));
 }
 
-/** How far (in weeks) a picture is from its nearest other use; Infinity when it isn't used yet. */
-function gapToUses(imageId, n, assigned) {
+/** How far (in lessons) a picture is from its nearest other use; Infinity when it isn't used yet. */
+function gapToUses(imageId, i, uses) {
   let gap = Infinity;
-  for (const [m, image] of assigned) if (image.id === imageId) gap = Math.min(gap, Math.abs(n - m));
+  for (const [j, id] of uses) if (id === imageId) gap = Math.min(gap, Math.abs(i - j));
   return gap;
 }
 
-/** Of a week's best fits, the one used farthest away (never used first; ties keep the list order). */
-function farthestFromUses(best, n, assigned) {
-  return best.reduce((a, b) => (gapToUses(b.id, n, assigned) > gapToUses(a.id, n, assigned) ? b : a));
+/** Of a lesson's best fits, the one used farthest away (never used first; ties keep the list order). */
+function farthestFromUses(best, i, uses) {
+  return best.reduce((a, b) => (gapToUses(b.id, i, uses) > gapToUses(a.id, i, uses) ? b : a));
 }
+
+/** Schedule entries that take a picture from the plan (picture spot ticked, none picked by hand). */
+function plannedEntries(state, yearId) {
+  return state.weekLessons.filter((e) => e.yearId === yearId
+    && wantsPicture(find(state, 'lessons', e.lessonId)) && !chosenForLesson(state, e).length);
+}
+
+/** An entry's place among its class's picture lessons that week (0 = first), in teaching order. */
+function slotOf(entries, entry) {
+  return entries
+    .filter((e) => e.schoolId === entry.schoolId && e.gradeId === entry.gradeId && e.weekStart === entry.weekStart)
+    .sort((a, b) => a.position - b.position)
+    .findIndex((e) => e.id === entry.id);
+}
+
+/** Each grade's lesson sequence: [{ gradeId, weekStart, slot }] in order (most lessons any school has that week). */
+function gradeSequences(entries) {
+  const counts = new Map();
+  for (const e of entries) {
+    const k = `${e.gradeId}|${e.weekStart}|${e.schoolId}`;
+    counts.set(k, (counts.get(k) ?? 0) + 1);
+  }
+  const perWeek = new Map();
+  for (const [k, n] of counts) {
+    const [gradeId, weekStart] = k.split('|');
+    const g = perWeek.get(gradeId) ?? new Map();
+    g.set(weekStart, Math.max(g.get(weekStart) ?? 0, n));
+    perWeek.set(gradeId, g);
+  }
+  return [...perWeek].map(([gradeId, weeks]) => [...weeks].sort(([a], [b]) => a.localeCompare(b))
+    .flatMap(([weekStart, n]) => Array.from({ length: n }, (_, slot) => ({ gradeId, weekStart, slot }))));
+}
+
+const slotKey = (gradeId, weekStart, slot) => `${gradeId}|${weekStart}|${slot}`;
 
 let lastPlan = { key: '', plan: new Map() };
 
 /**
- * One picture for every school week of the year (Map weekStart → image): the best fit for the week,
- * taking turns with the other best fits so none repeats until all of them have been used.
+ * The picture for every lesson in every grade's sequence (Map "gradeId|weekStart|slot" → picture):
+ * the best fit for its week, taking turns with the lessons around it.
  */
-export function weeklyPictures(state, yearId) {
+export function lessonSequencePictures(state, yearId) {
   const images = state.images.filter((i) => i.yearId === yearId);
   const holidays = yearEvents(state, yearId);
   const year = find(state, 'years', yearId);
-  // The plan is worked out again only when something it depends on changed (the plan is edited in place).
-  const key = JSON.stringify([year, holidays, images.map((i) => [i.id, i.when])]);
-  if (lastPlan.key !== key) lastPlan = { key, plan: planWeeks(year, images, holidays) };
+  const sequences = gradeSequences(plannedEntries(state, yearId));
+  // Worked out again only when something it depends on changed (the plan is edited in place).
+  const key = JSON.stringify([year, holidays, sequences, images.map((i) => [i.id, i.when])]);
+  if (lastPlan.key !== key) lastPlan = { key, plan: planSequences(year, images, holidays, sequences) };
   return lastPlan.plan;
 }
 
-function planWeeks(year, images, holidays) {
-  const weeks = schoolWeeks(year).map((week, n) => ({
-    week, n, best: week.days.length ? pickImages(images, { start: week.days[0], end: week.days.at(-1), holidays }) : [],
-  })).filter((w) => w.best.length);
-  const assigned = new Map();
-  weeks.filter((w) => w.best.length === 1).forEach((w) => assigned.set(w.n, w.best[0]));
-  weeks.filter((w) => w.best.length > 1).forEach((w) => assigned.set(w.n, farthestFromUses(w.best, w.n, assigned)));
-  return new Map(weeks.map((w) => [w.week.weekStart, assigned.get(w.n)]));
+/** A week's set: every picture whose time fits, strongest first; when none, the any-time pictures. */
+export function themedSet(images, start, end, holidays = []) {
+  const scored = images.map((image) => ({ image, score: scoreImage(image, start, end, holidays) }));
+  const themed = scored.filter((x) => x.score > 1 && x.image.when.windows.some((w) => windowFits(w, start, end, holidays)));
+  const set = themed.length ? themed : scored.filter((x) => x.score === 1);
+  return set.sort((a, b) => b.score - a.score).map((x) => x.image);
+}
+
+function planSequences(year, images, holidays, sequences) {
+  const fits = new Map(schoolWeeks(year).filter((w) => w.days.length).map((w) => [w.weekStart,
+    themedSet(images, w.days[0], w.days.at(-1), holidays)]));
+  const plan = new Map();
+  for (const sequence of sequences) {
+    const lessons = sequence.map((item, i) => ({ ...item, i, best: fits.get(item.weekStart) ?? [] })).filter((l) => l.best.length);
+    const uses = [];
+    const assign = (l, image) => { uses.push([l.i, image.id]); plan.set(slotKey(l.gradeId, l.weekStart, l.slot), image); };
+    lessons.filter((l) => l.best.length === 1).forEach((l) => assign(l, l.best[0]));
+    lessons.filter((l) => l.best.length > 1).forEach((l) => assign(l, farthestFromUses(l.best, l.i, uses)));
+  }
+  return plan;
 }
 
 /** The picture chosen for a schedule entry ({ image, week } — image null when none fits). */
@@ -147,7 +199,8 @@ export function pictureForEntry(state, entry, sharing = () => null) {
   const { week, start, end } = entryDates(state, entry);
   const chosen = chosenForLesson(state, entry);
   if (!chosen.length && week?.days.length) {
-    const image = weeklyPictures(state, entry.yearId).get(entry.weekStart);
+    const slot = Math.max(0, slotOf(plannedEntries(state, entry.yearId), entry));
+    const image = lessonSequencePictures(state, entry.yearId).get(slotKey(entry.gradeId, entry.weekStart, slot));
     return { image: image ? find(state, 'images', image.id) : null, week };
   }
   const lesson = find(state, 'lessons', entry.lessonId);
