@@ -221,8 +221,12 @@ input:focus, select:focus, button:focus-visible { outline: 3px solid #cdb8ea; ou
 .palette-group { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; }
 /* "All grades" view of the Outcome & Eval Calendar: grade label on each bar, and the color key */
 .grade-tag { color: var(--chip); background: #fff; font-weight: 800; border-radius: 6px; padding: 0 4px; font-size: 11px; flex: none; margin-left: 2px; }
-.grade-legend { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; }
-.grade-legend .outcome-chip { cursor: pointer; }
+.chip-grades { display: inline-flex; gap: 3px; flex: none; }
+.chip-grade {
+  background: var(--grade); color: #fff; font-weight: 800; font-size: 11px; border-radius: 6px; padding: 0 5px;
+  cursor: grab; line-height: 17px;
+}
+.chip-grade:hover, .chip-grade.armed { box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--grade); }
 .palette-outcome { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 800; color: var(--chip); margin-top: 4px; }
 
 /* Calendar entries: one bar per eval, drawn as connected pieces across days. */
@@ -330,6 +334,21 @@ input:focus, select:focus, button:focus-visible { outline: 3px solid #cdb8ea; ou
 .crit-card { border: 1.5px solid var(--line); border-radius: var(--radius); padding: 12px 14px; margin-bottom: 12px; background: #fffefb; }
 .crit-head { display: flex; gap: 6px; align-items: center; }
 .crit-title { font-size: 16px; font-weight: 800; color: var(--royal); }
+/* An eval with a main (or only) grade: its title sits on a banner in that grade's color */
+.crit-head.banner { background: var(--banner); border-radius: 10px; padding: 4px 6px 4px 4px; margin: -4px -4px 0; }
+.crit-head.banner .crit-title { color: var(--banner-ink); }
+.crit-head.banner .crit-title:hover, .crit-head.banner .crit-title:focus { color: var(--ink); }
+.crit-head.banner .icon-btn { color: var(--banner-ink); }
+/* The small ★ above a chosen grade: pick the eval's main grade */
+.grade-toggle-wrap { position: relative; display: inline-flex; }
+.main-grade-btn {
+  position: absolute; top: -9px; right: -8px; width: 19px; height: 19px; border-radius: 50%; padding: 0;
+  border: 1.5px solid var(--grade); background: #fff; color: var(--grade); font-size: 11px; line-height: 1;
+  cursor: pointer; display: none; align-items: center; justify-content: center; box-shadow: 0 1px 3px rgba(0, 0, 0, .15);
+}
+.grade-toggle-wrap:hover .main-grade-btn, .grade-toggle-wrap:focus-within .main-grade-btn, .grade-toggle-wrap.is-main .main-grade-btn { display: inline-flex; }
+.main-grade-btn:hover { background: color-mix(in srgb, var(--grade) 15%, #fff); }
+.grade-toggle-wrap.is-main .main-grade-btn { background: var(--grade); color: #fff; }
 .grade-toggles { display: flex; gap: 6px; align-items: center; margin: 8px 0 12px; flex-wrap: wrap; }
 .grade-toggle {
   border: 1.5px solid var(--line); background: #fff; border-radius: 10px; min-width: 34px; height: 30px;

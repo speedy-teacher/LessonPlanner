@@ -11,6 +11,7 @@ import { outcomeColor } from './plan.js';
 import { instrumentTags, lessonPreview } from './lessonPreview.js';
 import { newLesson } from './lessons.js';
 import { decksByFolder } from '../library.js';
+import { evalColor, readableText, toggleMainGrade } from '../evalGrade.js';
 
 export function renderOutcomes() {
   const outcomes = current('outcomes');
@@ -59,25 +60,50 @@ function removeOutcome(outcome) {
 }
 
 function criterionCard(crit) {
-  const grades = current('grades');
+  const color = evalColor(store.state, crit);
   return h('article', { class: 'crit-card', dataset: { critCard: crit.id } },
-    h('div', { class: 'crit-head' },
-      editable(crit.title, (title) => commit((s) => update(s, 'criteria', crit.id, { title })), { class: 'inline-edit crit-title' }),
-      iconButton('🗑', 'Delete this eval criterion', () => {
-        commit((s) => remove(s, 'criteria', crit.id));
-        toast('Eval criterion deleted.', { label: 'Undo', run: undo });
-      })),
+    h('div', {
+      class: `crit-head ${color ? 'banner' : ''}`,
+      style: color ? { '--banner': color, '--banner-ink': readableText(color) } : null,
+    },
+    editable(crit.title, (title) => commit((s) => update(s, 'criteria', crit.id, { title })), { class: 'inline-edit crit-title' }),
+    iconButton('🗑', 'Delete this eval criterion', () => {
+      commit((s) => remove(s, 'criteria', crit.id));
+      toast('Eval criterion deleted.', { label: 'Undo', run: undo });
+    })),
     h('div', { class: 'grade-toggles' },
       h('span', { class: 'mini-label' }, 'Grades:'),
-      grades.map((g) => h('button', {
-        class: `grade-toggle ${crit.gradeIds.includes(g.id) ? 'on' : ''}`,
-        title: `${crit.gradeIds.includes(g.id) ? 'Remove' : 'Add'} ${g.name}`,
-        'aria-pressed': crit.gradeIds.includes(g.id) ? 'true' : 'false',
-        style: { '--grade': g.color },
-        onclick: () => commit((s) => toggleGrade(s, crit.id, g.id)),
-      }, g.short || g.name))),
+      current('grades').map((g) => gradeToggle(crit, g))),
     lessonList(crit),
   );
+}
+
+/**
+ * A grade button for an eval. Hovering a chosen grade shows a small ★ button above it that makes
+ * it the eval's main grade (the title then wears that grade's color); the main grade's ★ always shows.
+ */
+function gradeToggle(crit, g) {
+  const on = crit.gradeIds.includes(g.id);
+  const main = crit.mainGradeId === g.id;
+  return h('span', { class: `grade-toggle-wrap ${main ? 'is-main' : ''}` },
+    h('button', {
+      class: `grade-toggle ${on ? 'on' : ''}`,
+      title: `${on ? 'Remove' : 'Add'} ${g.name}`,
+      'aria-pressed': on ? 'true' : 'false',
+      style: { '--grade': g.color },
+      onclick: () => commit((s) => toggleGrade(s, crit.id, g.id)),
+    }, g.short || g.name),
+    on ? mainGradeButton(crit, g, main) : null);
+}
+
+function mainGradeButton(crit, g, main) {
+  return h('button', {
+    class: 'main-grade-btn', style: { '--grade': g.color },
+    'aria-pressed': main ? 'true' : 'false',
+    'data-tip': main ? `${g.name} is the main grade. Click to clear.` : `Make ${g.name} the main grade for this eval`,
+    'aria-label': main ? `Clear ${g.name} as the main grade` : `Make ${g.name} the main grade`,
+    onclick: () => commit((s) => toggleMainGrade(s, crit.id, g.id)),
+  }, main ? '★' : '☆');
 }
 
 // Eval lesson lists start closed, so all the evals are easy to scroll through.

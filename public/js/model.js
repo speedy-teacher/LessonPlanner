@@ -39,7 +39,8 @@ export const COLLECTIONS = {
   // `locations[]` = where the deck's file lives (see locations.js); `isNew` = pulled in from a watched
   // Drive folder and not looked at yet.
   lessons: 'id, yearId, name, category, autoFields[], instrumentIds[], folderId, locations[], isNew',
-  criteria: 'id, outcomeId, title, gradeIds[]',
+  // `mainGradeId` = the grade the eval is mainly for (its title wears that grade's color), or null.
+  criteria: 'id, outcomeId, title, gradeIds[], mainGradeId',
   // The lessons an eval criterion is taught with, in teaching order (a lesson can be in several evals).
   // Each grade of the eval has its own order (`gradeId`); null = the eval has no grades yet.
   criterionLessons: 'id, criterionId, gradeId, lessonId, position',
@@ -115,7 +116,7 @@ const RELATIONS = {
   ],
   instruments: [['instrumentBlocks', 'instrumentId', 'delete'], ['lessons', 'instrumentIds', 'pull'], ['images', 'instrumentIds', 'pull']],
   schools: [['placements', 'schoolId', 'delete'], ['instrumentBlocks', 'schoolId', 'delete'], ['weekLessons', 'schoolId', 'delete']],
-  grades: [['placements', 'gradeId', 'delete'], ['criteria', 'gradeIds', 'pull'], ['criterionLessons', 'gradeId', 'delete'], ['weekLessons', 'gradeId', 'delete']],
+  grades: [['placements', 'gradeId', 'delete'], ['criteria', 'gradeIds', 'pull'], ['criteria', 'mainGradeId', 'null'], ['criterionLessons', 'gradeId', 'delete'], ['weekLessons', 'gradeId', 'delete']],
   outcomes: [['criteria', 'outcomeId', 'delete']],
   lessons: [['criterionLessons', 'lessonId', 'delete'], ['weekLessons', 'lessonId', 'delete'], ['images', 'lessonIds', 'pull']],
   deckFolders: [['deckFolders', 'parentId', 'delete'], ['lessons', 'folderId', 'null']],
@@ -150,7 +151,7 @@ export function normalize(raw) {
   for (const name of Object.keys(COLLECTIONS)) {
     if (!Array.isArray(state[name])) state[name] = [];
   }
-  state.criteria.forEach((c) => { if (!Array.isArray(c.gradeIds)) c.gradeIds = []; });
+  state.criteria.forEach((c) => { if (!Array.isArray(c.gradeIds)) c.gradeIds = []; c.mainGradeId ??= null; });
   migrate(state);
   state.lessons.forEach(normalizeLesson);
   state.deckFolders.forEach(normalizeFolder);
@@ -402,6 +403,7 @@ function copyCriteria(state, fromOutcomeId, toOutcomeId, mapId) {
       outcomeId: toOutcomeId,
       title: crit.title,
       gradeIds: crit.gradeIds.map(mapId).filter(Boolean),
+      mainGradeId: mapId(crit.mainGradeId),
       copiedFromId: crit.id,
     });
     for (const step of stepsFor(state, crit.id)) {
@@ -502,6 +504,7 @@ export function toggleGrade(state, criterionId, gradeId) {
   const on = !crit.gradeIds.includes(gradeId);
   const [first] = stepGrades(state, criterionId);
   crit.gradeIds = on ? [...crit.gradeIds, gradeId] : crit.gradeIds.filter((g) => g !== gradeId);
+  if (!on && crit.mainGradeId === gradeId) crit.mainGradeId = null;
   if (on && first === null) gradeSteps(state, criterionId, null).forEach((s) => { s.gradeId = gradeId; });
   else if (on) copyOrder(state, criterionId, first, [gradeId]);
   else if (!crit.gradeIds.length) gradeSteps(state, criterionId, gradeId).forEach((s) => { s.gradeId = null; });

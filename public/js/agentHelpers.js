@@ -164,6 +164,7 @@ export function evalInfo(state, c, gradeId) {
   return {
     id: c.id, title: c.title, outcome: outcomeLabel(outcomeOf(state, c.id)),
     grades: namesOf(state, 'grades', c.gradeIds),
+    ...(c.mainGradeId ? { mainGrade: find(state, 'grades', c.mainGradeId)?.name } : {}),
     ...(same ? { lessons: orders[0][1] } : { lessonsByGrade: Object.fromEntries(orders) }),
   };
 }

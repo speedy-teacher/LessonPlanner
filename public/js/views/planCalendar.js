@@ -1,7 +1,7 @@
 // The month grid of the Outcome & Eval Calendar: eval entries as stretchable bars,
 // with the school's instruments shown at the top of each day.
 
-import { h } from '../dom.js';
+import { h, toast } from '../dom.js';
 import {
   find, instrumentsAt, lessonInstruments, movePlacement, outcomeLabel, outcomeOf, placeCriterion,
   placementWarnings, placementsFor, resizePlacement, stepsFor,
@@ -24,7 +24,7 @@ export function planCalendar(ctx) {
       ? store.state.placements.filter((p) => p.yearId === ctx.yearId && p.schoolId === ctx.schoolId)
       : placementsFor(store.state, ctx.yearId, ctx.schoolId, ctx.gradeId),
     selectedId: store.ui.placementId,
-    armed: !all && Boolean(store.ui.armedCriterionId),
+    armed: Boolean(store.ui.armedCriterionId && (!all || store.ui.armedGradeId)),
     colorOf: (p) => (all ? gradeColor(p.gradeId) : outcomeColor(outcomeOf(store.state, p.criterionId)?.id)),
     titleOf: (p) => [
       outcomeLabel(outcomeOf(store.state, p.criterionId)), find(store.state, 'criteria', p.criterionId)?.title,
@@ -32,7 +32,13 @@ export function planCalendar(ctx) {
     ].filter(Boolean).join('\n'),
     labelOf: (p) => placementLabel(p, all),
     dayExtras: (date) => instrumentStripe(ctx, date),
-    onCreate: (data, date) => { if (data.criterionId && !all) place(data.criterionId, date); },
+    // On the "All" view the eval comes with the grade it was dragged for.
+    onCreate: (data, date) => {
+      if (!data.criterionId) return;
+      if (!all) place(data.criterionId, date);
+      else if (data.gradeId) place(data.criterionId, date, undefined, data.gradeId);
+      else toast('This eval has several grades — drag one of its grades onto the day.');
+    },
     onMove: (p, startDate, copy) => (copy
       ? place(p.criterionId, startDate, addDays(startDate, daysBetween(p.startDate, p.endDate)), p.gradeId)
       : commit((s) => movePlacement(s, p.id, startDate))),
@@ -40,7 +46,7 @@ export function planCalendar(ctx) {
     onSelect: (p) => setUi({ placementId: p?.id ?? null }),
     onMenu: placementMenu,
     onRemove: removePlacement,
-    onArmedClick: (date) => { if (!all) place(store.ui.armedCriterionId, date); },
+    onArmedClick: (date) => place(store.ui.armedCriterionId, date, undefined, all ? store.ui.armedGradeId : ctx.gradeId),
   });
 }
 

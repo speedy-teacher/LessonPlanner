@@ -37,8 +37,13 @@ A browser app for a (non-technical) elementary music teacher to plan a school ye
   The Outcomes page switches grades with pills that share `ui.gradeId` with the Lesson Schedule.
 - Grades have a `color` (`GRADE_PALETTE`, filled in on load like outcome colors; picker in Setup). Grade buttons use
   `gradePills()` (tinted) and `--grade` on `.grade-toggle`. Calendar "All" (`ui.planAllGrades`, key A): every grade's
-  placements, bar = grade color, outcome code keeps the outcome color; view/move only (adding needs one grade).
-  `evalLabel()` = "Eval (K, 1, 2)" for lists that mix grades.
+  placements, bar = grade color, outcome code keeps the outcome color. Its side list shows every eval under its
+  outcome, colored by the eval's grade; dragging/clicking the eval places it for that grade, its grade badges for
+  any of its grades (`ui.armedGradeId`). `evalLabel()` = "Eval (K, 1, 2)" for lists that mix grades.
+- Eval main grade (`criteria.mainGradeId`, `evalGrade.js`): ★ on hover over a chosen grade toggle. `evalGradeId` = main
+  grade, else the only grade, else null; that grade's color = the eval's title banner (`readableText` picks ink/white)
+  and its color on the calendar's All list. Cleared when that grade leaves the eval. Command: `editEval mainGrade`.
+  Don't name CSS classes `main` (the page's `<main class="main">` styles would apply).
 - **A lesson is one slide deck**: name, category, `autoFields[]`, `instrumentIds[]`. Decks are reusable across evals.
   "Used in the following content" traverses deck → steps → criteria → grades/outcome.
 - Calendars: `placements` (criterion for school+grade, date range, colored by outcome) and `instrumentBlocks`
