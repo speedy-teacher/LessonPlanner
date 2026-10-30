@@ -7,6 +7,13 @@ import {
   color, evalInfo, evalOf, fail, grade, idsOf, indexOf, lesson, listOf, ofYear, orderGrades, outcome, patchFrom, text, year, yearCriteria,
 } from './agentHelpers.js';
 
+/** A main grade for an eval: one of its grades, or null for "none". */
+function mainGradeOf(state, c, ref) {
+  if (ref === null || String(ref).trim().toLowerCase() === 'none') return null;
+  const [gradeId] = orderGrades(state, c, ref);
+  return gradeId;
+}
+
 const GRADE_PARAM = ['Only this grade\'s lesson order (each grade has its own); default every grade of the eval'];
 
 /** A lesson by name; with `create`, a new lesson template is made when none has that name. */
@@ -79,11 +86,12 @@ export const OUTCOME_COMMANDS = {
     },
   },
   editEval: {
-    summary: 'Rename an eval, move it to another outcome, or change its grades.',
+    summary: 'Rename an eval, move it to another outcome, change its grades, or set the main grade it is for (its title takes that grade\'s color).',
     changes: true,
     params: {
       eval: ['Its title', true], title: ['New title'], outcome: ['Move to this outcome'],
       grades: ['The full list of grades (replaces them)'], addGrades: ['Grades to add'], removeGrades: ['Grades to take off'],
+      mainGrade: ['One of its grades, or "none" to clear'],
     },
     run: (state, a) => {
       const c = evalOf(state, a.eval);
@@ -92,6 +100,7 @@ export const OUTCOME_COMMANDS = {
       const base = a.grades === undefined ? c.gradeIds : idsOf(state, a.grades, grade);
       const off = new Set(idsOf(state, a.removeGrades, grade));
       setGrades(state, c.id, [...new Set([...base, ...idsOf(state, a.addGrades, grade)])].filter((id) => !off.has(id)));
+      if (a.mainGrade !== undefined) patch.mainGradeId = mainGradeOf(state, c, a.mainGrade);
       update(state, 'criteria', c.id, patch);
       return evalInfo(state, c);
     },
