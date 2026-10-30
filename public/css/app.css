@@ -799,3 +799,9 @@ button.ins-tag:hover { filter: brightness(.92); box-shadow: 0 0 0 1.5px var(--in
 .lesson-picker .search { width: 100%; box-sizing: border-box; }
 .lesson-results { display: flex; flex-direction: column; margin-top: 4px; }
 .lesson-results .menu-item { text-align: left; }
+
+/* Read by screen readers and AI assistants, not shown. */
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}

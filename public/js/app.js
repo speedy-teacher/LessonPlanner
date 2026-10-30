@@ -20,6 +20,8 @@ import { menuItem, popMenu } from './views/common.js';
 import { soon as checkCopies, startExportBridge } from './exportBridge.js';
 import { startAgentBridge } from './agentBridge.js';
 
+const SYNC_EVERY_MS = 60_000;
+
 // Pages with `menu: 'setup'` are reached through the "Setup ▾" menu instead of their own tab.
 const TABS = [
   { id: 'plan', label: 'Outcome & Eval Calendar', icon: '📅', render: renderPlan, keys: planKeys, onShow: showCalendar },
@@ -155,6 +157,10 @@ async function start() {
     },
     needsSignIn: showSignInNotice,
   });
+  // Changes made elsewhere (another computer, or an assistant in another browser) show up when
+  // the teacher comes back to this tab, and every minute while it's open.
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') syncNow(); });
+  setInterval(() => { if (document.visibilityState === 'visible') syncNow(); }, SYNC_EVERY_MS);
   try {
     if (!await openLastPlan()) render();
   } catch (err) {

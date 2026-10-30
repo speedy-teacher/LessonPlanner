@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="ai-assistant" content="AI assistants: run JavaScript in this page. lessonPlanner.status() says whether a plan is open; lessonPlanner.help() lists the commands; lessonPlanner.run(name, args) runs them.">
   <title>Lesson Planner</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎵</text></svg>">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -10,6 +11,7 @@
   <link rel="stylesheet" href="css/app.css">
 </head>
 <body>
+  <p class="sr-only" id="assistant-note">Note for AI assistants: don't click around to change this plan. Run JavaScript in this page instead: lessonPlanner.status(), then lessonPlanner.help(), then lessonPlanner.run(name, args).</p>
   <header class="topbar">
     <div class="brand"><span class="brand-icon">🎵</span> Lesson Planner</div>
     <div id="year-picker" class="year-picker"></div>

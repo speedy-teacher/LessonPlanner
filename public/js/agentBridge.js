@@ -1,6 +1,7 @@
-// Lets an AI assistant working in this browser tab (e.g. Claude in Chrome) run
-// the planner's commands (agentCommands.js) instead of clicking around:
+// Lets an AI assistant working in this browser tab (Claude Code's built-in browser,
+// Claude in Chrome, …) run the planner's commands (agentCommands.js) instead of clicking around:
 //
+//   lessonPlanner.status()                                 → is a plan open, signed in, saved?
 //   lessonPlanner.help()                                   → the commands and what they take
 //   lessonPlanner.run('getSchedule', { school, grade })    → one command
 //   lessonPlanner.run([{ command, args }, …])              → several, all or nothing
@@ -10,12 +11,14 @@
 // Where the browser supports it (WebMCP, `document.modelContext`), the same
 // commands are also offered as tools.
 
-import { commit, store, undo } from './store.js';
+import { commit, hasPendingSave, store, undo } from './store.js';
+import { google } from './google.js';
+import { current } from './workspace.js';
 import { showNotice } from './notices.js';
 import { COMMANDS, CommandError, NEEDS_THE_TEACHER, describeCommands, runCommands } from './agentCommands.js';
 import { AUTO_FIELDS, COLLECTIONS } from './model.js';
 
-const GUIDE = 'Lesson Planner commands. Call lessonPlanner.run(name, args) or lessonPlanner.run([{ command, args }, ...]). '
+const GUIDE = 'Lesson Planner commands. First call lessonPlanner.status() to see whether a plan is open. Call lessonPlanner.run(name, args) or lessonPlanner.run([{ command, args }, ...]). '
   + 'Things are named as shown in the app (school, grade, lesson, eval) or by id. Weeks are a week number or any date in the week. '
   + 'Dates look like 2026-09-14; positions start at 1. Lists can be arrays of names. Start with "overview". '
   + 'Read before you change things, and do a whole request in one run([...]) so it is one Undo. '
@@ -46,6 +49,38 @@ function run(nameOrSteps, args = {}) {
     if (err instanceof CommandError) return { error: err.message };
     throw err;
   }
+}
+
+/** What the assistant needs to know before and after changing things: which plan, signed in, saved. */
+function status() {
+  const plan = current ?? {};
+  const facts = {
+    planOpen: Boolean(store.state && current), onDrive: Boolean(plan.fileId),
+    signedIn: google.status === 'connected' && Boolean(google.token), pending: hasPendingSave() || Boolean(plan.changed),
+  };
+  return {
+    planOpen: facts.planOpen, plan: plan.name ?? null, savedIn: whereSaved(facts),
+    signedInToGoogle: facts.signedIn, googleStatus: google.status,
+    allChangesSaved: !facts.pending && store.saveStatus !== 'error', saveStatus: store.saveStatus,
+    nextStep: nextStepFor(facts),
+  };
+}
+
+function whereSaved({ planOpen, onDrive }) {
+  if (!planOpen) return null;
+  return onDrive ? 'Google Drive' : 'this browser only';
+}
+
+const SIGN_IN = 'Google Drive is not connected. Click once anywhere on the page (Google needs a click to open its sign-in window); '
+  + 'if Google asks for a password, the teacher has to type it. Then call status() again.';
+
+function nextStepFor({ planOpen, onDrive, signedIn, pending }) {
+  if (google.status === 'working') return 'Google is signing in. Wait a few seconds and call status() again.';
+  if (!planOpen) return signedIn ? 'No plan is open yet. Wait a few seconds and call status() again, or ask the teacher which plan to open.' : SIGN_IN;
+  if (!onDrive) return 'Ready, but this plan is kept only in this browser — changes will not show up on the teacher’s other computers.';
+  if (!signedIn) return SIGN_IN;
+  if (pending) return 'Ready. Changes are still being saved to Google Drive — wait until allChangesSaved is true before closing the page.';
+  return 'Ready. Call help() for the commands.';
 }
 
 function help() {
@@ -80,6 +115,6 @@ function offerAsTools() {
 }
 
 export function startAgentBridge() {
-  window.lessonPlanner = Object.freeze({ help, run, guide: GUIDE });
+  window.lessonPlanner = Object.freeze({ status, help, run, guide: GUIDE });
   offerAsTools();
 }

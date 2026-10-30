@@ -114,8 +114,12 @@ A browser app for a (non-technical) elementary music teacher to plan a school ye
   The user adds the pictures in the app; linking those tags up is a later data step.
 
 ## Assistant commands (Claude, later Gemini, controlling the open app)
-- The teacher asks an assistant to do anything in the planner. With Claude in Chrome on their open tab, use the page's
-  `window.lessonPlanner` via the javascript tool instead of clicking: `lessonPlanner.help()` lists every command by area;
+- The teacher asks an assistant to do anything in the planner. Claude in Chrome is blocked on their computer, so Claude Code
+  opens the live site in its **built-in browser** (`mcp__Claude_Browser__*`) and runs JavaScript in the page; the user-level
+  skill `~/.claude/skills/lesson-planner/SKILL.md` walks any session through it. The plan comes from Drive, so the teacher's
+  own Chrome tab picks up the changes (it re-checks Drive when the tab is shown again and every minute).
+- Use the page's `window.lessonPlanner` instead of clicking: `lessonPlanner.status()` (plan open? signed in? saved? + `nextStep`),
+  `lessonPlanner.help()` lists every command by area; a hidden `#assistant-note` + `<meta name="ai-assistant">` point there;
   `lessonPlanner.run(name, args)` or `run([{ command, args }, …])` (all or nothing, one Undo step). Start with `overview`.
 - `agentCommands.js` (pure + tested) gathers the areas: `agentSchedule.js` (schedule + both calendars), `agentSetup.js`
   (year, schools/grades/instruments, events), `agentOutcomes.js` (outcomes, evals, lesson order), `agentLessons.js`
