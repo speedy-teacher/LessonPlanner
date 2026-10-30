@@ -1,7 +1,8 @@
 // The export bridge: keeps the year's lesson copies (exportPlan.js) matching the Lesson Schedule,
 // in the background. After any change it compares what the schedule wants with the copies that are
-// really in the output folder, and works through the differences one at a time — so it doesn't matter
-// who changed the schedule, on which computer, or how long ago. Progress shows bottom-right.
+// really in the output folder, and works through the differences (a few at once in Google Drive) — so it
+// doesn't matter who changed the schedule, on which computer, or how long ago. Progress shows bottom-right.
+// Only one computer or tab works on a plan's Drive copies at a time (copyLock.js).
 //
 // A shared plan's copies are kept by one person: whoever chose the output folder (its "keeper").
 // Everyone else's changes reach the copies the next time the keeper opens the planner; until then
@@ -13,18 +14,25 @@ import { refresh, refreshSoon, store, subscribe } from './store.js';
 import { google } from './google.js';
 import { current as plan } from './workspace.js';
 import { canFillIn, driveFileId, driveOpenUrl, findLocation, googleTypeFor } from './locations.js';
-import { groupCopies, keysToDo, nextStep, SETTLE_MS, sparesFor, updateTime, wantedCopies } from './exportPlan.js';
+import { groupCopies, keysToDo, nextStep, safeName, SETTLE_MS, sparesFor, updateTime, wantedCopies } from './exportPlan.js';
 import { SLIDES } from './exportGoogle.js';
 import { isShared, markShareRefused, onSharingNews } from './imageSharing.js';
 import { downloadTemplate, driveCopies } from './exportDrive.js';
 import { folderPermission, localCopies, rememberedFolder } from './exportLocal.js';
 import { dismissNotice, showNotice } from './notices.js';
+import { copyLock } from './copyLock.js';
+import { copyPace } from './copyPace.js';
 import { holdPicture, isHeld, picturePlaced, pictureHolds, pictureReport, releaseHeld } from './pictureHolds.js';
 
 const WAIT_MS = 1500; // after a sign-in or a new folder; after your own changes it's a minute (SETTLE_MS)
 const RECHECK_MS = 10 * 60 * 1000;
 const MAX_TRIES = 4; // steps for one entry in a row before giving up on it for now
 const STOPPERS = ['signed_out', 'offline'];
+// Drive copies worked on at once: a few, or one at a time for a while after Google says "slow down" (copyPace.js).
+const pace = copyPace();
+const RENEW_MS = 60 * 1000; // while working, renew the note that says this computer is updating the copies
+const OTHER_WAIT_MS = 60 * 1000; // another computer is updating them: look again this long from now
+const WORKER_ID = globalThis.crypto?.randomUUID?.() ?? `w${Math.random().toString(36).slice(2)}`; // this visit
 
 export const folderKey = (yearId) => `copies:${yearId}`;
 
@@ -35,7 +43,8 @@ const bridge = {
   haves: [], // copies found in it
   queue: new Set(), // schedule entry ids with something to do, in order
   running: false,
-  doing: '', // what the bridge is doing right now (for the panel)
+  doing: new Map(), // what the bridge is doing right now, one line per job (for the panel)
+  otherWorker: false, // another computer or tab is updating these copies, so this one waits
   failed: new Map(), // entry id → signature it failed with (not retried until something changes)
   // Pictures that couldn't be placed this visit (see pictureHolds.js): copies are made without them
   // for now — one warning, not one per copy. Retried after your next change, on the regular recheck and
@@ -121,10 +130,10 @@ function noticeSignIn() {
  * Look again soon: a moment from now, but not until a minute after your last change (so a burst of
  * changes is handled once, and nothing is updated while you're still moving things around).
  */
-export function soon() {
+export function soon(delay = WAIT_MS) {
   clearTimeout(timer);
   const now = Date.now();
-  timer = setTimeout(() => look().catch((err) => console.warn('Lesson copies:', err)), updateTime({ now, lastEdit: lastEdit(), delay: WAIT_MS }) - now);
+  timer = setTimeout(() => look().catch((err) => console.warn('Lesson copies:', err)), updateTime({ now, lastEdit: lastEdit(), delay }) - now);
   showWaiting();
 }
 
@@ -180,8 +189,8 @@ async function makeTarget(year, output) {
 
 function driveTarget(year, output) {
   return {
-    rootKey: `drive:${output.folderId}`, keeps: true, yearId: year.id,
-    adapter: driveCopies({ token: google.token, rootId: output.folderId, yearId: year.id }),
+    rootKey: `drive:${output.folderId}`, keeps: true, yearId: year.id, jobs: pace.jobs, sharedFolder: true,
+    adapter: driveCopies({ token: google.token, rootId: output.folderId, yearId: year.id, onSlowDown: pace.slowDown }),
     templateOf: driveFileId, canFill: canFillIn, sharing: isShared,
     pictureOnHold: (fileId) => isHeld(bridge.picturesOnHold, fileId),
     // Pictures go into Google Slides copies (on the template's IMAGE_ANCHOR spots).
@@ -232,11 +241,56 @@ function showBlocked(status) {
 
 async function queueWork(target) {
   warn({ state: 'ready' }, null);
+  fillQueue(target);
+  if (bridge.running) return undefined;
+  if (!bridge.queue.size) return showOtherWorker(false);
+  bridge.running = true; // already, while claiming: a second look mustn't start its own run
+  try {
+    if (await claimCopies(target)) await work(target);
+  } finally {
+    target.lock?.release().catch(() => {}); // only clears the note if it's this computer's
+    bridge.running = false;
+    bridge.doing.clear();
+    drawPanel();
+  }
+  return undefined;
+}
+
+function fillQueue(target) {
   for (const key of keysToDo([...wanted(target).values()], bridge.haves)) {
     if (bridge.failed.get(key) !== signature(target, key)) bridge.queue.add(key);
   }
-  if (!bridge.running) await work();
-  return undefined;
+}
+
+/**
+ * Drive copies: make sure no other computer or tab is updating them right now (a folder on the
+ * computer only has one). A fresh claim looks at the folder again first — the other one may have
+ * done some of the work already.
+ */
+async function claimCopies(target) {
+  if (!target.sharedFolder) return true;
+  // The note goes on this plan's folder inside the output folder (where its copies are).
+  target.lock ??= copyLock({ ...target.adapter.folderLabels([safeName(plan.name)]), me: WORKER_ID });
+  const claim = await target.lock.claim();
+  if (claim === 'taken') {
+    bridge.queue.clear();
+    showOtherWorker(true);
+    soon(OTHER_WAIT_MS);
+    return false;
+  }
+  showOtherWorker(false);
+  if (claim === 'new') {
+    bridge.haves = await target.adapter.list();
+    bridge.queue.clear();
+    fillQueue(target);
+  }
+  return bridge.queue.size > 0;
+}
+
+function showOtherWorker(on) {
+  if (bridge.otherWorker === on) return;
+  bridge.otherWorker = on;
+  drawPanel();
 }
 
 function wanted(target) {
@@ -247,10 +301,11 @@ function wanted(target) {
   return bridge.wants.map;
 }
 
-function stepFor(target, key) {
+/** What to do next for one schedule entry (copies another job is busy with aren't reused). */
+function stepFor(target, key, busy = new Set()) {
   const wants = wanted(target);
   const want = wants.get(key) ?? null;
-  const spares = want ? sparesFor(want, bridge.haves, new Set(wants.keys())) : [];
+  const spares = want ? sparesFor(want, bridge.haves.filter((c) => !busy.has(c.id)), new Set(wants.keys())) : [];
   return nextStep(want, bridge.haves.filter((c) => c.entryId === key), spares);
 }
 
@@ -266,29 +321,67 @@ function canGoOn(target) {
   return Boolean(target) && !settling() && blocker(activeYear(store.state)?.output) === null;
 }
 
-async function work() {
-  bridge.running = true;
-  const tries = new Map();
+/** Work through the queue, a few entries at once (each entry one step at a time). */
+async function work(target) {
+  const run = { target, tries: new Map(), keys: new Set(), copies: new Set(), jobs: new Set(), stop: false };
+  const renew = target.lock && setInterval(() => {
+    target.lock.claim().then((claim) => { if (claim === 'taken') run.stop = true; }).catch(() => {});
+  }, RENEW_MS);
   try {
-    while (bridge.queue.size) {
-      const target = bridge.target;
-      const key = bridge.queue.values().next().value;
-      const step = canGoOn(target) ? stepFor(target, key) : undefined;
-      if (step === undefined) break; // a change to settle, or the folder or sign-in changed: the next look carries on
-      tries.set(key, (tries.get(key) ?? 0) + 1);
-      if (!step || tries.get(key) > MAX_TRIES) { bridge.queue.delete(key); continue; }
-      if (await attempt(target, key, step) === 'stop') break;
+    for (;;) {
+      let started = true;
+      while (started && run.jobs.size < (target.jobs?.() ?? 1)) started = startNext(run);
+      if (!run.jobs.size) break;
+      await Promise.race(run.jobs);
     }
   } finally {
-    bridge.running = false;
-    bridge.doing = '';
-    drawPanel();
+    clearInterval(renew);
   }
 }
 
-async function attempt(target, key, step) {
-  bridge.doing = describe(step);
+/**
+ * Start the next entry that can go now: not one already being worked on, and not one whose copy
+ * another job is using. False when nothing can start (or a change to settle, or the folder or
+ * sign-in changed: the next look carries on).
+ */
+function startNext(run) {
+  run.stop ||= !canGoOn(run.target) || bridge.target !== run.target;
+  if (run.stop) return false;
+  const next = nextJob(run);
+  if (next) startJob(run, next.key, next.step);
+  return Boolean(next);
+}
+
+function nextJob(run) {
+  for (const key of bridge.queue) {
+    const step = run.keys.has(key) ? undefined : stepFor(run.target, key, run.copies);
+    if (step === undefined || (step?.have && run.copies.has(step.have.id))) continue; // busy: later
+    run.tries.set(key, (run.tries.get(key) ?? 0) + 1);
+    if (step && run.tries.get(key) <= MAX_TRIES) return { key, step };
+    bridge.queue.delete(key); // nothing to do (or tried enough for now)
+  }
+  return null;
+}
+
+function startJob(run, key, step) {
+  const line = {};
+  run.keys.add(key);
+  if (step.have) run.copies.add(step.have.id);
+  bridge.doing.set(line, describe(step));
   drawPanel();
+  const job = attempt(run.target, key, step)
+    .then((result) => { if (result === 'stop') run.stop = true; })
+    .finally(() => {
+      run.keys.delete(key);
+      if (step.have) run.copies.delete(step.have.id);
+      bridge.doing.delete(line);
+      run.jobs.delete(job);
+      drawPanel();
+    });
+  run.jobs.add(job);
+}
+
+async function attempt(target, key, step) {
   try {
     await run(target, step);
     if (store.ui.tab === 'lessons') refreshSoon();
@@ -446,12 +539,22 @@ function drawPanel() {
   const el = panelElement();
   const waiting = settling() ? waitingCount() : 0;
   if (waiting && !bridge.running) return drawWaiting(el, waiting);
+  if (bridge.otherWorker && !bridge.running) return drawOtherWorker(el);
   const left = bridge.queue.size;
   el.classList.toggle('show', bridge.running && left > 0);
   return el.replaceChildren(
     h('div', { class: 'copy-queue-head' }, h('span', { class: 'copy-spin', 'aria-hidden': 'true' }, '📂'),
       h('strong', {}, 'Updating lesson copies'), h('span', { class: 'count-badge' }, left)),
-    h('div', { class: 'copy-queue-now' }, bridge.doing));
+    ...[...bridge.doing.values()].map((text) => h('div', { class: 'copy-queue-now' }, text)));
+}
+
+function drawOtherWorker(el) {
+  el.classList.add('show');
+  return el.replaceChildren(
+    h('div', { class: 'copy-queue-head' }, h('span', { 'aria-hidden': 'true' }, '💻'),
+      h('strong', {}, 'Your other computer is updating the lesson copies')),
+    h('div', { class: 'copy-queue-now wait-row' },
+      h('span', {}, 'The planner is open on another computer (or in another tab), so this one waits instead of making the same copies twice.')));
 }
 
 function drawWaiting(el, count) {

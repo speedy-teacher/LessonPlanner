@@ -34,20 +34,40 @@ function serviceOff(body) {
   return /SERVICE_DISABLED|accessNotConfigured|has not been used in project/.test(text);
 }
 
-async function call(fetchFn, token, url, init = {}) {
-  let res;
-  try {
-    res = await fetchFn(url, { ...init, headers: { Authorization: `Bearer ${token}`, ...init.headers } });
-  } catch {
-    throw new DriveError('offline');
+// Google asked the planner to slow down (several copies are made at once): wait this long, then try again.
+const SLOW_DOWN_MS = [1000, 3000, 8000];
+const sleep = (ms) => new Promise((resolve) => { setTimeout(resolve, ms); });
+
+/** "Too many requests right now" (Drive also says it with a 403 and a rate-limit reason), or a passing hiccup. */
+function slowDown(status, body) {
+  if (status === 429 || status >= 500) return true;
+  return status === 403 && /rateLimitExceeded|userRateLimitExceeded/.test(JSON.stringify(body?.error ?? {}));
+}
+
+/** `http` = { fetchFn, token, wait, onSlowDown } (onSlowDown: told each time Google says "slow down"). */
+async function call(http, url, init = {}) {
+  const { fetchFn, token, wait = sleep, onSlowDown = () => {} } = http;
+  for (let attempt = 0; ; attempt += 1) {
+    let res;
+    try {
+      res = await fetchFn(url, { ...init, headers: { Authorization: `Bearer ${token}`, ...init.headers } });
+    } catch {
+      throw new DriveError('offline');
+    }
+    if (res.ok) return res;
+    const body = await res.json().catch(() => null);
+    if (!slowDown(res.status, body) || attempt >= SLOW_DOWN_MS.length) throw driveError(res.status, body);
+    onSlowDown();
+    await wait(SLOW_DOWN_MS[attempt] * (1 + Math.random() / 2));
   }
-  if (res.ok) return res;
-  const body = await res.json().catch(() => null);
-  if (res.status === 401) throw new DriveError('signed_out');
-  if (res.status === 403 && serviceOff(body)) throw new DriveError('api_off');
-  if (res.status === 403) throw new DriveError('no_access');
-  if (res.status === 404) throw new DriveError('not_found');
-  throw new DriveError('drive_failed');
+}
+
+function driveError(status, body) {
+  if (status === 401) return new DriveError('signed_out');
+  if (status === 403 && serviceOff(body)) return new DriveError('api_off');
+  if (status === 403) return new DriveError('no_access');
+  if (status === 404) return new DriveError('not_found');
+  return new DriveError('drive_failed');
 }
 
 const jsonInit = (method, body) => ({ method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -89,46 +109,83 @@ const sameValues = (a, b) => JSON.stringify(Object.entries(a).sort()) === JSON.s
  * The lesson copies of a year inside a Drive output folder.
  * `rootId` = the output folder; returns { list, create, update, move, remove } (see exportBridge.js).
  */
-export function driveCopies({ token, rootId, yearId, fetchFn = fetch }) {
-  const send = (url, init) => call(fetchFn, token, url, init);
+export function driveCopies({ token, rootId, yearId, fetchFn = fetch, wait = sleep, onSlowDown }) {
+  const send = (url, init) => call({ fetchFn, token, wait, onSlowDown }, url, init);
   const files = googleFiles(send);
-  const folders = new Map(); // "a/b/c" → folder id, for this visit
+  // "a/b/c" → the folder id (a promise, so copies made at the same time into a new folder make it once), for this visit
+  const folders = new Map();
+  const movedTo = new Map(); // file id → folder it was moved into when same-name folders were combined
+
+  /** Every file matching a Drive search (all pages). */
+  async function search(q, fields, extra = {}) {
+    const found = [];
+    let pageToken = '';
+    do {
+      const params = new URLSearchParams({
+        q, fields: `nextPageToken,files(${fields})`, pageSize: '1000', supportsAllDrives: 'true', includeItemsFromAllDrives: 'true', ...extra,
+      });
+      if (pageToken) params.set('pageToken', pageToken);
+      const body = await (await send(`${API}?${params}`)).json();
+      found.push(...(body.files ?? []));
+      pageToken = body.nextPageToken ?? '';
+    } while (pageToken);
+    return found;
+  }
+
+  const children = (folderId) => search(`${quote(folderId)} in parents and trashed = false`, 'id,name,mimeType');
 
   async function childFolder(parentId, name) {
-    const params = new URLSearchParams({
-      q: `${quote(parentId)} in parents and name = ${quote(name)} and mimeType = '${FOLDER_MIME}' and trashed = false`,
-      fields: 'files(id)', pageSize: '1', supportsAllDrives: 'true', includeItemsFromAllDrives: 'true',
-    });
-    const found = (await (await send(`${API}?${params}`)).json()).files?.[0];
-    if (found) return found.id;
+    const q = `${quote(parentId)} in parents and name = ${quote(name)} and mimeType = '${FOLDER_MIME}' and trashed = false`;
+    const [oldest, ...twins] = await search(q, 'id', { orderBy: 'createdTime' });
+    // Same-name folders side by side (two computers made it at once): their contents go into the oldest.
+    for (const twin of twins) await combineInto(oldest.id, twin.id).catch(() => {});
+    if (oldest) return oldest.id;
     const made = await send(`${API}?fields=id&supportsAllDrives=true`, jsonInit('POST', { name, mimeType: FOLDER_MIME, parents: [parentId] }));
     return (await made.json()).id;
   }
 
-  async function folderFor(path) {
-    let parentId = rootId;
+  /** Move everything in folder `fromId` into `keepId` (combining folders with the same name too), then trash `fromId`. */
+  async function combineInto(keepId, fromId) {
+    const inKeep = await children(keepId);
+    for (const child of await children(fromId)) {
+      const twin = child.mimeType === FOLDER_MIME && inKeep.find((f) => f.mimeType === FOLDER_MIME && f.name === child.name);
+      if (twin) {
+        await combineInto(twin.id, child.id);
+      } else {
+        const params = new URLSearchParams({ addParents: keepId, removeParents: fromId, supportsAllDrives: 'true', fields: 'id' });
+        await send(`${API}/${encodeURIComponent(child.id)}?${params}`, jsonInit('PATCH', {}));
+        movedTo.set(child.id, keepId);
+      }
+    }
+    await send(`${API}/${encodeURIComponent(fromId)}?supportsAllDrives=true&fields=id`, jsonInit('PATCH', { trashed: true }));
+  }
+
+  function folderFor(path) {
+    let parent = Promise.resolve(rootId);
     for (let i = 0; i < path.length; i += 1) {
       const key = path.slice(0, i + 1).join('/');
-      if (!folders.has(key)) folders.set(key, await childFolder(parentId, path[i]));
-      parentId = folders.get(key);
+      if (!folders.has(key)) {
+        const found = parent.then((parentId) => childFolder(parentId, path[i]));
+        found.catch(() => { if (folders.get(key) === found) folders.delete(key); });
+        folders.set(key, found);
+      }
+      parent = folders.get(key);
     }
-    return parentId;
+    return parent;
   }
 
   async function list() {
-    const copies = [];
-    let pageToken = '';
-    do {
-      const params = new URLSearchParams({
-        q: `appProperties has { key='${COPY_LABEL}' and value=${quote(yearId)} } and trashed = false`,
-        fields: `nextPageToken,files(${COPY_FIELDS})`, pageSize: '1000', supportsAllDrives: 'true', includeItemsFromAllDrives: 'true',
-      });
-      if (pageToken) params.set('pageToken', pageToken);
-      const body = await (await send(`${API}?${params}`)).json();
-      copies.push(...(body.files ?? []).map(haveFrom));
-      pageToken = body.nextPageToken ?? '';
-    } while (pageToken);
-    return copies;
+    const q = `appProperties has { key='${COPY_LABEL}' and value=${quote(yearId)} } and trashed = false`;
+    return (await search(q, COPY_FIELDS)).map(haveFrom);
+  }
+
+  /** A folder's hidden labels (the folder is made if needed): used to note which computer is updating the copies. */
+  function folderLabels(path) {
+    const url = async () => `${API}/${encodeURIComponent(await folderFor(path))}?supportsAllDrives=true`;
+    return {
+      read: async () => (await (await send(`${await url()}&fields=appProperties`)).json()).appProperties ?? {},
+      write: async (labels) => { await send(`${await url()}&fields=id`, jsonInit('PATCH', { appProperties: labels })); },
+    };
   }
 
   async function copyInto(want, source) {
@@ -201,9 +258,10 @@ export function driveCopies({ token, rootId, yearId, fetchFn = fetch }) {
   async function move(have, want) {
     const parentId = await folderFor(want.path);
     const params = new URLSearchParams({ supportsAllDrives: 'true', fields: COPY_FIELDS });
-    if (parentId !== have.parentId) {
+    const oldParent = movedTo.get(have.id) ?? have.parentId;
+    if (parentId !== oldParent) {
       params.set('addParents', parentId);
-      if (have.parentId) params.set('removeParents', have.parentId);
+      if (oldParent) params.set('removeParents', oldParent);
     }
     const labels = { place: want.place, entryId: want.entryId };
     const res = await send(`${API}/${encodeURIComponent(have.id)}?${params}`, jsonInit('PATCH', { name: want.name, appProperties: labels }));
@@ -219,7 +277,7 @@ export function driveCopies({ token, rootId, yearId, fetchFn = fetch }) {
     }
   }
 
-  return { kind: 'drive', list, create, update, move, remove };
+  return { kind: 'drive', list, create, update, move, remove, folderLabels };
 }
 
 /**
@@ -227,7 +285,7 @@ export function driveCopies({ token, rootId, yearId, fetchFn = fetch }) {
  * (Slides → .pptx…). Returns { blob, ext } (ext like ".pptx", or "" if the name has none).
  */
 export async function downloadTemplate(token, fileId, { fetchFn = fetch } = {}) {
-  const send = (url) => call(fetchFn, token, url);
+  const send = (url) => call({ fetchFn, token }, url);
   const id = encodeURIComponent(fileId);
   const info = await (await send(`${API}/${id}?fields=name,mimeType&supportsAllDrives=true`)).json();
   const exported = EXPORTS[info.mimeType];

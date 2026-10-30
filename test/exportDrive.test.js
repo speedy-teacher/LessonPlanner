@@ -12,19 +12,21 @@ const PPTX = 'application/vnd.openxmlformats-officedocument.presentationml.prese
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status });
 
 /** A pretend Google Drive (folders, copies, trash) that records every request. */
-function fakeDrive({ fillStatus = 200 } = {}) {
+function fakeDrive({ fillStatus = 200, slowDowns = 0 } = {}) {
   const files = new Map([['tmplSlides', { id: 'tmplSlides', name: 'Beat', mimeType: SLIDES, parents: ['lib'] }],
     ['tmplPptx', { id: 'tmplPptx', name: 'Song.pptx', mimeType: PPTX, parents: ['lib'] }],
     ['tmplPdf', { id: 'tmplPdf', name: 'Sheet.pdf', mimeType: 'application/pdf', parents: ['lib'] }]]);
   const calls = [];
   let n = 0;
+  let busy = slowDowns; // "too many requests" answers still to give
   const make = (record) => { n += 1; const f = { id: `f${n}`, ...record }; files.set(f.id, f); return f; };
   const fillAnswer = () => (fillStatus === 200 ? json({}) : json({ error: { status: 'PERMISSION_DENIED', details: [{ reason: 'SERVICE_DISABLED' }] } }, fillStatus));
   const patch = (u, id, body) => {
     const f = files.get(id);
     if (!f) return json({}, 404);
     if (u.searchParams.get('addParents')) f.parents = [u.searchParams.get('addParents')];
-    Object.assign(f, { ...body, appProperties: { ...f.appProperties, ...body.appProperties } });
+    const labels = Object.entries({ ...f.appProperties, ...body.appProperties }).filter(([, v]) => v !== null); // null clears a label
+    Object.assign(f, { ...body, appProperties: Object.fromEntries(labels) });
     return json(f);
   };
   const search = (u) => {
@@ -33,6 +35,7 @@ function fakeDrive({ fillStatus = 200 } = {}) {
     const parent = q.match(/^'([^']*)' in parents/)?.[1];
     const all = [...files.values()].filter((f) => !f.trashed);
     if (name) return json({ files: all.filter((f) => f.name === name && f.parents?.includes(parent)) });
+    if (parent) return json({ files: all.filter((f) => f.parents?.includes(parent)) });
     return json({ files: all.filter((f) => f.appProperties?.[COPY_LABEL] === 'yr1') });
   };
   const fetchFn = async (url, init = {}) => {
@@ -42,9 +45,14 @@ function fakeDrive({ fillStatus = 200 } = {}) {
     calls.push({ method, url: u, body });
     if (u.host !== 'www.googleapis.com') return fillAnswer();
     const [, id, action] = u.pathname.match(/\/files\/([^/]+)\/?(\w*)/) ?? [];
-    if (action === 'copy') return json(make({ ...body, mimeType: body.mimeType ?? files.get(id).mimeType }));
+    if (action === 'copy') return copy(id, body);
     if (method === 'POST') return json(make(body));
-    return method === 'PATCH' ? patch(u, id, body) : search(u);
+    return method === 'PATCH' ? patch(u, id, body) : get(u, id);
+  };
+  const get = (u, id) => (id ? json(files.get(id)) : search(u));
+  const copy = (id, body) => {
+    if (busy > 0) { busy -= 1; return json({ error: { code: 429 } }, 429); }
+    return json(make({ ...body, mimeType: body.mimeType ?? files.get(id).mimeType }));
   };
   return { files, calls, fetchFn };
 }
@@ -54,7 +62,7 @@ const want = (over = {}) => ({
   name: '1 - Beat', values: { '{{school}}': 'School A', '{{week_number}}': '3' }, hash: 'h1', place: 'p1', ...over,
 });
 
-const copies = (drive) => driveCopies({ token: 'fake-token', rootId: 'root', yearId: 'yr1', fetchFn: drive.fetchFn });
+const copies = (drive) => driveCopies({ token: 'fake-token', rootId: 'root', yearId: 'yr1', fetchFn: drive.fetchFn, wait: async () => {} });
 
 test('a copy is made in School › Grade › Week folders inside the output folder, labelled so it can be found again', async () => {
   const drive = fakeDrive();
@@ -75,6 +83,54 @@ test('existing folders are reused, not made again', async () => {
   await copies(drive).create(want(), { fileId: 'tmplSlides', mimeType: SLIDES });
   await copies(drive).create(want({ entryId: 'wk2', name: '2 - Beat' }), { fileId: 'tmplSlides', mimeType: SLIDES });
   assert.equal([...drive.files.values()].filter((f) => f.mimeType?.endsWith('folder')).length, 4);
+});
+
+test('several copies made at once into the same new week folder make that folder only once', async () => {
+  const drive = fakeDrive();
+  const c = copies(drive);
+  await Promise.all([1, 2, 3, 4].map((i) => c.create(want({ entryId: `wk${i}`, name: `${i} - Beat` }), { fileId: 'tmplSlides', mimeType: SLIDES })));
+  const folders = [...drive.files.values()].filter((f) => f.mimeType?.endsWith('folder'));
+  assert.deepEqual(folders.map((f) => f.name), ['Music', 'School A', 'Grade 1', 'Week 3']);
+  assert.equal((await c.list()).length, 4);
+});
+
+test('two same-name week folders (made by two computers at once) are combined into the oldest', async () => {
+  const drive = fakeDrive();
+  const first = copies(drive);
+  const one = await first.create(want(), { fileId: 'tmplSlides', mimeType: SLIDES });
+  const grade = drive.files.get(one.parentId).parents[0];
+  // The other computer made its own "Week 3" next to it, with a copy and a file of the teacher's inside.
+  drive.files.set('twin', { id: 'twin', name: 'Week 3', mimeType: 'application/vnd.google-apps.folder', parents: [grade] });
+  drive.files.set('theirs', { id: 'theirs', name: '2 - Beat', mimeType: SLIDES, parents: ['twin'], appProperties: { [COPY_LABEL]: 'yr1', entryId: 'wk2' } });
+  drive.files.set('notes', { id: 'notes', name: 'My notes', mimeType: 'application/vnd.google-apps.document', parents: ['twin'] });
+  const later = copies(drive); // the next visit looks the folders up again
+  const three = await later.create(want({ entryId: 'wk3', name: '3 - Beat' }), { fileId: 'tmplSlides', mimeType: SLIDES });
+  assert.equal(three.parentId, one.parentId, 'the oldest Week 3 is used');
+  assert.equal(drive.files.get('twin').trashed, true, 'the empty twin goes to the trash');
+  assert.deepEqual(['theirs', 'notes'].map((id) => drive.files.get(id).parents[0]), [one.parentId, one.parentId], 'nothing inside it is lost');
+  const moved = await later.move({ ...(await later.list()).find((h) => h.id === 'theirs') }, want({ entryId: 'wk2', name: '2 - Beat', path: ['Music', 'School A', 'Grade 1', 'Week 4'] }));
+  const call = drive.calls.filter((x) => x.method === 'PATCH' && x.url.pathname.endsWith('/theirs')).at(-1);
+  assert.equal(call.url.searchParams.get('removeParents'), one.parentId, 'a later move starts from where it was moved to');
+  assert.equal(drive.files.get(moved.parentId).name, 'Week 4');
+});
+
+test('when Google asks the planner to slow down, it waits a moment, tries again, and says so (to make fewer at once)', async () => {
+  const drive = fakeDrive({ slowDowns: 2 });
+  let told = 0;
+  const c = driveCopies({ token: 'fake-token', rootId: 'root', yearId: 'yr1', fetchFn: drive.fetchFn, wait: async () => {}, onSlowDown: () => { told += 1; } });
+  const have = await c.create(want(), { fileId: 'tmplSlides', mimeType: SLIDES });
+  assert.equal(have.name, '1 - Beat');
+  assert.equal(drive.calls.filter((x) => x.url.pathname.endsWith('/copy')).length, 3);
+  assert.equal(told, 2);
+});
+
+test('a folder’s hidden labels can be read and changed (for the “who’s updating the copies” note)', async () => {
+  const drive = fakeDrive();
+  const labels = copies(drive).folderLabels(['Music']);
+  await labels.write({ lpWorker: 'tab-a', lpWorkerUntil: '100' });
+  assert.deepEqual(await labels.read(), { lpWorker: 'tab-a', lpWorkerUntil: '100' });
+  await labels.write({ lpWorker: null, lpWorkerUntil: null });
+  assert.deepEqual(await labels.read(), {});
 });
 
 test('details are filled in through Google Slides, in the copy only — the template is never changed', async () => {
