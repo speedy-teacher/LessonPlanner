@@ -21,12 +21,14 @@ import { downloadTemplate, driveCopies } from './exportDrive.js';
 import { folderPermission, localCopies, rememberedFolder } from './exportLocal.js';
 import { dismissNotice, showNotice } from './notices.js';
 import { copyLock } from './copyLock.js';
+import { copyPace } from './copyPace.js';
 
 const WAIT_MS = 1500; // after a sign-in or a new folder; after your own changes it's a minute (SETTLE_MS)
 const RECHECK_MS = 10 * 60 * 1000;
 const MAX_TRIES = 4; // steps for one entry in a row before giving up on it for now
 const STOPPERS = ['signed_out', 'offline'];
-const JOBS = 4; // Drive copies worked on at once (Google starts saying "slow down" beyond a few)
+// Drive copies worked on at once: a few, or one at a time for a while after Google says "slow down" (copyPace.js).
+const pace = copyPace();
 const RENEW_MS = 60 * 1000; // while working, renew the note that says this computer is updating the copies
 const OTHER_WAIT_MS = 60 * 1000; // another computer is updating them: look again this long from now
 const WORKER_ID = globalThis.crypto?.randomUUID?.() ?? `w${Math.random().toString(36).slice(2)}`; // this visit
@@ -164,8 +166,8 @@ async function makeTarget(year, output) {
 
 function driveTarget(year, output) {
   return {
-    rootKey: `drive:${output.folderId}`, keeps: true, yearId: year.id, jobs: JOBS, sharedFolder: true,
-    adapter: driveCopies({ token: google.token, rootId: output.folderId, yearId: year.id }),
+    rootKey: `drive:${output.folderId}`, keeps: true, yearId: year.id, jobs: pace.jobs, sharedFolder: true,
+    adapter: driveCopies({ token: google.token, rootId: output.folderId, yearId: year.id, onSlowDown: pace.slowDown }),
     templateOf: driveFileId, canFill: canFillIn, sharing: isShared,
     pictureOnHold: (fileId) => bridge.picturesOnHold.has(fileId),
     // Pictures go into Google Slides copies (on the template's IMAGE_ANCHOR spots).
@@ -304,7 +306,7 @@ async function work(target) {
   try {
     for (;;) {
       let started = true;
-      while (started && run.jobs.size < (target.jobs ?? 1)) started = startNext(run);
+      while (started && run.jobs.size < (target.jobs?.() ?? 1)) started = startNext(run);
       if (!run.jobs.size) break;
       await Promise.race(run.jobs);
     }

@@ -114,11 +114,14 @@ test('two same-name week folders (made by two computers at once) are combined in
   assert.equal(drive.files.get(moved.parentId).name, 'Week 4');
 });
 
-test('when Google asks the planner to slow down, it waits a moment and tries again', async () => {
+test('when Google asks the planner to slow down, it waits a moment, tries again, and says so (to make fewer at once)', async () => {
   const drive = fakeDrive({ slowDowns: 2 });
-  const have = await copies(drive).create(want(), { fileId: 'tmplSlides', mimeType: SLIDES });
+  let told = 0;
+  const c = driveCopies({ token: 'fake-token', rootId: 'root', yearId: 'yr1', fetchFn: drive.fetchFn, wait: async () => {}, onSlowDown: () => { told += 1; } });
+  const have = await c.create(want(), { fileId: 'tmplSlides', mimeType: SLIDES });
   assert.equal(have.name, '1 - Beat');
   assert.equal(drive.calls.filter((x) => x.url.pathname.endsWith('/copy')).length, 3);
+  assert.equal(told, 2);
 });
 
 test('a folder’s hidden labels can be read and changed (for the “who’s updating the copies” note)', async () => {

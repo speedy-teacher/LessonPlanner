@@ -44,7 +44,9 @@ function slowDown(status, body) {
   return status === 403 && /rateLimitExceeded|userRateLimitExceeded/.test(JSON.stringify(body?.error ?? {}));
 }
 
-async function call(fetchFn, token, url, init = {}, wait = sleep) {
+/** `http` = { fetchFn, token, wait, onSlowDown } (onSlowDown: told each time Google says "slow down"). */
+async function call(http, url, init = {}) {
+  const { fetchFn, token, wait = sleep, onSlowDown = () => {} } = http;
   for (let attempt = 0; ; attempt += 1) {
     let res;
     try {
@@ -55,6 +57,7 @@ async function call(fetchFn, token, url, init = {}, wait = sleep) {
     if (res.ok) return res;
     const body = await res.json().catch(() => null);
     if (!slowDown(res.status, body) || attempt >= SLOW_DOWN_MS.length) throw driveError(res.status, body);
+    onSlowDown();
     await wait(SLOW_DOWN_MS[attempt] * (1 + Math.random() / 2));
   }
 }
@@ -106,8 +109,8 @@ const sameValues = (a, b) => JSON.stringify(Object.entries(a).sort()) === JSON.s
  * The lesson copies of a year inside a Drive output folder.
  * `rootId` = the output folder; returns { list, create, update, move, remove } (see exportBridge.js).
  */
-export function driveCopies({ token, rootId, yearId, fetchFn = fetch, wait = sleep }) {
-  const send = (url, init) => call(fetchFn, token, url, init, wait);
+export function driveCopies({ token, rootId, yearId, fetchFn = fetch, wait = sleep, onSlowDown }) {
+  const send = (url, init) => call({ fetchFn, token, wait, onSlowDown }, url, init);
   const files = googleFiles(send);
   // "a/b/c" → the folder id (a promise, so copies made at the same time into a new folder make it once), for this visit
   const folders = new Map();
@@ -282,7 +285,7 @@ export function driveCopies({ token, rootId, yearId, fetchFn = fetch, wait = sle
  * (Slides → .pptx…). Returns { blob, ext } (ext like ".pptx", or "" if the name has none).
  */
 export async function downloadTemplate(token, fileId, { fetchFn = fetch } = {}) {
-  const send = (url) => call(fetchFn, token, url);
+  const send = (url) => call({ fetchFn, token }, url);
   const id = encodeURIComponent(fileId);
   const info = await (await send(`${API}/${id}?fields=name,mimeType&supportsAllDrives=true`)).json();
   const exported = EXPORTS[info.mimeType];

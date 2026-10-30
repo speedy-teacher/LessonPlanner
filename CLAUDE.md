@@ -92,8 +92,9 @@ A browser app for a (non-technical) elementary music teacher to plan a school ye
   fill-in) share that path. `exportBridge.js` runs it in the background, bottom-right queue panel: a minute after your
   last data change (`SETTLE_MS`, `store.editedAt` = commit/undo/redo only; a change mid-run pauses the queue), with a
   countdown + "Update now"; opening/loading a plan, signing in or choosing a folder update after 1.5 s.
-  Drive: 4 entries at once (`JOBS`; each entry one step at a time, a copy another job uses isn't touched/reused),
-  "slow down" answers (429/5xx/rate-limit 403) retried after 1/3/8 s; local folders 1 at a time. Week folders are
+  Drive: 4 entries at once (each entry one step at a time, a copy another job uses isn't touched/reused),
+  "slow down" answers (429/5xx/rate-limit 403) retried after 1/3/8 s and reported (`onSlowDown`) to `copyPace.js`
+  (pure + tested): then 1 at a time, +1 every 30 s back up to 4. Local folders 1 at a time. Week folders are
   looked up once per path (promise cache); same-name twins are combined into the oldest (`combineInto`, contents moved,
   twin trashed). One computer/tab per plan works at a time (`copyLock.js`, pure + tested): note `lpWorker`/`lpWorkerUntil`
   on the plan's folder, 3-min claim renewed every minute, read back after 1.5 s; a fresh claim re-lists the copies;
