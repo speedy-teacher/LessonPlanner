@@ -19,6 +19,7 @@ import { checkWatchedFolders, startWatchingDrive } from './views/deckImport.js';
 import { menuItem, popMenu } from './views/common.js';
 import { soon as checkCopies, startExportBridge } from './exportBridge.js';
 import { startAgentBridge } from './agentBridge.js';
+import { VERSION } from './version.js';
 
 const SYNC_EVERY_MS = 60_000;
 
@@ -138,6 +139,7 @@ function onKey(e) {
 
 async function start() {
   installTooltips();
+  document.getElementById('app-version').textContent = `Version ${VERSION}`;
   installCalendarScrolling();
   document.getElementById('undo').addEventListener('click', undo);
   document.getElementById('redo').addEventListener('click', redo);
