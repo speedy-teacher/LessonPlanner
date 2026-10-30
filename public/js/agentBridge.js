@@ -71,8 +71,9 @@ function whereSaved({ planOpen, onDrive }) {
   return onDrive ? 'Google Drive' : 'this browser only';
 }
 
-const SIGN_IN = 'Google Drive is not connected. Click once anywhere on the page (Google needs a click to open its sign-in window); '
-  + 'if Google asks for a password, the teacher has to type it. Then call status() again.';
+const SIGN_IN = 'Google Drive is not connected. Click the "Connect Google Drive" button (or, if a notice says "Click anywhere to reconnect", '
+  + 'click once anywhere): Google only opens its window after a click. If Google asks for a password, the teacher has to type it. '
+  + 'Then call status() again.';
 
 function nextStepFor({ planOpen, onDrive, signedIn, pending }) {
   if (google.status === 'working') return 'Google is signing in. Wait a few seconds and call status() again.';
