@@ -112,9 +112,11 @@ A browser app for a (non-technical) elementary music teacher to plan a school ye
 - **Pictures** (`exportGoogle.js`): Slides copies only; `createImage` on `IMAGE_ANCHOR` spots (anchor deleted, picture id
   `lpPicture…`), later `replaceImage`. The picture is shared "anyone with the link" only while Google fetches it, then that
   permission is deleted (untouched if it was already shared). Refused → copy kept without picture, notice, ⚠ on Images.
-  A picture that fails goes **on hold** (`bridge.picturesOnHold`, this visit only): wants leave it out (`pictureOnHold`
-  target option; `heldHash`/`heldPicture` so copies that already have it stay), one notice per picture. Released on
-  the next data change (not for `cant_share`) or when `imageSharing` finds it shared / it's picked again (`onSharingNews`).
+  A picture that fails goes **on hold** (`pictureHolds.js`, pure + tested; `bridge.picturesOnHold`, this visit only): wants
+  leave it out (`pictureOnHold` target option; `heldHash`/`heldPicture` so copies that already have it stay), one notice per
+  picture + problem. Released on the next data change, the 10-min recheck and a renewed sign-in (not `cant_share`), or when
+  `imageSharing` finds it shared / it's picked again (`onSharingNews`). The problem stays in `copyStatus().pictures`
+  (Setup card, `lessonPlanner.status().lessonCopies`) until a copy gets the picture.
   Background news redraws via `refreshSoon()` (quietRefresh.js), never `refresh()`, so clicks aren't swallowed.
   Not yet tried against real Google (URL `drive.google.com/uc?export=view&id=`, fallback `lh3.googleusercontent.com/d/`).
 

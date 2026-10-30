@@ -33,7 +33,17 @@ export function copiesCard() {
     h('p', { class: 'hint' }, 'Every lesson on the Lesson Schedule gets its own copy of its template, sorted into School › Grade › Week folders, with the “Filled in automatically” details typed in. Your templates are never changed. Change a lesson in its template — copies are remade when their details change.'),
     folderLine(output),
     h('p', { class: `copies-status ${status.state}` }, (STATUS[status.state] ?? STATUS.none)(status)),
+    pictureProblems(status.pictures ?? []),
     buttons(output, status));
+}
+
+/** Pictures that couldn't go into copies this visit, and why (see pictureHolds.js). */
+function pictureProblems(pictures) {
+  if (!pictures.length) return null;
+  return h('ul', { class: 'copies-pictures' }, pictures.map((p) => h('li', {},
+    h('strong', {}, `⚠ ${p.picture ? `“${p.picture}”` : 'A picture'}${p.lesson ? ` (in “${p.lesson}”)` : ''}: `),
+    p.onHold ? 'not in its copies yet. ' : 'trying again now. ',
+    h('span', { class: 'hint' }, p.advice))));
 }
 
 function folderLine(output) {
