@@ -6,7 +6,7 @@
 import { fetchLinkSharing } from './drive.js';
 import { google } from './google.js';
 import { driveFileId } from './locations.js';
-import { refresh, store } from './store.js';
+import { refreshSoon, store } from './store.js';
 
 const FRESH_MS = 10 * 60 * 1000;
 const MAX_AT_ONCE = 4;
@@ -74,5 +74,5 @@ async function load(fileId) {
 /** Show new answers on the pages that use them, a moment later (many arrive together). */
 function redrawSoon() {
   clearTimeout(redraw);
-  redraw = setTimeout(() => { if (['images', 'lessons'].includes(store.ui.tab)) refresh(); }, 300);
+  redraw = setTimeout(() => { if (['images', 'lessons'].includes(store.ui.tab)) refreshSoon(); }, 300);
 }

@@ -2,7 +2,7 @@
 // search, the "Lessons that use …" instrument filter, and how many evals teach each deck.
 
 import { h } from '../dom.js';
-import { find, lessonEvals } from '../model.js';
+import { find } from '../model.js';
 import { folderPath, LESSON_SHELF } from '../library.js';
 import { store } from '../store.js';
 import { current, year } from './common.js';
@@ -34,8 +34,18 @@ function shownDecks() {
   return current('lessons').filter((l) => (!words.length || matches(l, words)) && (!ins || l.instrumentIds.includes(ins.id)));
 }
 
-function evalCount(lesson) {
-  const evals = lessonEvals(store.state, lesson.id).length;
+/** How many evals teach each deck, counted once per redraw: lesson id → number of evals. */
+function evalCounts() {
+  const evalsOf = new Map();
+  for (const step of store.state.criterionLessons) {
+    if (!evalsOf.has(step.lessonId)) evalsOf.set(step.lessonId, new Set());
+    evalsOf.get(step.lessonId).add(step.criterionId);
+  }
+  return new Map([...evalsOf].map(([lessonId, ids]) => [lessonId, ids.size]));
+}
+
+function evalCount(lesson, counts) {
+  const evals = counts?.get(lesson.id) ?? 0;
   return h('span', { class: 'uses', title: evals ? `Taught in ${plural(evals, 'eval')}` : 'Not in any eval yet' },
     evals ? plural(evals, 'eval') : '—');
 }
@@ -46,6 +56,7 @@ const DECKS = {
   noun: 'deck', icon: '🖼️', folderHint: 'e.g. Rhythm unit',
   shown: shownDecks,
   filtering: () => searchWords().length > 0 || Boolean(instrumentFilter()),
+  prepare: evalCounts,
   extra: evalCount,
   emptyText: 'No lesson decks yet. Use “+ Add” above.',
   noMatchText: 'No lessons match your search.',

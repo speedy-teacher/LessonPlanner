@@ -9,7 +9,7 @@
 
 import { h } from './dom.js';
 import { activeYear, find } from './model.js';
-import { refresh, store, subscribe } from './store.js';
+import { refresh, refreshSoon, store, subscribe } from './store.js';
 import { google } from './google.js';
 import { current as plan } from './workspace.js';
 import { canFillIn, driveFileId, driveOpenUrl, findLocation, googleTypeFor } from './locations.js';
@@ -250,7 +250,7 @@ async function attempt(target, key, step) {
   drawPanel();
   try {
     await run(target, step);
-    if (store.ui.tab === 'lessons') refresh();
+    if (store.ui.tab === 'lessons') refreshSoon();
     return 'ok';
   } catch (err) {
     if (STOPPERS.includes(err.message)) return 'stop'; // try again once Google Drive is back

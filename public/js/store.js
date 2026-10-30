@@ -3,6 +3,7 @@
 // Google Drive) is up to workspace.js, which hands in `persist`.
 
 import { normalize } from './model.js';
+import { quietRedraw, watchHands } from './quietRefresh.js';
 
 const SAVE_DELAY_MS = 400;
 const UNDO_LIMIT = 100;
@@ -94,6 +95,9 @@ export function refresh() {
 function notify() {
   store.listeners.forEach((fn) => fn());
 }
+
+/** Redraw for news from the background (lesson copies, sharing checks) at a quiet moment — see quietRefresh.js. */
+export const refreshSoon = quietRedraw(notify, { isBusy: watchHands(document) });
 
 // ---------- autosave ----------
 

@@ -5,12 +5,14 @@
 //   { shelf,                                   // LESSON_SHELF / IMAGE_SHELF (library.js)
 //     keys: { item, folder, open },            // where the page keeps its choices in store.ui
 //     noun: 'deck',                            // what the items are called ("3 decks")
-//     icon: '🖼️', shown: () => [items], filtering: () => bool, extra: (item) => node | null,
+//     icon: '🖼️', shown: () => [items], filtering: () => bool,
+//     prepare?: () => data,                    // worked out once per redraw, handed to extra
+//     extra: (item, data) => node | null,
 //     emptyText, noMatchText, onPick?: (item) => void, afterRemove?: (counts) => text }
 
 import { h, openModal, toast } from '../dom.js';
 import { find } from '../model.js';
-import { addFolder, decksIn, driveLink, folderAndInside, folderPath, foldersIn, hasNewInside, moveDeck, moveFolder, removeFolder } from '../library.js';
+import { addFolder, decksIn, driveLink, folderPath, foldersIn, moveDeck, moveFolder, removeFolder } from '../library.js';
 import { driveFileId } from '../locations.js';
 import { commit, setUi, store, undo } from '../store.js';
 import { emptyNote, menuItem, popMenu, year } from './common.js';
@@ -57,20 +59,56 @@ export function folderTree(tree, selected) {
   const shown = new Set(tree.shown());
   const all = store.state[tree.shelf.items].some((i) => i.yearId === year().id) || store.state[tree.shelf.folders].some((f) => f.yearId === year().id);
   if (!all) return emptyNote(tree.emptyText);
-  if (!shown.size && tree.filtering()) return emptyNote(tree.noMatchText);
+  const filtering = tree.filtering();
+  if (!shown.size && filtering) return emptyNote(tree.noMatchText);
+  const ctx = { shown, selected, filtering, index: treeIndex(tree, shown), extra: tree.prepare?.() };
   const el = h('div', { class: 'deck-tree' },
     h('div', { class: 'tree-top-drop', ...dropTarget(tree, null) }, '⤒ Drop here to move to the top level'),
-    h('ul', { class: 'tree-list' }, branch(tree, null, 0, { shown, selected })));
+    h('ul', { class: 'tree-list' }, branch(tree, null, 0, ctx)));
   el.addEventListener('dragstart', () => el.classList.add('dragging'));
   el.addEventListener('dragend', () => el.classList.remove('dragging'));
   return el;
 }
 
+/**
+ * Everything the tree needs, worked out once per redraw (a library can hold a thousand decks):
+ * each folder's folders and items in name order, and per folder (counting everything inside it)
+ * how many items it has, whether any is new, and whether any passes the search.
+ */
+function treeIndex(tree, shown) {
+  const byName = (a, b) => a.name.localeCompare(b.name, undefined, { numeric: true });
+  const group = (list, key) => {
+    const map = Map.groupBy(list, (r) => r[key] ?? null);
+    map.forEach((rows) => rows.sort(byName));
+    return map;
+  };
+  const folders = group(store.state[tree.shelf.folders].filter((f) => f.yearId === year().id), 'parentId');
+  const items = group(store.state[tree.shelf.items].filter((i) => i.yearId === year().id), 'folderId');
+  const totals = new Map();
+  const visiting = new Set(); // guards against a folder that ends up inside itself
+  const total = (folderId) => {
+    if (totals.has(folderId)) return totals.get(folderId);
+    const own = items.get(folderId) ?? [];
+    const sum = { count: own.length, isNew: own.some((i) => i.isNew), shown: own.some((i) => shown.has(i)) };
+    visiting.add(folderId);
+    for (const f of folders.get(folderId) ?? []) {
+      if (visiting.has(f.id)) continue;
+      const inner = total(f.id);
+      sum.count += inner.count;
+      sum.isNew ||= inner.isNew;
+      sum.shown ||= inner.shown;
+    }
+    visiting.delete(folderId);
+    totals.set(folderId, sum);
+    return sum;
+  };
+  return { foldersIn: (id) => folders.get(id) ?? [], itemsIn: (id) => items.get(id) ?? [], total };
+}
+
 function branch(tree, folderId, depth, ctx) {
-  const folders = foldersIn(store.state, year().id, folderId, tree.shelf)
-    .filter((f) => !tree.filtering() || [...ctx.shown].some((l) => folderAndInside(store.state, f.id, tree.shelf).includes(l.folderId)));
-  const items = decksIn(store.state, year().id, folderId, tree.shelf).filter((l) => ctx.shown.has(l));
-  return [...folders.map((f) => folderItem(tree, f, depth, ctx)), ...items.map((l) => itemRow(tree, l, depth, ctx.selected))];
+  const folders = ctx.index.foldersIn(folderId).filter((f) => !ctx.filtering || ctx.index.total(f.id).shown);
+  const items = ctx.index.itemsIn(folderId).filter((l) => ctx.shown.has(l));
+  return [...folders.map((f) => folderItem(tree, f, depth, ctx)), ...items.map((l) => itemRow(tree, l, depth, ctx))];
 }
 
 // A cloud for folders from Google Drive; a cracked one when watching is turned off.
@@ -98,7 +136,7 @@ export function newMark(tip) {
 
 function folderItem(tree, folder, depth, ctx) {
   const open = isOpen(tree, folder.id);
-  const count = folderAndInside(store.state, folder.id, tree.shelf).reduce((n, id) => n + decksIn(store.state, year().id, id, tree.shelf).length, 0);
+  const { count, isNew } = ctx.index.total(folder.id);
   return h('li', { class: 'tree-folder' },
     h('div', {
       class: `folder-row ${treeTarget(tree)?.id === folder.id ? 'current' : ''}`,
@@ -110,14 +148,14 @@ function folderItem(tree, folder, depth, ctx) {
       h('span', { class: 'caret', 'aria-hidden': 'true' }, open ? '▾' : '▸'),
       h('span', { class: 'folder-icon', 'aria-hidden': 'true' }, open ? '📂' : '📁'),
       h('span', { class: 'template-name' }, folder.name),
-      hasNewInside(store.state, folder.id, tree.shelf) ? newMark(`Newly added ${tree.noun}s are in here`) : null,
+      isNew ? newMark(`Newly added ${tree.noun}s are in here`) : null,
       cloudMark(tree, driveLink(store.state, folder, tree.shelf))),
     h('span', { class: 'count-badge' }, count),
     folderMenu(tree, folder)),
   open ? h('ul', { class: 'tree-list' }, branch(tree, folder.id, depth + 1, ctx)) : null);
 }
 
-function itemRow(tree, item, depth, selected) {
+function itemRow(tree, item, depth, { selected, extra }) {
   const pick = () => {
     setUi({ [tree.keys.item]: item.id, [tree.keys.folder]: item.folderId });
     tree.onPick?.(item);
@@ -131,7 +169,7 @@ function itemRow(tree, item, depth, selected) {
   h('span', { class: 'deck-icon', 'aria-hidden': 'true' }, tree.icon),
   h('span', { class: 'template-name' }, item.name),
   item.isNew ? newMark('Newly added from Google Drive. Change any of its details to mark it as seen.') : null,
-  tree.extra(item)));
+  tree.extra(item, extra)));
 }
 
 // ---------- drag and drop ----------
