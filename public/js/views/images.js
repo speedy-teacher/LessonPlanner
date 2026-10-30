@@ -78,7 +78,7 @@ export function renderImages() {
       sharingSummary(images),
       folderTree(IMAGES, selected)),
     h('section', { class: 'main-col card image-gallery' }, gallery(selected)),
-    h('aside', { class: 'card image-side' }, selected ? imageDetails(selected) : emptyNote('Pick a picture to tag it.')));
+    h('aside', { class: 'card image-side', dataset: { scrollKey: selected?.id ?? '' } }, selected ? imageDetails(selected) : emptyNote('Pick a picture to tag it.')));
 }
 
 function addMenu() {

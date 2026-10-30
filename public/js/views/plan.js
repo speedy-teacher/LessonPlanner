@@ -157,7 +157,7 @@ function detailPanel(p) {
   const steps = stepsFor(store.state, p.criterionId, p.gradeId);
   const warnIds = new Set(placementWarnings(store.state, p).map((w) => w.step.id));
   const range = p.startDate === p.endDate ? formatDate(p.startDate) : `${formatDate(p.startDate)} – ${formatDate(p.endDate)}`;
-  return h('aside', { class: 'detail card', style: { '--chip': outcomeColor(outcomeOf(store.state, p.criterionId)?.id) } },
+  return h('aside', { class: 'detail card', dataset: { scrollKey: p.id }, style: { '--chip': outcomeColor(outcomeOf(store.state, p.criterionId)?.id) } },
     h('div', { class: 'detail-head' },
       h('div', {},
         h('div', { class: 'eyebrow' }, range),

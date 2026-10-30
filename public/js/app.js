@@ -39,6 +39,26 @@ function restoreFocus(key) {
   if (key) document.querySelector(`[data-key="${CSS.escape(key)}"]`)?.focus();
 }
 
+// Side panels that scroll on their own keep their place when the screen is redrawn (e.g. after
+// changing a picture's dates). A panel with `data-scroll-key` (e.g. which picture it shows) starts
+// at the top again when that key changes.
+const SCROLL_PANELS = '.side, .detail, .image-side';
+
+function panelKey(el, i) {
+  return `${i}:${el.dataset.scrollKey ?? ''}`;
+}
+
+function panelScrolls(main) {
+  return new Map([...main.querySelectorAll(SCROLL_PANELS)].map((el, i) => [panelKey(el, i), el.scrollTop]));
+}
+
+function restorePanelScrolls(main, saved) {
+  main.querySelectorAll(SCROLL_PANELS).forEach((el, i) => {
+    const top = saved.get(panelKey(el, i));
+    if (top) el.scrollTop = top;
+  });
+}
+
 function render() {
   const focusKey = document.activeElement?.dataset?.key;
   const main = document.getElementById('main');
@@ -48,11 +68,13 @@ function render() {
   // Redrawing the same screen keeps its scroll position; a new tab or year starts fresh.
   const sameView = main.dataset.view === `${tab.id}/${store.state.activeYearId}`;
   const scroll = sameView ? main.scrollTop : 0;
+  const panels = sameView ? panelScrolls(main) : new Map();
   renderHeader();
   document.getElementById('tooltip').classList.remove('show');
   main.replaceChildren(hasYear ? tab.render() : h('p', { class: 'empty-note' }, 'No years yet.'));
   main.dataset.view = `${tab.id}/${store.state.activeYearId}`;
   main.scrollTop = scroll;
+  restorePanelScrolls(main, panels);
   if (!sameView && hasYear && tab.onShow) tab.onShow();
   restoreFocus(focusKey);
   return undefined;
