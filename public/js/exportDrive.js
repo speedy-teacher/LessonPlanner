@@ -54,6 +54,9 @@ const jsonInit = (method, body) => ({ method, headers: { 'Content-Type': 'applic
 const quote = (text) => `'${text.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;
 const bytes = (text) => new TextEncoder().encode(text).length;
 
+// The copy has a picture the schedule no longer wants (one on hold is still wanted: it stays).
+const losesPicture = (have, want) => !want.picture && Boolean(have.picture) && have.picture !== want.heldPicture;
+
 // Details are remembered as labels "v_school", "v_week_number"… (from {{school}}, {{week_number}}…).
 const labelOf = (placeholder) => `v_${placeholder.replace(/[{}]/g, '')}`;
 const placeholderOf = (label) => `{{${label.slice(2)}}}`;
@@ -183,7 +186,7 @@ export function driveCopies({ token, rootId, yearId, fetchFn = fetch }) {
    */
   async function update(have, want, source) {
     if (!have.values || have.template !== want.template || have.lessonId !== want.lessonId) throw new NotInPlace('not known');
-    if (!want.picture && have.picture) throw new NotInPlace('picture taken away');
+    if (losesPicture(have, want)) throw new NotInPlace('picture taken away');
     const moved = have.place !== want.place || have.name !== want.name || have.entryId !== want.entryId;
     const current = moved ? await move(have, want) : have;
     if (!sameValues(have.values, want.values)) {

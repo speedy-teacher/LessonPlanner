@@ -34,6 +34,18 @@ export function markShareRefused(fileId) {
 export function clearRefused(fileIds) {
   fileIds.forEach((id) => refused.delete(id));
   redrawSoon();
+  tellPlaceable(fileIds);
+}
+
+const placeableListeners = [];
+
+/** `fn(fileIds)` hears about pictures that can be placed now (found shared, or picked again). */
+export function onSharingNews(fn) {
+  placeableListeners.push(fn);
+}
+
+function tellPlaceable(fileIds) {
+  placeableListeners.forEach((fn) => fn(fileIds));
 }
 
 /** Whether placing this picture failed because it couldn't be shared for a moment. */
@@ -65,6 +77,7 @@ async function load(fileId) {
   try {
     known.set(fileId, { shared: await fetchLinkSharing(google.token, fileId), at: Date.now() });
     if (known.get(fileId).shared) refused.delete(fileId); // shared by hand since: placing will work
+    if (known.get(fileId).shared && before !== true) tellPlaceable([fileId]);
   } catch {
     known.set(fileId, { shared: null, at: Date.now() });
   }

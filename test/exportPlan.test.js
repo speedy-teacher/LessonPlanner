@@ -224,6 +224,25 @@ test('a lesson with a picture spot gets the week’s picture in its copy; a new 
   assert.equal(wants(s, year.id)[0].picture, '', 'no picture where pictures can’t go (e.g. not Google Slides)');
 });
 
+test('a picture that couldn’t be placed is on hold: copies are made without it, once, and get it when it’s let go', () => {
+  const { s, year, weekly, cls, weeks } = setup();
+  weekly.autoFields.push('image');
+  Object.assign(addImage(s, { yearId: year.id, name: 'Waving', locations: [driveLocation({ fileId: 'fakeWave', mimeType: 'image/png' })] }),
+    { when: { anytime: true, priority: 2, windows: [] } });
+  [0, 1, 2].forEach((i) => addWeekLesson(s, { ...cls, weekStart: weeks[i].weekStart, lessonId: weekly.id }));
+  const held = new Set(['fakeWave']);
+  const target = { ...DRIVE, canPicture: () => true, pictureOnHold: (id) => held.has(id) };
+  const haves = [];
+  assert.deepEqual(syncFolder(s, year.id, haves, target), ['create', 'create', 'create']);
+  assert.deepEqual(haves.map((h) => h.picture), ['', '', '']);
+  assert.deepEqual(syncFolder(s, year.id, haves, target), [], 'no trying again over and over');
+  held.clear();
+  assert.deepEqual(syncFolder(s, year.id, haves, target), ['refill', 'refill', 'refill'], 'let go: the picture goes in');
+  assert.deepEqual(haves.map((h) => h.picture), ['fakeWave', 'fakeWave', 'fakeWave']);
+  held.add('fakeWave');
+  assert.deepEqual(syncFolder(s, year.id, haves, target), [], 'copies that already have the picture are left as they are');
+});
+
 test('copies wait a minute after the last change before updating; a change near an update pushes it back', async () => {
   const { updateTime, SETTLE_MS } = await import('../public/js/exportPlan.js');
   assert.equal(SETTLE_MS, 60 * 1000);

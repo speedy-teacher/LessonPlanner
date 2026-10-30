@@ -15,7 +15,7 @@ import { current as plan } from './workspace.js';
 import { canFillIn, driveFileId, driveOpenUrl, findLocation, googleTypeFor } from './locations.js';
 import { groupCopies, keysToDo, nextStep, SETTLE_MS, sparesFor, updateTime, wantedCopies } from './exportPlan.js';
 import { SLIDES } from './exportGoogle.js';
-import { isShared, markShareRefused } from './imageSharing.js';
+import { isShared, markShareRefused, onSharingNews } from './imageSharing.js';
 import { downloadTemplate, driveCopies } from './exportDrive.js';
 import { folderPermission, localCopies, rememberedFolder } from './exportLocal.js';
 import { dismissNotice, showNotice } from './notices.js';
@@ -36,6 +36,10 @@ const bridge = {
   running: false,
   doing: '', // what the bridge is doing right now (for the panel)
   failed: new Map(), // entry id → signature it failed with (not retried until something changes)
+  // Pictures that couldn't be placed this visit (Drive file id → problem): copies are made without them
+  // for now — one warning, not one per copy. Retried after your next change, or (when Google wouldn't
+  // let the planner share it) once the picture is found shared or picked again.
+  picturesOnHold: new Map(),
   version: 0, // counts changes, so wanted copies are only worked out again when needed
   wants: null, // { version, targetId, map }
 };
@@ -71,11 +75,23 @@ export function startExportBridge() {
     if (store.state === seenState && store.editedAt === seenEdit) return;
     seenState = store.state;
     seenEdit = store.editedAt;
+    releasePictures(([, problem]) => problem !== 'cant_share');
     bridge.version += 1;
     soon();
   });
+  // A picture now shared with anyone with the link (or picked again) can be placed: try it again.
+  onSharingNews((fileIds) => releasePictures(([fileId]) => fileIds.includes(fileId), true));
   setInterval(() => { bridge.target = null; soon(); }, RECHECK_MS);
   soon();
+}
+
+/** Take pictures off hold (those `which([fileId, problem])` picks), so the next look places them. */
+function releasePictures(which, lookNow = false) {
+  const ids = [...bridge.picturesOnHold].filter(which).map(([fileId]) => fileId);
+  if (!ids.length) return;
+  ids.forEach((id) => bridge.picturesOnHold.delete(id));
+  bridge.version += 1;
+  if (lookNow) soon();
 }
 
 /**
@@ -144,6 +160,7 @@ function driveTarget(year, output) {
     rootKey: `drive:${output.folderId}`, keeps: true, yearId: year.id,
     adapter: driveCopies({ token: google.token, rootId: output.folderId, yearId: year.id }),
     templateOf: driveFileId, canFill: canFillIn, sharing: isShared,
+    pictureOnHold: (fileId) => bridge.picturesOnHold.has(fileId),
     // Pictures go into Google Slides copies (on the template's IMAGE_ANCHOR spots).
     canPicture: (lesson) => googleTypeFor(findLocation(lesson, 'drive')?.mimeType) === SLIDES,
   };
@@ -296,18 +313,23 @@ async function updateInPlace(adapter, step, source) {
   }
 }
 
-/** The copy is fine, but its picture couldn't go in: say so (it's tried again after the next change). */
+/**
+ * The copy is fine, but its picture couldn't go in: put the picture on hold (other copies are made
+ * without it, without trying again) and say so once.
+ */
 function pictureProblem(have, want) {
   const err = have.pictureProblem;
-  if (!err) return;
+  if (!err || bridge.picturesOnHold.has(want.picture)) return;
+  bridge.picturesOnHold.set(want.picture, err.message);
+  bridge.version += 1;
   const image = store.state.images.find((i) => driveFileId(i) === want.picture);
   if (err.message === 'cant_share') markShareRefused(want.picture);
   const name = image ? `“${image.name}”` : 'its picture';
   showNotice({
-    id: 'copies-picture', tone: 'warn', title: 'Lesson copies',
+    id: `copies-picture-${want.picture}`, tone: 'warn', title: 'Lesson copies',
     message: err.message === 'cant_share'
-      ? `The copy of “${lessonName(want.lessonId)}” is made, but Google didn’t let the planner share ${name} for a moment to place it. In Google Drive, share ${name} with “Anyone with the link” (it can stay that way), then the planner places it.`
-      : `The copy of “${lessonName(want.lessonId)}” is made, but Google couldn’t fetch ${name} to place it. The planner tries again after your next change.`,
+      ? `Copies of “${lessonName(want.lessonId)}” are made, but Google didn’t let the planner share ${name} for a moment to place it, so those copies don’t have it yet. In Google Drive, share ${name} with “Anyone with the link” (it can stay that way), and the planner places it.`
+      : `Copies of “${lessonName(want.lessonId)}” are made, but Google couldn’t fetch ${name} to place it, so those copies don’t have it yet. The planner tries again after your next change.`,
     seconds: 30,
   });
 }

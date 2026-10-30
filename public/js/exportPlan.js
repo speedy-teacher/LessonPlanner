@@ -79,7 +79,8 @@ function fillValues(lesson, all) {
  * The copies the schedule asks for, in schedule order.
  * `target` = { rootKey (which output folder), yearFolder (plan name), templateOf(lesson) → id or null,
  *              canFill(lesson) → whether details can be filled in there,
- *              canPicture?(lesson) → whether a picture can be placed, sharing?(image) → see imagePick.js }.
+ *              canPicture?(lesson) → whether a picture can be placed, sharing?(image) → see imagePick.js,
+ *              pictureOnHold?(fileId) → a picture that couldn't be placed: copies are made without it for now }.
  * Lessons with no template file the folder can copy from are left out.
  */
 export function wantedCopies(state, yearId, target) {
@@ -98,12 +99,16 @@ function wantedCopy(state, entry, { week, numbers }, target) {
   if (!template) return null;
   const all = entryValues(state, entry, week, numbers);
   const values = canFill(lesson) ? fillValues(lesson, all) : {};
-  const picture = pictureFor(state, entry, lesson, target);
+  const chosen = pictureFor(state, entry, lesson, target);
+  const held = Boolean(chosen) && Boolean(target.pictureOnHold?.(chosen));
+  const picture = held ? '' : chosen;
   const path = [yearFolder, all.school, all.grade, `Week ${week.number}`].map(safeName);
   return {
     key: entry.id, entryId: entry.id, lessonId: lesson.id, template, path, values, picture,
     name: safeName(`${entry.position + 1} - ${lesson.name}`),
     hash: copyHash(template, values, picture),
+    heldPicture: held ? chosen : null, // a picture on hold (it couldn't be placed): copies that have it keep it
+    heldHash: held ? copyHash(template, values, chosen) : null,
     place: fingerprint(JSON.stringify([rootKey, path])),
   };
 }
@@ -119,6 +124,11 @@ function pictureFor(state, entry, lesson, { canFill, canPicture = () => false, s
   return driveFileId(pictureForEntry(state, entry, sharing).image) ?? '';
 }
 
+/** A copy's contents are as wanted (one that already has a picture now on hold is fine as it is). */
+function sameContents(have, want) {
+  return have.hash === want.hash || (Boolean(want.heldHash) && have.hash === want.heldHash);
+}
+
 /**
  * What to do for one schedule entry, given the copy it wants (or null), the copies of it that exist,
  * and `spares` — copies of the same lesson whose entry left the schedule (see sparesFor):
@@ -132,14 +142,14 @@ function pictureFor(state, entry, lesson, { canFill, canPicture = () => false, s
 export function nextStep(want, haves, spares = []) {
   if (!want) return haves.length ? { kind: 'remove', have: haves[0] } : null;
   if (!haves.length) return spares.length ? { kind: 'adopt', want, have: spares[0] } : { kind: 'create', want };
-  const best = haves.find((h) => h.hash === want.hash && h.lessonId === want.lessonId) ?? haves[0];
+  const best = haves.find((h) => sameContents(h, want) && h.lessonId === want.lessonId) ?? haves[0];
   const spare = haves.find((h) => h !== best);
   return spare ? { kind: 'remove', have: spare } : stepForCopy(want, best);
 }
 
 /** One copy of a wanted entry: update it, move it, or leave it. */
 function stepForCopy(want, have) {
-  if (have.hash !== want.hash || have.lessonId !== want.lessonId) return { kind: 'refill', want, have };
+  if (!sameContents(have, want) || have.lessonId !== want.lessonId) return { kind: 'refill', want, have };
   if (have.place !== want.place || have.name !== want.name) return { kind: 'move', want, have };
   return null;
 }
@@ -149,7 +159,7 @@ function stepForCopy(want, have) {
  * schedule somewhere), best first: same contents, then same folder. Reusing one saves a trip to the trash.
  */
 export function sparesFor(want, haves, wantedKeys) {
-  const score = (h) => (h.hash === want.hash ? 0 : 2) + (h.place === want.place ? 0 : 1);
+  const score = (h) => (sameContents(h, want) ? 0 : 2) + (h.place === want.place ? 0 : 1);
   return haves.filter((h) => h.lessonId === want.lessonId && !wantedKeys.has(h.entryId)).sort((a, b) => score(a) - score(b));
 }
 
