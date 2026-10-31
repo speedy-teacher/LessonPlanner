@@ -37,10 +37,10 @@ export function matchToSchoolYear(mine, theirs) {
   const unmatched = [];
   if (mine.years[0] && theirs.years[0]) map[mine.years[0].id] = theirs.years[0].id;
   for (const collection of MATCHED) {
-    const taken = new Set();
-    const left = mine[collection].filter((r) => !matchOne(collection, r, theirs, map, taken, sameRecord));
+    const ctx = { theirs, map, taken: new Set() };
+    const left = mine[collection].filter((r) => !matchOne(collection, r, ctx, sameRecord));
     for (const r of left) {
-      if (matchOne(collection, r, theirs, map, taken, sameName)) continue;
+      if (matchOne(collection, r, ctx, sameName)) continue;
       const choices = choicesFor(collection, r, theirs, map);
       unmatched.push({ collection, id: r.id, label: matchLabel(collection, r), choices: choices.map((c) => ({ id: c.id, label: matchLabel(collection, c) })) });
     }
@@ -49,7 +49,7 @@ export function matchToSchoolYear(mine, theirs) {
 }
 
 /** Match one record with the first shared record `same` accepts that isn't taken yet. */
-function matchOne(collection, r, theirs, map, taken, same) {
+function matchOne(collection, r, { theirs, map, taken }, same) {
   const found = choicesFor(collection, r, theirs, map).find((c) => !taken.has(c.id) && same(collection, r, c));
   if (!found) return false;
   map[r.id] = found.id;

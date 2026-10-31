@@ -29,11 +29,14 @@ export function broughtInYearIds(records) {
  */
 export function keysToRemove(records, scheduleKey) {
   const keys = [scheduleKey, `rescue:${scheduleKey}`];
-  const schedule = records.find((rec) => rec.key === scheduleKey);
-  const yearKey = schedule?.piece === 'schedule' ? schedule.data?.meta?.links?.schoolYear?.key : null;
-  if (!yearKey) return keys;
-  const year = records.find((rec) => rec.key === yearKey);
-  const shared = records.some((rec) => rec.piece === 'schedule' && rec.key !== scheduleKey && rec.data?.meta?.links?.schoolYear?.key === yearKey);
-  if (year && !year.fileId && !shared) keys.push(yearKey);
+  const yearKey = linkedYearKey(records.find((rec) => rec.key === scheduleKey));
+  const year = yearKey && records.find((rec) => rec.key === yearKey);
+  const sharedWithOthers = records.some((rec) => rec.key !== scheduleKey && linkedYearKey(rec) === yearKey);
+  if (year && !year.fileId && !sharedWithOthers) keys.push(yearKey);
   return keys;
+}
+
+/** The key of the School Year a Lesson Schedule record is linked to (null for anything else). */
+function linkedYearKey(rec) {
+  return rec?.piece === 'schedule' ? rec.data?.meta?.links?.schoolYear?.key ?? null : null;
 }
