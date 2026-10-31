@@ -14,3 +14,22 @@
 .share-review { display: flex; flex-direction: column; gap: 8px; }
 .share-match { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; background: var(--gold-soft); border-radius: 10px; padding: 8px 10px; }
 .share-match select { max-width: 100%; }
+
+/* The bar above a page: "Looking at" + view-only / missing notes. */
+.piece-bar-slot:empty { display: none; }
+.piece-bar-slot { padding: 8px 20px 0; position: relative; z-index: 20; }
+.piece-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.piece-note { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; border-radius: 12px; padding: 6px 12px; font-size: 14px; }
+.piece-note.view { background: var(--royal-soft); }
+.piece-note.missing { background: var(--gold-soft); }
+.people-picker { position: relative; }
+.people-picker > summary { list-style: none; cursor: pointer; }
+.people-picker > summary::-webkit-details-marker { display: none; }
+.people-panel {
+  position: absolute; z-index: 30; top: calc(100% + 4px); left: 0; min-width: 240px; max-width: min(320px, 90vw);
+  background: var(--card); border-radius: 14px; box-shadow: var(--shadow); padding: 8px; display: flex; flex-direction: column; gap: 6px;
+}
+.people-search { width: 100%; }
+.people-list { list-style: none; margin: 0; padding: 0; max-height: 260px; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; }
+.people-row { width: 100%; text-align: left; background: none; border: 0; border-radius: 8px; padding: 6px 8px; cursor: pointer; font: inherit; color: inherit; }
+.people-row:hover, .people-row.chosen { background: var(--royal-soft); }

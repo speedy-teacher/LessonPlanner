@@ -13,7 +13,7 @@ import { device, setDevice } from './deviceSettings.js';
 import { google } from './google.js';
 import { allPlans, deletePlan, getPlan, putPlan, rescue } from './localCache.js';
 import {
-  createPlanFile, folderName, keepRevision, movePlanFile, PIECE_PROPERTY, planFileInfo, readPlanFile, renamePlanFile, savePlanFile,
+  createPlanFile, folderName, keepRevision, listSchedulesFor, movePlanFile, PIECE_PROPERTY, planFileInfo, readPlanFile, renamePlanFile, savePlanFile,
   SCHOOL_YEAR_PROPERTY,
 } from './driveFiles.js';
 import { joinedPieces } from './joinYear.js';
@@ -576,4 +576,57 @@ async function movePiecesToDrive(folderId) {
   for (const rec of Object.values(old)) if (rec && !rec.fileId) await deletePlan(rec.key);
   setDevice({ recent: forgetPlan(device.recent, old.schedule.key) });
   await openPieces(schedule, { sameDocument: true });
+}
+
+// ---------- looking at a teammate's plan ----------
+
+/**
+ * People whose Teacher Schedules use this plan's School Year and are shared with you (found through
+ * Google Drive, so nothing about people is kept in the shared file): [{ fileId, name, ownerId }].
+ * Remembered on this computer, so the list shows at once next time.
+ */
+export async function listTeammates() {
+  const yearFileId = pieces?.link('schoolYear')?.fileId;
+  if (!yearFileId) return [];
+  const mine = (pieces.own ?? pieces.recs).schedule.fileId;
+  if (driveReady()) {
+    const files = await listSchedulesFor(google.token, yearFileId);
+    const people = files.filter((f) => f.fileId !== mine).map((f) => ({ fileId: f.fileId, name: f.owner || f.name, ownerId: f.ownerId }));
+    setDevice({ teammates: { ...(device.teammates ?? {}), [yearFileId]: people } });
+  }
+  return device.teammates?.[yearFileId] ?? [];
+}
+
+/** Show a teammate's Lesson Schedule, lesson order, templates and pictures (your own are kept aside). */
+export async function viewTeammate({ fileId, name }) {
+  await flushSave();
+  const scheduleRec = await getPlan(driveKey(fileId)).catch(() => null) ?? await readTeammateSchedule(fileId);
+  await pieces.view(scheduleRec, { name });
+  useState(pieces.state());
+  showWhereSaved();
+  return syncNow();
+}
+
+async function readTeammateSchedule(fileId) {
+  const file = await readPlanFile(google.token, fileId);
+  const rec = {
+    key: driveKey(fileId), piece: 'schedule', name: file.name, fileId, folderId: file.folderId, rev: file.rev, base: file.text,
+    canEdit: file.canEdit, changed: false, keptDay: null, savedAt: 0, data: fromPieceFile(file.text, 'schedule'),
+  };
+  await putPlan(rec);
+  return rec;
+}
+
+/** Back to your own plan. */
+export async function viewMine() {
+  await flushSave();
+  pieces.viewMine();
+  useState(pieces.state());
+  showWhereSaved();
+  return syncNow();
+}
+
+/** Your own plan's data, also while looking at a teammate's (lesson copies and reports come from it). */
+export function myPlanState() {
+  return pieces ? pieces.myState() : store.state;
 }

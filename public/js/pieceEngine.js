@@ -40,6 +40,8 @@ export class PiecePlan {
     this.recs = { schoolYear: null, schedule: null, resources: null };
     this.missing = {};
     this.stale = {}; // pieces whose newest version couldn't be loaded (shown from this computer's copy)
+    this.own = null; // your own schedule + resources, kept aside while looking at a teammate's
+    this.viewing = null; // { name, fileId } of the teammate being looked at
   }
 
   /** Open from the Teacher Schedule's record; the other pieces come from this computer's copies. */
@@ -54,7 +56,46 @@ export class PiecePlan {
   }
 
   link(name) {
-    return this.recs.schedule?.data.meta.links?.[name] ?? null;
+    // Looking at a teammate's plan keeps your own School Year (you share it).
+    const schedule = name === 'schoolYear' && this.own ? this.own.schedule : this.recs.schedule;
+    return schedule?.data.meta.links?.[name] ?? null;
+  }
+
+  // ---------- looking at a teammate's plan ----------
+
+  /**
+   * Show a teammate's Teacher Schedule (and the Teacher Resources it points at) with your shared School
+   * Year. Your own pieces are kept aside, unchanged, until `viewMine()`. `who` = { name } for the page.
+   */
+  async view(theirScheduleRec, who = {}) {
+    this.own ??= { schedule: this.recs.schedule, resources: this.recs.resources, missing: this.missing.resources };
+    this.viewing = { ...who, fileId: theirScheduleRec.fileId ?? null };
+    this.recs.schedule = theirScheduleRec;
+    const link = this.link('resources');
+    this.recs.resources = link ? await this.cache.get(link.key).catch(() => null) ?? null : null;
+    this.setMissing('resources', link ? (this.recs.resources ? null : 'not_loaded') : 'not_linked');
+    return this;
+  }
+
+  /** Back to your own Teacher Schedule and Teacher Resources. */
+  viewMine() {
+    if (!this.own) return this;
+    this.recs.schedule = this.own.schedule;
+    this.recs.resources = this.own.resources;
+    this.setMissing('resources', this.own.missing ?? null);
+    this.own = null;
+    this.viewing = null;
+    return this;
+  }
+
+  /** Your own pieces' data (also while looking at a teammate's): what your lesson copies and reports come from. */
+  myDatas() {
+    const datas = this.datas();
+    return this.own ? { ...datas, schedule: this.own.schedule.data, resources: this.own.resources?.data ?? null } : datas;
+  }
+
+  myState() {
+    return composeState(this.myDatas());
   }
 
   setMissing(name, why) {

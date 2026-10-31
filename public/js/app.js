@@ -8,6 +8,7 @@ import { openLastPlan, syncNow } from './workspace.js';
 import { drivePill, showSignInNotice, warnIfGoogleNotSetUp } from './views/googleCard.js';
 import { planButton, refreshPlansMenu, welcome } from './views/plans.js';
 import { offerSharing } from './views/shareSetup.js';
+import { pieceBar } from './views/people.js';
 import { renderPlan, planKeys } from './views/plan.js';
 import { renderSchedule, scheduleKeys } from './views/schedule.js';
 import { renderLessonSchedule, lessonScheduleKeys, showThisWeek } from './views/lessonSchedule.js';
@@ -81,6 +82,7 @@ function render() {
   const panels = sameView ? panelScrolls(main) : new Map();
   renderHeader();
   document.getElementById('tooltip').classList.remove('show');
+  document.getElementById('piece-bar').replaceChildren(...[pieceBar(tab.id)].filter(Boolean));
   main.replaceChildren(hasYear ? tab.render() : h('p', { class: 'empty-note' }, 'No years yet.'));
   main.dataset.view = `${tab.id}/${store.state.activeYearId}`;
   main.scrollTop = scroll;
@@ -94,6 +96,7 @@ function render() {
 function renderWelcome(main) {
   document.getElementById('year-picker').replaceChildren();
   document.getElementById('tabs').replaceChildren();
+  document.getElementById('piece-bar').replaceChildren();
   document.getElementById('drive-status').replaceChildren(...[drivePill()].filter(Boolean));
   document.getElementById('save-status').textContent = '';
   main.replaceChildren(welcome());

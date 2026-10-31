@@ -178,3 +178,67 @@ test('edits made while Drive was loading are put on top of the newly loaded piec
   assert.equal(shown.schools[0].name, 'Renamed elsewhere');
   assert.equal(shown.weekLessons[0].weekStart, '2026-09-21');
 });
+
+// ---------- looking at a teammate's plan ----------
+
+/** A teammate's Teacher Schedule + Teacher Resources in the same Drive, using the same School Year. */
+function addTeammate(drive, pieces, { shareResources = true, viewOnly = true } = {}) {
+  const theirs = structuredClone(pieces.schedule);
+  theirs.weekLessons = theirs.weekLessons.map((w) => ({ ...w, id: `${w.id}-t`, weekStart: '2026-10-05' }));
+  theirs.meta = { links: { schoolYear: { key: driveKey('f-year'), fileId: 'f-year' }, resources: { key: driveKey('t-res'), fileId: 't-res' } } };
+  const theirRes = structuredClone(pieces.resources);
+  theirRes.lessons = theirRes.lessons.slice(0, 2).map((l) => ({ ...l, name: `Their ${l.name}` }));
+  drive.put('t-sched', 'Lesson Schedule', toPieceFile(theirs));
+  drive.put('t-res', 'Teacher Resources', toPieceFile(theirRes));
+  if (!shareResources) drive.deny.add('t-res');
+  if (viewOnly) ['t-sched', 't-res'].forEach((id) => drive.viewOnly.add(id));
+}
+
+async function viewTeammate(plan, drive) {
+  const file = await drive.read('t-sched');
+  await plan.view({ key: driveKey('t-sched'), piece: 'schedule', name: file.name, fileId: 't-sched', rev: file.rev, base: file.text, canEdit: file.canEdit, changed: false, data: JSON.parse(file.text) }, { name: 'Teammate' });
+  await plan.syncAll();
+}
+
+test('looking at a teammate: their schedule and templates with our shared School Year; mine come back after', async () => {
+  const { drive, pieces, state } = inDrive();
+  addTeammate(drive, pieces);
+  const plan = await openFromDrive(drive);
+  await viewTeammate(plan, drive);
+  const shown = plan.state();
+  assert.equal(shown.weekLessons[0].weekStart, '2026-10-05');
+  assert.ok(shown.lessons.every((l) => l.name.startsWith('Their ')));
+  assert.equal(shown.schools.length, state.schools.length, 'the shared School Year');
+  assert.deepEqual(plan.myState(), state, 'my own plan is kept aside, for my lesson copies');
+  assert.deepEqual(plan.readOnly(), ['schedule', 'resources'], 'shared as Viewer: view only');
+  plan.viewMine();
+  assert.deepEqual(plan.state(), state);
+  assert.deepEqual(plan.readOnly(), []);
+});
+
+test('a teammate whose templates aren’t shared with me: their schedule shows, templates are missing', async () => {
+  const { drive, pieces } = inDrive();
+  addTeammate(drive, pieces, { shareResources: false });
+  const plan = await openFromDrive(drive);
+  await viewTeammate(plan, drive);
+  assert.equal(plan.missing.resources, 'no_access');
+  assert.equal(plan.state().lessons.length, 0);
+  assert.equal(plan.state().weekLessons.length, 1);
+  plan.viewMine();
+  assert.deepEqual(plan.missing, {});
+});
+
+test('while looking at a teammate, editing the shared School Year still saves to it', async () => {
+  const { drive, pieces } = inDrive();
+  addTeammate(drive, pieces);
+  const plan = await openFromDrive(drive);
+  await viewTeammate(plan, drive);
+  const s = plan.state();
+  s.schools[0].name = 'Renamed while looking';
+  s.weekLessons[0].weekStart = '2026-11-02'; // their schedule: view only
+  const { state, blocked } = plan.guard(plan.state(), s);
+  assert.deepEqual(blocked, ['schedule']);
+  assert.deepEqual(await plan.save(state), ['schoolYear']);
+  plan.viewMine();
+  assert.equal(plan.state().schools[0].name, 'Renamed while looking');
+});
