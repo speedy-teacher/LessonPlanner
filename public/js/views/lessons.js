@@ -30,7 +30,7 @@ export function newLesson(state, name, category = '') {
 export function renderLessons() {
   const selected = selectedLesson();
   return h('div', { class: 'outcomes-layout templates-layout' },
-    h('aside', { class: 'side card deck-side' },
+    h('aside', { class: 'side card deck-side', 'data-tour': 'deck-side' },
       h('div', { class: 'deck-side-head' },
         h('h3', {}, 'Lesson templates', h('span', { class: 'count-badge' }, current('lessons').length)),
         addMenu()),
@@ -132,7 +132,7 @@ function locationLabel(loc) {
 function instrumentToggles(l) {
   const instruments = current('instruments');
   if (!instruments.length) return emptyNote('Add instruments under Setup › School Year.');
-  return h('div', { class: 'grade-toggles' }, instruments.map((i) => {
+  return h('div', { class: 'grade-toggles', 'data-tour': 'deck-instruments' }, instruments.map((i) => {
     const on = l.instrumentIds.includes(i.id);
     return h('button', {
       class: `grade-toggle ins-toggle ${on ? 'on' : ''}`,
@@ -151,7 +151,7 @@ function autoFieldsSection() {
   return [
     h('h3', {}, 'Filled in automatically'),
     h('p', { class: 'hint' }, 'When this lesson is on the Lesson Schedule, its copy gets these details filled in (see Setup › School Year › Lesson copies). In the file, type the text on the right (e.g. {{school}}) wherever a detail goes — click it to copy. Any that aren’t in the file are simply skipped (the planner reads the file to see whether it has a picture spot).'),
-    h('div', { class: 'auto-fields big' }, Object.entries(AUTO_FIELDS).map(([key, label]) => autoFieldCode(key, label))),
+    h('div', { class: 'auto-fields big', 'data-tour': 'auto-fields' }, Object.entries(AUTO_FIELDS).map(([key, label]) => autoFieldCode(key, label))),
   ];
 }
 
@@ -178,7 +178,7 @@ function copyText(text) {
 /** Grade → essential outcome → eval, for every eval this deck is part of. */
 function usedIn(l) {
   const groups = lessonUsageByGrade(store.state, l.id);
-  return h('section', { class: 'used-by' },
+  return h('section', { class: 'used-by', 'data-tour': 'used-in' },
     h('h3', {}, 'Used in the following content'),
     groups.length ? null : emptyNote('Not used in any eval yet.'),
     groups.map(({ grade, outcomes }) => h('div', { class: 'usage-grade' },

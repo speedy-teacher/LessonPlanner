@@ -40,6 +40,12 @@ function appendAll(el, children) {
   }
 }
 
+/** Name a part of the page for the tutorials (tutorials.js lights it up by this name). Returns `el`. */
+export function tour(name, el) {
+  el.dataset.tour = name;
+  return el;
+}
+
 /** An input that saves when you press Enter or click away. */
 export function editable(value, onSave, { allowEmpty = false, ...props } = {}) {
   const save = (e) => {

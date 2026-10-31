@@ -40,7 +40,7 @@ export function renderSchedule() {
     .sort((a, b) => schoolOrder.get(a.schoolId) - schoolOrder.get(b.schoolId));
   return h('div', { class: 'schedule-layout' },
     sidebar(ctx),
-    h('section', { class: 'main-col card' },
+    h('section', { class: 'main-col card', 'data-tour': 'calendar' },
       calendarHeader(armedBanner()),
       barCalendar({
         gridClass: 'schedule-grid',
@@ -76,7 +76,7 @@ function removeBlock(b) {
 // ---------- left side ----------
 
 function sidebar(ctx) {
-  return h('aside', { class: 'side card' },
+  return h('aside', { class: 'side card', 'data-tour': 'schedule-side' },
     h('h3', {}, 'Show'),
     pills([{ id: ALL, name: 'All schools' }, ...ctx.schools], ctx.filter, (id) => setUi({ scheduleFilter: id })),
     h('h3', {}, 'Instruments'),
@@ -103,7 +103,7 @@ function instrumentChip(school, instrument) {
 function armedBanner() {
   const armed = store.ui.armedBlock;
   if (!armed) return null;
-  return h('div', { class: 'armed-banner' },
+  return h('div', { class: 'armed-banner', 'data-tour': 'armed-banner' },
     `Click days to add ${blockName(armed)}.`,
     h('button', { class: 'btn small light', onclick: () => setUi({ armedBlock: null }) }, 'Done (Esc)'));
 }

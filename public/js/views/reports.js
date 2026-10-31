@@ -72,7 +72,7 @@ export function renderReports() {
 
 function formCard(files) {
   const { manual } = settings();
-  return h('section', { class: 'card reports-card' },
+  return h('section', { class: 'card reports-card', 'data-tour': 'report-form' },
     h('h3', {}, '📊 Make a report'),
     h('p', { class: 'hint' }, 'A Google Sheet with each week’s lessons in order (each one links to its lesson copy) and the instruments at the school that week. Each school gets its own file.'),
     weekPickers(manual),
@@ -157,7 +157,7 @@ function makeButton(files, manual) {
   else if (!folder) why = 'Choose a Drive folder first.';
   const label = making ? 'Making…' : `Make ${files.length === 1 ? 'the report' : `${files.length} reports`}`;
   return h('div', { class: 'report-row' },
-    h('button', { class: 'btn', disabled: Boolean(why) || making || !files.length, onclick: () => make(files, folder) }, label),
+    h('button', { class: 'btn', 'data-tour': 'report-make', disabled: Boolean(why) || making || !files.length, onclick: () => make(files, folder) }, label),
     why ? h('span', { class: 'hint' }, why) : null);
 }
 
@@ -267,7 +267,7 @@ function addWord(word) {
 
 function labelCard() {
   const s = settings();
-  return h('section', { class: 'card reports-card' },
+  return h('section', { class: 'card reports-card', 'data-tour': 'report-label' },
     h('h3', {}, '✏️ What each lesson shows'),
     // Rows above/below each lesson (settings `above`/`below`) still work in reports; their buttons are hidden for now.
     h('p', { class: 'hint' }, 'Used in every report. Add columns before or after each lesson, e.g. its essential outcome. Click a word to add it to the box you last typed in.'),
@@ -298,7 +298,7 @@ function weeklyCard() {
   if (output?.kind === 'local') status = 'Weekly reports need the lesson copies in a Google Drive folder.';
   else if (output && copyStatus().state === 'ready') status = `✓ ${files.length} weekly ${files.length === 1 ? 'report' : 'reports'} in the copies folder.`;
   else if (output) status = 'They’re made by the computer that keeps the lesson copies.';
-  return h('section', { class: 'card reports-card' },
+  return h('section', { class: 'card reports-card', 'data-tour': 'report-weekly' },
     h('h3', {}, '🗓️ Weekly reports'),
     h('label', { class: 'check big' },
       h('input', { type: 'checkbox', checked: weekly, onchange: (e) => saveSettings({ weekly: e.target.checked }) }),
@@ -312,7 +312,7 @@ function previewCard(files) {
   const fileIndex = Math.min(store.ui.reportFile ?? 0, Math.max(0, files.length - 1));
   const file = files[fileIndex];
   const tabIndex = Math.min(store.ui.reportTab ?? 0, Math.max(0, (file?.tabs.length ?? 1) - 1));
-  return h('section', { class: 'card reports-preview' },
+  return h('section', { class: 'card reports-preview', 'data-tour': 'report-preview' },
     h('h3', {}, '👀 Preview'),
     files.length > 1 ? h('div', { class: 'pills' }, files.map((f, i) => h('button', {
       class: `pill ${i === fileIndex ? 'active' : ''}`, onclick: () => setUi({ reportFile: i, reportTab: 0 }),

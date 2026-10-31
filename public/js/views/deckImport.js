@@ -35,7 +35,7 @@ export function setImageKind(kind) {
 /** The "+ Add" button and its menu. */
 export function addMenu() {
   const target = targetFolder();
-  return popMenu({ label: '+ Add ▾', title: 'Add lesson decks', summaryClass: 'btn small', menuClass: 'add-menu' },
+  return popMenu({ label: '+ Add ▾', title: 'Add lesson decks', summaryClass: 'btn small', menuClass: 'add-menu', tour: 'deck-add' },
     h('p', { class: 'menu-note' }, 'Adds to: ', h('strong', {}, target ? `📁 ${target.name}` : 'the top level')),
     menuItem('New lesson deck', newDeck, { icon: '✏️' }),
     menuItem('New folder', () => newFolder(target?.id ?? null), { icon: '📁' }),

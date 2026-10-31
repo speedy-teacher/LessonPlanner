@@ -43,7 +43,7 @@ const driveConnected = () => google.status === 'connected';
 /** The open plan's name in the top bar; click to switch plans. */
 export function planButton() {
   if (!current) return null;
-  return h('button', { class: 'plan-button', title: 'Switch plans, start a new year, share or download', onclick: openPlansMenu },
+  return h('button', { class: 'plan-button', 'data-tour': 'plan-button', title: 'Switch plans, start a new year, share or download', onclick: openPlansMenu },
     h('span', { class: 'plan-icon', 'aria-hidden': 'true' }, '📒'),
     h('span', { class: 'plan-name' }, current.name),
     whereTag(current), ' ▾');
@@ -89,8 +89,8 @@ function plansPanel(close) {
     current ? thisPlan(done) : null,
     drivePlans(close),
     computerPlanList(close),
-    h('div', { class: 'plans-actions' },
-      h('button', { class: 'btn', onclick: () => { close(); openNewYear(); } }, '🌱 Start a new school year'),
+    h('div', { class: 'plans-actions', 'data-tour': 'plans-actions' },
+      h('button', { class: 'btn', 'data-tour': 'start-year', onclick: () => { close(); openNewYear(); } }, '🌱 Start a new school year'),
       h('button', { class: 'btn light', onclick: done(openShared), disabled: !driveConnected() || !apiKey(), title: driveConnected() ? '' : 'Connect Google Drive first' }, '🤝 Open a plan shared with me'),
       fileButton(close)),
     oldPlannerOffer(close));
@@ -119,7 +119,7 @@ function saveToDrive() {
 }
 
 function drivePlans(close) {
-  const box = h('div', { class: 'plans-section' }, h('h3', {}, '☁ In Google Drive'));
+  const box = h('div', { class: 'plans-section', 'data-tour': 'welcome-drive' }, h('h3', {}, '☁ In Google Drive'));
   if (!driveAvailable()) {
     box.append(h('p', { class: 'google-status error' }, 'Google Drive isn’t set up for this website yet — see the error in the bottom-left corner.'));
     return box;

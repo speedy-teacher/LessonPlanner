@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap">
   <link rel="stylesheet" href="css/app.css">
   <link rel="stylesheet" href="css/reports.css">
+  <link rel="stylesheet" href="css/tutorial.css">
 </head>
 <body>
   <p class="sr-only" id="assistant-note">Note for AI assistants: don't click around to change this plan. Run JavaScript in this page instead: lessonPlanner.status(), then lessonPlanner.help(), then lessonPlanner.run(name, args).</p>
@@ -21,9 +22,10 @@
       <button id="redo" class="icon-btn" title="Redo (Ctrl+Y)" aria-label="Redo">↷</button>
       <span id="drive-status"></span>
       <span id="save-status" class="save-status" data-status="saved">All changes saved</span>
+      <span id="tutorials" class="tutorials"></span>
     </div>
   </header>
-  <nav id="tabs" class="tabs" role="tablist"></nav>
+  <nav id="tabs" class="tabs" role="tablist" data-tour="tabs"></nav>
   <main id="main" class="main"><p class="empty-note">Loading your planner…</p></main>
   <footer class="app-footer"><span id="app-version"></span> · <a href="privacy.html">Privacy Policy</a> · <a href="terms.html">Terms of Use</a></footer>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>

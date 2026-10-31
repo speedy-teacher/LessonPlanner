@@ -28,7 +28,7 @@ export function copiesCard() {
   const y = year();
   const output = y.output ?? null;
   const status = copyStatus();
-  return h('section', { class: 'card setup-card copies-card' },
+  return h('section', { class: 'card setup-card copies-card', 'data-tour': 'copies-card' },
     h('h3', {}, 'Lesson copies'),
     h('p', { class: 'hint' }, 'Every lesson on the Lesson Schedule gets its own copy of its template, sorted into School › Grade › Week folders, with the “Filled in automatically” details typed in. Your templates are never changed. Change a lesson in its template — copies are remade when their details change.'),
     folderLine(output),

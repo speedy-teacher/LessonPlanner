@@ -1,7 +1,7 @@
 // "Outcome & Eval Calendar": drag eval criteria (grouped by essential outcome) onto
 // days for a school + grade, and stretch them over several days.
 
-import { h, iconButton, toast } from '../dom.js';
+import { h, iconButton, toast, tour } from '../dom.js';
 import {
   PALETTE, autoFill, criteriaFor, criteriaForGrade, find, outcomeLabel, outcomeOf, placementWarnings,
   placementsFor, remove, resizePlacement, shiftSchoolDay, stepsFor, toRanges,
@@ -50,7 +50,7 @@ export function renderPlan() {
   const showDetail = selected && selected.schoolId === ctx.schoolId && (ctx.allGrades || selected.gradeId === ctx.gradeId);
   return h('div', { class: `plan-layout ${showDetail ? 'with-detail' : ''}` },
     sidebar(ctx),
-    h('section', { class: 'main-col card' },
+    h('section', { class: 'main-col card', 'data-tour': 'calendar' },
       calendarHeader(armedBanner()),
       planCalendar(ctx),
     ),
@@ -63,10 +63,10 @@ export function renderPlan() {
 function sidebar(ctx) {
   return h('aside', { class: 'side card' },
     h('h3', {}, 'School ', h('kbd', { title: 'Press [ or ] to switch school' }, '[ ]')),
-    pills(ctx.schools, ctx.schoolId, (id) => setUi({ schoolId: id }), { hint: (s) => `Show ${s.name}` }),
+    tour('plan-school', pills(ctx.schools, ctx.schoolId, (id) => setUi({ schoolId: id }), { hint: (s) => `Show ${s.name}` })),
     h('h3', {}, 'Grade ', h('kbd', { title: 'Press the grade’s number key (K = 0), or A for all grades' }, '0–5, A')),
-    gradePills([...ctx.grades, { id: ALL, name: 'Every grade at once', short: 'All' }], ctx.allGrades ? ALL : ctx.gradeId,
-      (id) => setUi(id === ALL ? { planAllGrades: true, armedCriterionId: null } : { gradeId: id, planAllGrades: false, armedCriterionId: null })),
+    tour('plan-grade', gradePills([...ctx.grades, { id: ALL, name: 'Every grade at once', short: 'All' }], ctx.allGrades ? ALL : ctx.gradeId,
+      (id) => setUi(id === ALL ? { planAllGrades: true, armedCriterionId: null } : { gradeId: id, planAllGrades: false, armedCriterionId: null }))),
     ctx.allGrades ? allEvalsPalette(ctx) : evalPalette(ctx),
   );
 }
@@ -84,7 +84,7 @@ function allEvalsPalette(ctx) {
     h('h3', {}, 'Evals for every grade'),
     h('p', { class: 'hint' }, 'Each eval is in its main grade’s color. Drag an eval (or one of its grades) onto a day, or click it, then click days.'),
     groups.length ? null : emptyNote('No eval criteria yet. Add them on the Outcomes, Evals & Lesson Order tab.'),
-    h('div', { class: 'palette' }, groups.map(({ outcome, criteria }) => h('section', {
+    h('div', { class: 'palette', 'data-tour': 'eval-palette' }, groups.map(({ outcome, criteria }) => h('section', {
       class: 'palette-group', style: { '--chip': outcomeColor(outcome.id) },
     },
     h('div', { class: 'palette-outcome' }, h('span', { class: 'chip-code' }, outcome.code || '•'), outcome.title),
@@ -135,7 +135,7 @@ function evalPalette(ctx) {
     h('h3', {}, `Evals for ${grade?.name || 'this grade'}`),
     h('p', { class: 'hint' }, 'Drag onto a day, then drag its end to stretch it. Or click one, then click days.'),
     groups.length ? null : emptyNote('No eval criteria for this grade yet. Add them on the Outcomes, Evals & Lesson Order tab.'),
-    h('div', { class: 'palette' }, groups.map(({ outcome, criteria }) => h('section', {
+    h('div', { class: 'palette', 'data-tour': 'eval-palette' }, groups.map(({ outcome, criteria }) => h('section', {
       class: 'palette-group', style: { '--chip': outcomeColor(outcome.id) },
     },
     h('div', { class: 'palette-outcome' }, h('span', { class: 'chip-code' }, outcome.code || '•'), outcome.title),
@@ -161,7 +161,7 @@ function armedBanner() {
   const criterion = find(store.state, 'criteria', store.ui.armedCriterionId);
   if (!criterion) return null;
   const forGrade = store.ui.planAllGrades && store.ui.armedGradeId ? ` for ${gradeName(store.ui.armedGradeId)}` : '';
-  return h('div', { class: 'armed-banner' },
+  return h('div', { class: 'armed-banner', 'data-tour': 'armed-banner' },
     `Click days to add “${criterion.title}”${forGrade}.`,
     h('button', { class: 'btn small light', onclick: () => setUi({ armedCriterionId: null }) }, 'Done (Esc)'));
 }
@@ -195,7 +195,7 @@ function detailPanel(p) {
   const steps = stepsFor(store.state, p.criterionId, p.gradeId);
   const warnIds = new Set(placementWarnings(store.state, p).map((w) => w.step.id));
   const range = p.startDate === p.endDate ? formatDate(p.startDate) : `${formatDate(p.startDate)} – ${formatDate(p.endDate)}`;
-  return h('aside', { class: 'detail card', dataset: { scrollKey: p.id }, style: { '--chip': outcomeColor(outcomeOf(store.state, p.criterionId)?.id) } },
+  return h('aside', { class: 'detail card', 'data-tour': 'placement-detail', dataset: { scrollKey: p.id }, style: { '--chip': outcomeColor(outcomeOf(store.state, p.criterionId)?.id) } },
     h('div', { class: 'detail-head' },
       h('div', {},
         h('div', { class: 'eyebrow' }, range),

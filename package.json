@@ -1,6 +1,6 @@
 {
   "name": "lesson-planner",
-  "version": "0.2.0",
+  "version": "0.4.0",
   "private": true,
   "type": "module",
   "description": "Organize music lesson slides by academic year, school, grade and instrument schedule.",

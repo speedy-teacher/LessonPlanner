@@ -48,6 +48,10 @@ instruments, **Open this eval in Outcomes, Evals & Lesson Order** (its lesson li
   (copies last year's lists, lesson decks, outcomes, criteria and lesson order; calendars start empty).
   The **Google Drive** card connects to Drive — see `docs/google-drive-setup.md`.
 
+**🎓 Tutorials** (top right) — step-by-step guides for every part of the planner, in the order to learn them. Each one lights
+up the button to press or the box to fill in, waits for you to do it, and offers the next tutorial at the end. A dot on 🎓
+means there's a tutorial you haven't seen yet.
+
 The top bar shows a Drive status pill (click to sign in or open settings). Notices pop up in the bottom-left corner (`public/js/notices.js` — reusable: message, buttons, auto-hide).
 
 ## Data model

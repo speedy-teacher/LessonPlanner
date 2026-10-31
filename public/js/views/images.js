@@ -77,13 +77,13 @@ export function renderImages() {
       }),
       sharingSummary(images),
       folderTree(IMAGES, selected)),
-    h('section', { class: 'main-col card image-gallery' }, gallery(selected)),
-    h('aside', { class: 'card image-side', dataset: { scrollKey: selected?.id ?? '' } }, selected ? imageDetails(selected) : emptyNote('Pick a picture to tag it.')));
+    h('section', { class: 'main-col card image-gallery', 'data-tour': 'image-gallery' }, gallery(selected)),
+    h('aside', { class: 'card image-side', 'data-tour': 'image-details', dataset: { scrollKey: selected?.id ?? '' } }, selected ? imageDetails(selected) : emptyNote('Pick a picture to tag it.')));
 }
 
 function addMenu() {
   const target = treeTarget(IMAGES);
-  return popMenu({ label: '+ Add ▾', title: 'Add pictures', summaryClass: 'btn small', menuClass: 'add-menu' },
+  return popMenu({ label: '+ Add ▾', title: 'Add pictures', summaryClass: 'btn small', menuClass: 'add-menu', tour: 'image-add' },
     h('p', { class: 'menu-note' }, 'Adds to: ', h('strong', {}, target ? `📁 ${target.name}` : 'the top level')),
     menuItem('New folder', () => newTreeFolder(IMAGES, target?.id ?? null), { icon: '📁' }),
     h('div', { class: 'menu-group' }, 'From Google Drive'),

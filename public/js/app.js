@@ -21,20 +21,24 @@ import { menuItem, popMenu } from './views/common.js';
 import { soon as checkCopies, startExportBridge } from './exportBridge.js';
 import { startAgentBridge } from './agentBridge.js';
 import { VERSION } from './version.js';
+import { TAB_INFO } from './tabInfo.js';
+import { startTutorials } from './views/tutorialMenu.js';
+import { checkTutorial } from './views/tutorialGuide.js';
 
 const SYNC_EVERY_MS = 60_000;
 
-// Pages with `menu: 'setup'` are reached through the "Setup ▾" menu instead of their own tab.
-const TABS = [
-  { id: 'plan', label: 'Outcome & Eval Calendar', icon: '📅', render: renderPlan, keys: planKeys, onShow: showCalendar },
-  { id: 'schedule', label: 'Instrument Schedule', icon: '🎶', render: renderSchedule, keys: scheduleKeys, onShow: showCalendar },
-  { id: 'lessonSchedule', label: 'Lesson Schedule', icon: '📖', render: renderLessonSchedule, keys: lessonScheduleKeys, onShow: showThisWeek },
-  { id: 'images', label: 'Images', icon: '🌄', render: renderImages, keys: imageKeys },
-  { id: 'reports', label: 'Reports', icon: '📊', render: renderReports },
-  { id: 'setup', label: 'School Year', icon: '🧺', render: renderSetup, menu: 'setup' },
-  { id: 'outcomes', label: 'Outcomes, Evals & Lesson Order', icon: '🌱', render: renderOutcomes, menu: 'setup' },
-  { id: 'lessons', label: 'Lesson Templates', icon: '🖼️', render: renderLessons, keys: lessonKeys, menu: 'setup' },
-];
+// How each page (tabInfo.js) is drawn. Pages with `menu: 'setup'` are in the "Setup ▾" menu.
+const PAGES = {
+  plan: { render: renderPlan, keys: planKeys, onShow: showCalendar },
+  schedule: { render: renderSchedule, keys: scheduleKeys, onShow: showCalendar },
+  lessonSchedule: { render: renderLessonSchedule, keys: lessonScheduleKeys, onShow: showThisWeek },
+  images: { render: renderImages, keys: imageKeys },
+  reports: { render: renderReports },
+  setup: { render: renderSetup },
+  outcomes: { render: renderOutcomes },
+  lessons: { render: renderLessons, keys: lessonKeys },
+};
+const TABS = TAB_INFO.map((t) => ({ ...t, ...PAGES[t.id] }));
 
 function activeTab() {
   return TABS.find((t) => t.id === store.ui.tab) || TABS[0];
@@ -101,6 +105,7 @@ function renderHeader() {
     ...TABS.filter((t) => !t.menu).map((t) => h('button', {
       class: `tab ${t.id === activeTab().id ? 'active' : ''}`,
       role: 'tab',
+      'data-tour': `tab-${t.id}`,
       onclick: () => setUi({ tab: t.id }),
     }, h('span', { class: 'tab-icon' }, t.icon), t.label)),
     setupMenu());
@@ -115,8 +120,8 @@ function setupMenu() {
   const open = tab.menu === 'setup';
   return popMenu({
     label: [h('span', { class: 'tab-icon' }, '⚙️'), 'Setup', open ? h('span', { class: 'tab-sub' }, `› ${tab.label}`) : null, ' ▾'],
-    title: 'Setup pages', summaryClass: `tab ${open ? 'active' : ''}`, menuClass: 'setup-menu',
-  }, TABS.filter((t) => t.menu === 'setup').map((t) => menuItem(t.label, () => setUi({ tab: t.id }), { icon: t.icon })));
+    title: 'Setup pages', summaryClass: `tab ${open ? 'active' : ''}`, menuClass: 'setup-menu', tour: 'setup-menu',
+  }, TABS.filter((t) => t.menu === 'setup').map((t) => menuItem(t.label, () => setUi({ tab: t.id }), { icon: t.icon, tour: `menu-${t.id}` })));
 }
 
 function isTyping(e) {
@@ -147,6 +152,8 @@ async function start() {
   document.getElementById('redo').addEventListener('click', redo);
   document.addEventListener('keydown', onKey);
   subscribe(render);
+  subscribe(checkTutorial);
+  startTutorials();
   // Each Drive change redraws; once connected, the plan is synced and watched Drive folders are checked for new decks.
   let wasConnected = false;
   setGoogleHandlers({

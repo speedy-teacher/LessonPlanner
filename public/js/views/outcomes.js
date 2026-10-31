@@ -1,7 +1,7 @@
 // "Outcomes, Evals & Lesson Order": essential outcomes → eval criteria → grades and
 // ordered lessons (slide decks from the Lesson Templates library).
 
-import { adder, editable, h, iconButton, toast } from '../dom.js';
+import { adder, editable, h, iconButton, toast, tour } from '../dom.js';
 import {
   add, addStep, autoFill, copyOrder, nextColor, criteriaFor, find, moveStep, remove, stepsFor, toggleGrade, update,
 } from '../model.js';
@@ -18,7 +18,7 @@ export function renderOutcomes() {
   const outcomeId = pickId(outcomes, store.ui.outcomeId);
   const outcome = find(store.state, 'outcomes', outcomeId);
   return h('div', { class: 'outcomes-layout' },
-    h('aside', { class: 'side card' },
+    h('aside', { class: 'side card', 'data-tour': 'outcome-side' },
       h('h3', {}, 'Essential outcomes'),
       h('ul', { class: 'outcome-list' }, outcomes.map((o) => h('li', {},
         h('button', {
@@ -37,7 +37,7 @@ export function renderOutcomes() {
 
 function outcomeEditor(outcome) {
   return h('div', { class: 'outcome-editor' },
-    h('div', { class: 'editor-head' },
+    h('div', { class: 'editor-head', 'data-tour': 'outcome-head' },
       h('label', { class: 'field color-field', title: 'Color for this outcome and all its evals on the calendar' }, h('span', {}, 'Color'),
         h('input', {
           type: 'color', class: 'color-pick big', value: outcome.color,
@@ -50,7 +50,7 @@ function outcomeEditor(outcome) {
       h('button', { class: 'btn light danger', onclick: () => removeOutcome(outcome) }, 'Delete outcome')),
     h('h3', {}, 'Eval criteria'),
     criteriaFor(store.state, outcome.id).map((c) => criterionCard(c)),
-    adder('New eval criterion…', (title) => commit((s) => add(s, 'criteria', { outcomeId: outcome.id, title, gradeIds: [] })), 'add-criterion'),
+    tour('add-criterion', adder('New eval criterion…', (title) => commit((s) => add(s, 'criteria', { outcomeId: outcome.id, title, gradeIds: [] })), 'add-criterion')),
   );
 }
 
@@ -71,7 +71,7 @@ function criterionCard(crit) {
       commit((s) => remove(s, 'criteria', crit.id));
       toast('Eval criterion deleted.', { label: 'Undo', run: undo });
     })),
-    h('div', { class: 'grade-toggles' },
+    h('div', { class: 'grade-toggles', 'data-tour': 'crit-grades' },
       h('span', { class: 'mini-label' }, 'Grades:'),
       current('grades').map((g) => gradeToggle(crit, g))),
     lessonList(crit),
@@ -137,7 +137,7 @@ function lessonList(crit) {
   const gradeId = shownGrade(crit);
   const steps = stepsFor(store.state, crit.id, gradeId);
   return h('details', {
-    class: 'crit-lessons', open: openLists.has(crit.id),
+    class: 'crit-lessons', 'data-tour': 'crit-lessons', open: openLists.has(crit.id),
     ontoggle: (e) => { if (e.target.open) openLists.add(crit.id); else openLists.delete(crit.id); },
   },
     h('summary', { class: 'mini-label' }, `Lessons, in teaching order (${steps.length})`),
@@ -208,7 +208,7 @@ function stepRow(step, index, total) {
 
 /** Add a lesson (to the grade shown) from the library, or make a brand-new deck and add it. */
 function addLessonRow(crit, gradeId) {
-  return h('div', { class: 'add-lesson-row' },
+  return h('div', { class: 'add-lesson-row', 'data-tour': 'crit-add-lesson' },
     lessonPicker(null, (lessonId) => { if (lessonId) commit((s) => addStep(s, crit.id, lessonId, gradeId)); }, 'Add a lesson', '＋ Pick from your decks…'),
     adder('…or a new lesson deck', (name) => commit((s) => addStep(s, crit.id, newLesson(s, name).id, gradeId)), `add-lesson-${crit.id}`));
 }

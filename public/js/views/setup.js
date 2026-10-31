@@ -10,9 +10,9 @@ import { holidaysCard } from './holidaysCard.js';
 import { openNewYear } from './plans.js';
 
 const LISTS = [
-  { collection: 'schools', title: 'Schools', placeholder: 'New school…', note: 'Removing a school also removes its calendar entries and instrument schedule.' },
-  { collection: 'grades', title: 'Grades', placeholder: 'New grade…', note: 'The short label shows on buttons (K, 1, 2…). The color marks the grade on buttons and on the calendar’s “All” view.' },
-  { collection: 'instruments', title: 'Instruments', placeholder: 'New instrument…', note: 'Pick a color for the schedule calendar.' },
+  { collection: 'schools', tour: 'list-schools', title: 'Schools', placeholder: 'New school…', note: 'Removing a school also removes its calendar entries and instrument schedule.' },
+  { collection: 'grades', tour: 'list-grades', title: 'Grades', placeholder: 'New grade…', note: 'The short label shows on buttons (K, 1, 2…). The color marks the grade on buttons and on the calendar’s “All” view.' },
+  { collection: 'instruments', tour: 'list-instruments', title: 'Instruments', placeholder: 'New instrument…', note: 'Pick a color for the schedule calendar.' },
 ];
 
 export function renderSetup() {
@@ -30,7 +30,7 @@ function yearCard() {
   const setDate = (field) => (e) => {
     if (e.target.value) commit((s) => update(s, 'years', y.id, { [field]: e.target.value }));
   };
-  return h('section', { class: 'card setup-card year-card' },
+  return h('section', { class: 'card setup-card year-card', 'data-tour': 'year-card' },
     h('h3', {}, 'Academic year'),
     h('div', { class: 'year-fields' },
       h('label', { class: 'field' }, h('span', {}, 'Name'),
@@ -44,9 +44,9 @@ function yearCard() {
   );
 }
 
-function listCard({ collection, title, placeholder, note }) {
+function listCard({ collection, tour, title, placeholder, note }) {
   const items = current(collection);
-  return h('section', { class: 'card setup-card' },
+  return h('section', { class: 'card setup-card', 'data-tour': tour },
     h('h3', {}, title, h('span', { class: 'count-badge' }, items.length)),
     h('p', { class: 'hint' }, note),
     h('ul', { class: 'setup-list' }, items.map((item) => h('li', {},

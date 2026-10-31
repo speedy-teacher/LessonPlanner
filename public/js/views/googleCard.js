@@ -11,7 +11,7 @@ import { dismissNotice, showNotice } from '../notices.js';
 const SIGN_IN_NOTICE = 'google-sign-in';
 
 export function googleCard() {
-  return h('section', { class: 'card setup-card google-card' },
+  return h('section', { class: 'card setup-card google-card', 'data-tour': 'google-card' },
     h('h3', {}, 'Google Drive'),
     h('p', { class: 'hint' }, 'Your plans are saved in a “Lesson Planner” folder in your Google Drive, and lesson decks can come from Drive.'),
     setupProblems(),
@@ -90,6 +90,7 @@ export function drivePill() {
   const offerSignIn = google.status !== 'connected' && google.status !== 'working' && canSignIn(clientId());
   return h('button', {
     class: `drive-pill ${pill.tone}`,
+    'data-tour': 'drive-pill',
     'data-tip': pill.tip(),
     'aria-label': pill.tip(),
     onclick: () => (offerSignIn ? signIn() : setUi({ tab: 'setup' })),

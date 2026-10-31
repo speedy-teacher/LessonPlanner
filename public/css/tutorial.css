@@ -1,0 +1,61 @@
+/* Tutorials: the 🎓 button and its menu, the dimmed page with lit-up parts, and the speech bubble. */
+
+/* ---------- 🎓 button ---------- */
+
+.tutorials { display: flex; }
+.tutorials .pop-menu > summary { list-style: none; }
+.tutorials .pop-menu > summary::-webkit-details-marker { display: none; }
+.tutorial-cap { position: relative; font-size: 20px !important; }
+.news-dot {
+  position: absolute; top: 2px; right: 2px; width: 11px; height: 11px; border-radius: 50%;
+  background: var(--gold); border: 2px solid var(--royal); animation: news-bob 1.6s ease-in-out infinite;
+}
+@keyframes news-bob { 50% { transform: scale(1.25); } }
+
+.tutorial-menu .menu-card { width: min(380px, calc(100vw - 24px)); max-height: calc(100vh - 80px); overflow-y: auto; }
+.tutorial-menu .menu-item { align-items: center; gap: 10px; text-align: left; }
+.tutorial-num {
+  flex: none; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--royal-soft); color: var(--royal); font-size: 12px; font-weight: 800;
+}
+.tutorial-item { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.tutorial-item small { color: var(--ink-soft); font-weight: 600; }
+.tutorial-done { color: var(--sage); font-weight: 800; }
+.tutorial-new {
+  font-size: 11px; font-weight: 800; border-radius: 999px; padding: 1px 8px;
+  background: var(--gold-soft); color: #7a5a14;
+}
+
+/* ---------- the dimmed page ---------- */
+
+.tutorial-layer { position: fixed; inset: 0; z-index: 45; pointer-events: none; }
+.tutorial-dim { position: absolute; inset: 0; width: 100%; height: 100%; }
+.tutorial-dim path { fill: rgba(47, 37, 30, .45); pointer-events: auto; transition: fill .2s; }
+.tutorial-layer.clear .tutorial-dim path { fill: transparent; pointer-events: none; }
+.tutorial-ring {
+  position: absolute; border-radius: 12px; border: 3px solid var(--gold);
+  box-shadow: 0 0 0 4px rgba(201, 154, 58, .3); animation: ring-glow 1.8s ease-in-out infinite;
+}
+@keyframes ring-glow { 50% { box-shadow: 0 0 0 9px rgba(201, 154, 58, .12); } }
+
+/* ---------- the bubble ---------- */
+
+.tutorial-bubble {
+  position: fixed; z-index: 58; width: min(360px, calc(100vw - 24px));
+  background: var(--card); border: 2px solid var(--royal); border-radius: 18px;
+  box-shadow: 0 10px 30px rgba(47, 37, 30, .25); padding: 14px 16px 12px;
+  display: flex; flex-direction: column; gap: 8px; line-height: 1.45;
+}
+.tutorial-bubble.centered { left: 50% !important; top: 50% !important; transform: translate(-50%, -50%); }
+.tutorial-bubble p { margin: 0; }
+.tutorial-head { display: flex; align-items: center; gap: 8px; color: var(--royal); font-weight: 800; }
+.tutorial-icon { font-size: 18px; }
+.tutorial-name { flex: 1; }
+.tutorial-count { font-size: 12px; color: var(--ink-soft); font-weight: 700; white-space: nowrap; }
+.tutorial-title { font-size: 16px; }
+.tutorial-do {
+  background: var(--gold-soft); border-radius: 10px; padding: 6px 10px; font-weight: 700; font-size: 14px; color: #6b4e12;
+}
+.tutorial-lost { background: var(--card-2); border-radius: 10px; padding: 6px 10px; font-size: 14px; }
+.tutorial-cheer { font-size: 17px; font-weight: 800; color: var(--royal); }
+.tutorial-actions { display: flex; justify-content: flex-end; align-items: center; gap: 12px; margin-top: 2px; }

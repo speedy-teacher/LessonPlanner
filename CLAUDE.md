@@ -58,6 +58,7 @@ A browser app for a (non-technical) elementary music teacher to plan a school ye
   to `data/backups/before-<change>.json` before any migration. Design data for expandability and reuse.
 
 ## UI patterns (`public/js/`)
+- Pages are listed in `tabInfo.js` (id, label, icon, Setup-menu or tab); `app.js` adds how each is drawn.
 - `commit(mutate)` for every data change (undo/redo, autosave); `setUi(patch)` for view state; `refresh()` to redraw.
 - `h()` DOM helper, full re-render per change. CSS variables only via `style.setProperty` (`setStyles`).
 - `views/calendarGrid.js`: whole year as one continuous Mon–Fri scroll, sticky month header. `views/barCalendar.js`: stretchable
@@ -156,6 +157,23 @@ A browser app for a (non-technical) elementary music teacher to plan a school ye
   Checked at run time, never saved; warnings on Images and on lessons that use an unshared picture.
 - Original bitmoji rules/data: `~/Documents/CodeProjects/lesson-organizer/HANDOFF.md` (+ `bitmoji_tags.json`).
   The user adds the pictures in the app; linking those tags up is a later data step.
+
+## Tutorials (🎓 at the top right) — every agent adds to these
+- `tutorials.js` = the content: `TUTORIALS`, in the order a teacher should learn (each one's end offers the next).
+  A tutorial `{ id, icon, title, about, ready?(ctx) → reason it can't start, steps }`; step fields are documented at the
+  top of `tutorialPlan.js` (pure + tested: runner, progress, `mergeBoxes`): `target` (data-tour name/s) or `selector`,
+  `text`, `skipIf`, `until` (goes on by itself), `click`, `nextWhen` (Next allowed — "add all your schools, then Next"),
+  `remember`, `backIf`. Helpers: `goTo(tabId)` (tab, or Setup ▾ → page; skipped when already there), `addOne`/`addSome`,
+  `placeDays`. Steps only read `ctx` (`tutorialContext()` in `views/tutorialGuide.js`), never the store directly.
+- Parts of the page are named with `tour('name', el)` (dom.js), `'data-tour': 'name'`, or `tour: 'name'` on
+  `popMenu`/`menuItem`; tabs are `tab-<id>`, Setup pages `menu-<id>` (`tabInfo.js`). `test/tutorials.test.js` fails if a
+  step names a part no code gives out, or a page has no tutorial.
+- `views/tutorialGuide.js` draws it: an SVG dim layer with even-odd holes (clicks/drags in holes reach the page; wheel
+  over the dim scrolls the page), gold rings, a bubble placed beside the lit parts. Open menus of a lit `details` and
+  any open dialog, notice or toast are always holes. A part missing >1.2 s → no dimming + "can't see that part" + Skip.
+- `views/tutorialMenu.js`: the 🎓 menu (✓ finished, "New"); dot until the menu is opened, and again when a tutorial is
+  added. Progress per browser in localStorage `lesson-planner-tutorials`.
+- **Every new feature (or new page) gets tutorial steps** in the right place, data-tour names on its parts, and a test.
 
 ## Assistant commands (Claude, later Gemini, controlling the open app)
 - The teacher asks an assistant to do anything in the planner. Claude in Chrome is blocked on their computer, so Claude Code

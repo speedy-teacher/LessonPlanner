@@ -37,7 +37,7 @@ export function renderLessonSchedule() {
   return h('div', { class: 'ls-layout' },
     h('section', { class: 'main-col card' },
       header(ctx),
-      h('div', { class: 'ls-weeks' }, ctx.weeks.map((w) => weekRow(ctx, w, w.weekStart <= today && today <= w.friday)))),
+      h('div', { class: 'ls-weeks', 'data-tour': 'ls-weeks' }, ctx.weeks.map((w) => weekRow(ctx, w, w.weekStart <= today && today <= w.friday)))),
     palette(ctx),
   );
 }
@@ -51,13 +51,13 @@ export function showThisWeek() {
 
 function header(ctx) {
   return h('div', { class: 'ls-head' },
-    h('div', { class: 'ls-head-row' },
+    h('div', { class: 'ls-head-row', 'data-tour': 'ls-class' },
       h('div', { class: 'ls-pick' }, h('span', { class: 'mini-label' }, 'School ', h('kbd', { title: 'Press [ or ] to switch school' }, '[ ]')),
         pills(ctx.schools, ctx.cls.schoolId, (id) => setUi({ schoolId: id }))),
       h('div', { class: 'ls-pick' }, h('span', { class: 'mini-label' }, 'Grade ', h('kbd', { title: 'Press the grade’s number key (K = 0)' }, '0–5')),
         gradePills(ctx.grades, ctx.cls.gradeId, (id) => setUi({ gradeId: id }))),
       h('button', {
-        class: 'btn ls-fill', onclick: () => openAutoFill(ctx),
+        class: 'btn ls-fill', 'data-tour': 'ls-fill', onclick: () => openAutoFill(ctx),
         'data-tip': 'Puts each eval’s lessons, in order, into the weeks it’s on the Outcome & Eval Calendar.',
       }, '✨ Fill from Outcome & Eval Calendar')),
     armedBanner());
@@ -257,7 +257,7 @@ function palette(ctx) {
     items.length ? items.map((item) => paletteItem(ctx, item)) : emptyNote('No lessons match.'));
   queueMicrotask(() => { list.scrollTop = paletteScroll; });
   return h('aside', {
-    class: 'side card ls-palette',
+    class: 'side card ls-palette', 'data-tour': 'ls-palette',
     ondragover: (e) => e.preventDefault(),
     ondrop: (e) => { e.preventDefault(); const { entryId } = readDrag(e); if (entryId) takeOff(find(store.state, 'weekLessons', entryId)); },
   },

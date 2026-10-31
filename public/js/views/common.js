@@ -45,9 +45,9 @@ export function gradePills(grades, activeId, onPick, { label = (g) => g.short ||
  * A button that opens a small menu (closes when you pick something or click elsewhere).
  * The menu floats above everything so a scrolling side panel can't cut it off.
  */
-export function popMenu({ label, title, summaryClass = 'icon-btn', menuClass = '' }, ...items) {
+export function popMenu({ label, title, summaryClass = 'icon-btn', menuClass = '', tour = null }, ...items) {
   const card = h('div', { class: 'menu-card' }, ...items);
-  const details = h('details', { class: `pop-menu ${menuClass}`, ontoggle: () => placeMenu(details, card) },
+  const details = h('details', { class: `pop-menu ${menuClass}`, 'data-tour': tour, ontoggle: () => placeMenu(details, card) },
     h('summary', { class: summaryClass, title, 'aria-label': title }, label), card);
   return details;
 }
@@ -61,9 +61,9 @@ function placeMenu(details, card) {
 }
 
 /** One choice in a popMenu. */
-export function menuItem(label, run, { icon = null, tip = null } = {}) {
+export function menuItem(label, run, { icon = null, tip = null, tour = null } = {}) {
   return h('button', {
-    class: 'menu-item', title: tip,
+    class: 'menu-item', title: tip, 'data-tour': tour,
     onclick: (e) => { e.target.closest('details').open = false; run(); },
   }, icon ? h('span', { class: 'menu-icon', 'aria-hidden': 'true' }, icon) : null, label);
 }

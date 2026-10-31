@@ -14,7 +14,7 @@ export function holidaysCard() {
   const y = year();
   const yours = current('holidays').sort((a, b) => a.startDate.localeCompare(b.startDate));
   const builtIn = yearEvents(store.state, y.id).filter((e) => e.builtIn);
-  return h('section', { class: 'card setup-card holidays-card' },
+  return h('section', { class: 'card setup-card holidays-card', 'data-tour': 'events-card' },
     h('h3', {}, 'Events', h('span', { class: 'count-badge' }, yours.length + builtIn.length)),
     h('p', { class: 'hint' }, 'Add your breaks and other school events. Pictures (Images tab) can be set to show around any event.'),
     h('ul', { class: 'setup-list holiday-list' }, yours.map(holidayRow)),
