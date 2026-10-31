@@ -197,7 +197,9 @@ function scrollIntoViewOnce(view, targets) {
   if (!targets.length || scrolledKey === key) return;
   scrolledKey = key;
   const r = targets[0].getBoundingClientRect();
-  if (r.top < 0 || r.bottom > window.innerHeight) targets[0].scrollIntoView({ block: 'center', behavior: 'smooth' });
+  // A small part low on the screen is brought up too, so the bottom-left notices don't cover it.
+  const low = r.height < window.innerHeight * 0.4 && r.bottom > window.innerHeight * 0.7;
+  if (r.top < 0 || r.bottom > window.innerHeight || low) targets[0].scrollIntoView({ block: 'center', behavior: 'smooth' });
 }
 
 /** Clicking a lit-up part finishes a "click" step (after the page has handled the click). */

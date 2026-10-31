@@ -435,6 +435,45 @@ const lessonCopies = {
   ],
 };
 
+/** The report's extra columns after the lesson (Reports › "What each lesson shows"). */
+const columnsAfter = (ctx) => ctx.year?.reports?.right ?? [];
+const lastColumn = (ctx) => columnsAfter(ctx).at(-1);
+const INSTRUMENT_WORD = '{{instrument}}';
+const hasInstrumentColumn = (ctx) => columnsAfter(ctx).some((c) => c.value?.includes(INSTRUMENT_WORD));
+
+/** Reports: add a column that shows each lesson's instruments (skipped if there is one already). */
+function instrumentColumn() {
+  return [
+    {
+      target: 'report-add-after',
+      title: 'Add an Instrument column',
+      text: 'Let’s add a column that shows the instruments each lesson uses. Click “+ Column after”.',
+      skipIf: hasInstrumentColumn,
+      remember: (ctx) => columnsAfter(ctx).length,
+      until: (ctx, before) => columnsAfter(ctx).length > before,
+    },
+    {
+      target: 'report-column-name', pick: 'last',
+      text: 'Type Instrument as the column’s name, then press Enter.',
+      skipIf: (ctx) => hasInstrumentColumn(ctx) || !lastColumn(ctx),
+      until: (ctx) => Boolean(lastColumn(ctx)?.name),
+      nextWhen: () => true,
+    },
+    {
+      selector: `[data-tour="report-words"] [data-word="${INSTRUMENT_WORD}"]`,
+      text: `Now click ${INSTRUMENT_WORD}. In the report, it becomes the lesson’s instruments (like “Drum, Ukulele”).`,
+      skipIf: (ctx) => hasInstrumentColumn(ctx) || !lastColumn(ctx),
+      until: hasInstrumentColumn,
+      nextWhen: () => true,
+    },
+    {
+      target: 'report-label',
+      text: 'That’s it: “Instrument” : {{instrument}}. Add other columns the same way (like the essential outcome), and take one out with ✕.',
+      skipIf: (ctx) => !hasInstrumentColumn(ctx),
+    },
+  ];
+}
+
 const reports = {
   id: 'reports',
   icon: '📊',
@@ -451,9 +490,10 @@ const reports = {
       target: 'report-label',
       text: 'Choose what each lesson shows, and add columns before or after it (like its essential outcome).',
     },
+    ...instrumentColumn(),
     {
       target: 'report-preview',
-      text: 'The preview shows the report as it will look.',
+      text: (ctx) => `The preview shows the report as it will look${hasInstrumentColumn(ctx) ? ' — with your Instrument column next to each lesson' : ''}.`,
     },
     {
       target: 'report-make',

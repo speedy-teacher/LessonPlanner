@@ -286,19 +286,19 @@ function addColumn(list) {
   focusLater({ ...target, part: 'name' });
 }
 
-// The extra rows and columns around the lesson: setting → [icon, where it goes, add-button text].
+// The extra columns around the lesson: setting → its icon, where it goes, add-button text, and tutorial name.
 const EXTRAS = {
-  left: ['⬅️', 'A column before the lesson', '+ Column before'],
-  right: ['➡️', 'A column after the lesson', '+ Column after'],
+  left: { icon: '⬅️', where: 'A column before the lesson', add: '+ Column before', tour: 'report-add-before' },
+  right: { icon: '➡️', where: 'A column after the lesson', add: '+ Column after', tour: 'report-add-after' },
 };
 
 /** Each extra column: "Column name" : value. */
 function columnsList(list) {
-  const [icon, where] = EXTRAS[list];
+  const { icon, where } = EXTRAS[list];
   return settings()[list].map((column, index) => h('div', { class: 'report-extra-row' },
     h('span', { class: 'extra-icon', 'data-tip': where }, icon),
     h('input', {
-      class: 'inline-edit report-column-name', value: column.name, placeholder: 'Column name', 'aria-label': 'Column name',
+      class: 'inline-edit report-column-name', 'data-tour': 'report-column-name', value: column.name, placeholder: 'Column name', 'aria-label': 'Column name',
       dataset: { key: `report-${list}-${index}-name` },
       onchange: (e) => afterFocusMoves(() => saveColumn(list, index, { name: e.target.value.trim() })),
       onkeydown: (e) => { if (e.key === 'Enter') e.target.blur(); },
@@ -309,7 +309,7 @@ function columnsList(list) {
 }
 
 const addButtons = (...lists) => h('div', { class: 'report-add-row' },
-  lists.map((list) => h('button', { class: 'btn small light', 'data-tip': EXTRAS[list][1], onclick: () => addColumn(list) }, EXTRAS[list][2])));
+  lists.map((list) => h('button', { class: 'btn small light', 'data-tour': EXTRAS[list].tour, 'data-tip': EXTRAS[list].where, onclick: () => addColumn(list) }, EXTRAS[list].add)));
 
 const focusLater = ({ list, index, part }) => setTimeout(() => {
   document.querySelector(`[data-key="report-${list}-${index}${part ? `-${part}` : ''}"]`)?.focus();
@@ -338,8 +338,8 @@ function labelCard() {
         rowInput(s.label, { list: 'label', placeholder: DEFAULT_LABEL }, (label) => saveSettings({ label }))),
       columnsList('right'),
       addButtons('left', 'right')),
-    h('div', { class: 'label-words' }, Object.entries(WORDS).map(([word, about]) => h('button', {
-      class: 'pill small', 'data-tip': about, onclick: () => addWord(word),
+    h('div', { class: 'label-words', 'data-tour': 'report-words' }, Object.entries(WORDS).map(([word, about]) => h('button', {
+      class: 'pill small', 'data-tip': about, dataset: { word }, onclick: () => addWord(word),
     }, word))),
     checkbox(s.columnNames, 'Show column names at the top', (columnNames) => saveSettings({ columnNames })),
     checkbox(s.footer, 'Show “Automatically maintained by Lesson Planner” at the bottom of each report', (footer) => saveSettings({ footer })));
