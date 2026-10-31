@@ -281,3 +281,11 @@ test('a special period uses every picture whose time fits — the strongest firs
   const ids = entries.map((e) => pictureForEntry(s, e).image.id);
   assert.deepEqual(ids, [greeting.id, season.id, greeting.id], 'the greeting first, then the season picture, then round again');
 });
+
+test('lessons added without a picture spot ticked never move the pictures already planned', () => {
+  const { s, lesson, plain, weeks, cls } = planner();
+  const first = addWeekLesson(s, { ...cls, weekStart: weeks[0].weekStart, lessonId: lesson.id });
+  const before = pictureForEntry(s, first).image.id;
+  addWeekLesson(s, { ...cls, weekStart: weeks[0].weekStart, lessonId: plain.id, position: 0 });
+  assert.equal(pictureForEntry(s, first).image.id, before);
+});

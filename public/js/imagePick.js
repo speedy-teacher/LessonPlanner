@@ -121,10 +121,13 @@ function farthestFromUses(best, i, uses) {
   return best.reduce((a, b) => (gapToUses(b.id, i, uses) > gapToUses(a.id, i, uses) ? b : a));
 }
 
-/** Schedule entries that take a picture from the plan (picture spot ticked, none picked by hand). */
+/**
+ * Schedule entries that take a picture from the plan (lessons already set up with a picture spot,
+ * none picked by hand). Other lessons don't move the plan, so existing pictures stay put.
+ */
 function plannedEntries(state, yearId) {
   return state.weekLessons.filter((e) => e.yearId === yearId
-    && wantsPicture(find(state, 'lessons', e.lessonId)) && !chosenForLesson(state, e).length);
+    && find(state, 'lessons', e.lessonId)?.autoFields.includes('image') && !chosenForLesson(state, e).length);
 }
 
 /** An entry's place among its class's picture lessons that week (0 = first), in teaching order. */
@@ -194,15 +197,21 @@ function planSequences(year, images, holidays, sequences) {
   return plan;
 }
 
+/** The plan's picture for an entry ({ image } — null when the plan has nothing for a lesson it doesn't cover). */
+function plannedPicture(state, entry, week, chosen) {
+  if (chosen.length || !week?.days.length) return null;
+  const planned = plannedEntries(state, entry.yearId);
+  const slot = Math.max(0, slotOf(planned, entry));
+  const image = lessonSequencePictures(state, entry.yearId).get(slotKey(entry.gradeId, entry.weekStart, slot));
+  return image || planned.some((e) => e.id === entry.id) ? { image } : null;
+}
+
 /** The picture chosen for a schedule entry ({ image, week } — image null when none fits). */
 export function pictureForEntry(state, entry, sharing = () => null) {
   const { week, start, end } = entryDates(state, entry);
   const chosen = chosenForLesson(state, entry);
-  if (!chosen.length && week?.days.length) {
-    const slot = Math.max(0, slotOf(plannedEntries(state, entry.yearId), entry));
-    const image = lessonSequencePictures(state, entry.yearId).get(slotKey(entry.gradeId, entry.weekStart, slot));
-    return { image: image ? find(state, 'images', image.id) : null, week };
-  }
+  const planned = plannedPicture(state, entry, week, chosen);
+  if (planned) return { image: planned.image && find(state, 'images', planned.image.id), week };
   const lesson = find(state, 'lessons', entry.lessonId);
   const pool = chosen.length ? chosen : state.images.filter((i) => i.yearId === entry.yearId);
   const [best] = pickImages(pool, {
