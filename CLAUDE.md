@@ -138,6 +138,9 @@ A browser app for a (non-technical) elementary music teacher to plan a school ye
   `place`); a rewrite adds fresh tabs, deletes the old ones and fills the new in one batchUpdate (`sheetRequests`); only when `hash` changed.
 - Weekly: `reportBridge.js`, run by `exportBridge.js` after the copy queue is empty (same lock, Drive output only): one
   "Week n report" per week folder that has wanted copies (`weeklyReports` + `reportSteps` reconcile create/update/remove).
+- Keep up to date (`manual.keepUpToDate`): `reportBridge.js` also remakes the Reports tab reports (kind `manual`, key = school[+grade], NOT the weeks, so
+  changing weeks updates + renames the same file; never removes) in `reportFolder(year)` after the copies, Drive output only; it re-lists the
+  folder before making one so two computers never make it twice. The Make button calls `recheckCopies()` so the bridge sees the new files.
 - Reports tab (`views/reports.js`, `css/reports.css`): weeks range, schools/grades toggles, one file per school (tab per grade)
   or per grade, folder (default the copies' Drive folder), preview, Make (`reportMaker.js`: same key in the same folder = update).
 - Not yet tried against real Google (needs the Sheets API on; `drive.file` covers Sheets the planner made).

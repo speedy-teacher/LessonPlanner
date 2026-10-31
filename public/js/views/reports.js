@@ -12,9 +12,11 @@ import { pickFolderFromDrive } from '../drive.js';
 import { todayISO } from '../dates.js';
 import { AUTO_FIELD_PLACEHOLDERS, AUTO_FIELDS, TEXT_FIELDS } from '../model.js';
 import { schoolWeeks } from '../weekPlan.js';
-import { changedReports, copyFinder, DEFAULT_LABEL, LABEL_WORDS, manualReports, reportRows, reportSettings, reportWidth } from '../reportPlan.js';
+import {
+  changedReports, copyFinder, currentWeekNumber, DEFAULT_LABEL, LABEL_WORDS, manualReports, reportFolder, reportRows, reportSettings, reportWidth,
+} from '../reportPlan.js';
 import { listDriveCopies, makeReports } from '../reportMaker.js';
-import { copyStatus, knownCopies, weeklyReportFiles } from '../exportBridge.js';
+import { copyStatus, keptReportFiles, knownCopies, recheckCopies, weeklyReportFiles } from '../exportBridge.js';
 import { current, emptyNote, year } from './common.js';
 
 // Copies looked up for the preview when this computer doesn't keep them (this visit only).
@@ -30,10 +32,7 @@ function saveSettings({ manual, ...patch }) {
   commit((s) => update(s, 'years', y.id, { reports: changedReports(y, patch, manual) }));
 }
 
-function thisWeek(weeks) {
-  const today = todayISO();
-  return weeks.find((w) => w.weekStart <= today && today <= w.friday)?.number ?? 1;
-}
+const thisWeek = () => currentWeekNumber(year(), todayISO());
 
 function copiesForPreview() {
   const mine = knownCopies();
@@ -52,10 +51,7 @@ function copiesForPreview() {
 
 function reportFiles() {
   const s = settings();
-  const weeks = schoolWeeks(year());
-  return manualReports(store.state, year().id, {
-    ...s, copyOf: copyFinder(copiesForPreview()), defaultWeek: thisWeek(weeks),
-  });
+  return manualReports(store.state, year().id, { ...s, copyOf: copyFinder(copiesForPreview()), defaultWeek: thisWeek() });
 }
 
 export function renderReports() {
@@ -79,14 +75,15 @@ function formCard(files) {
     chooser('Schools', current('schools'), manual.schoolIds, (schoolIds) => saveSettings({ manual: { schoolIds } })),
     chooser('Grades', current('grades'), manual.gradeIds, (gradeIds) => saveSettings({ manual: { gradeIds } }), { colors: true }),
     fileChoice(manual),
-    folderChoice(manual),
-    makeButton(files, manual),
-    madeList());
+    folderChoice(),
+    makeButton(files),
+    madeList(),
+    keepSection(files));
 }
 
 function weekPickers(manual) {
   const weeks = schoolWeeks(year());
-  const from = manual.fromWeek ?? thisWeek(weeks);
+  const from = manual.fromWeek ?? thisWeek();
   const to = Math.max(from, manual.toWeek ?? from);
   const select = (value, onPick, min = 1) => h('select', { class: 'report-week', onchange: (e) => onPick(Number(e.target.value)) },
     weeks.filter((w) => w.number >= min).map((w) => h('option', { value: w.number, selected: w.number === value },
@@ -124,14 +121,8 @@ function fileChoice(manual) {
     radio(true, 'A separate file for each grade'));
 }
 
-/** Where the reports go: the folder chosen here, else the lesson copies' Drive folder. */
-function reportFolder(manual) {
-  const output = year().output;
-  return manual.folder ?? (output?.kind === 'drive' ? { folderId: output.folderId, name: output.name } : null);
-}
-
-function folderChoice(manual) {
-  const folder = reportFolder(manual);
+function folderChoice() {
+  const folder = reportFolder(year());
   const connected = google.status === 'connected';
   return h('div', { class: 'report-row' },
     h('span', { class: 'mini-label' }, 'Save in:'),
@@ -149,8 +140,8 @@ async function chooseFolder() {
   toast(`Reports go to “${picked.name}”.`);
 }
 
-function makeButton(files, manual) {
-  const folder = reportFolder(manual);
+function makeButton(files) {
+  const folder = reportFolder(year());
   const connected = google.status === 'connected';
   let why = '';
   if (!connected) why = 'Connect Google Drive first.';
@@ -167,6 +158,7 @@ async function make(files, folder) {
   try {
     made = await makeReports({ token: google.token, yearId: year().id, files, folderId: folder.folderId });
     toast(made.length === 1 ? `Report saved in “${folder.name}”.` : `${made.length} reports saved in “${folder.name}”.`);
+    recheckCopies(); // look at the folder again, so keeping them up to date finds these files
   } catch (err) {
     console.warn('Reports:', err);
     toast(err.message === 'api_off'
@@ -183,6 +175,39 @@ function madeList() {
   return h('ul', { class: 'report-made' }, made.map((m) => h('li', {},
     h('a', { href: m.url, target: '_blank', rel: 'noopener' }, `📄 ${m.name}`),
     m.updated ? h('span', { class: 'hint' }, ' (updated)') : null)));
+}
+
+// ---------- keeping them up to date ----------
+
+/** What stops reports being kept up to date right now, in plain words ('' = nothing). */
+function keepProblem() {
+  const output = year().output;
+  if (!reportFolder(year())) return 'Choose a Drive folder (above) first.';
+  if (output?.kind !== 'drive') return 'This needs the lesson copies in a Google Drive folder (Setup › School Year › Lesson copies).';
+  return '';
+}
+
+function keepStatus(on) {
+  const problem = keepProblem();
+  if (!on) return 'Off: reports stay as they are until you click Make again.';
+  if (problem) return problem;
+  const state = copyStatus().state;
+  const kept = keptReportFiles();
+  if (state === 'ready') return `✓ ${kept.length} ${kept.length === 1 ? 'report is' : 'reports are'} kept up to date.`;
+  return state === 'other-keeper' || state === 'other-computer'
+    ? 'They’re updated by the computer that keeps the lesson copies.'
+    : 'They’re updated once Google Drive is connected and the lesson copies are checked.';
+}
+
+/** One place for everything that's kept current: the reports made here, and the weekly reports. */
+function keepSection() {
+  const { manual, weekly } = settings();
+  const kept = manual.keepUpToDate ? keptReportFiles() : [];
+  return h('div', { class: 'report-keep' },
+    checkbox(manual.keepUpToDate, 'Keep these reports up to date automatically', (keepUpToDate) => saveSettings({ manual: { keepUpToDate } })),
+    h('p', { class: 'hint' }, `${keepStatus(manual.keepUpToDate)} They’re rewritten about a minute after you change the Lesson Schedule or Instrument Schedule, in the same files and the same folder.`),
+    kept.length ? h('ul', { class: 'report-made' }, kept.map((f) => h('li', {}, h('a', { href: f.url, target: '_blank', rel: 'noopener' }, `📄 ${f.name}`)))) : null,
+    weekly ? h('p', { class: 'hint' }, `🗓️ Weekly reports in every week folder are kept up to date too (${weeklyReportFiles().length} so far).`) : null);
 }
 
 // ---------- how lessons are written ----------

@@ -185,7 +185,7 @@ async function makeTarget(year, output) {
   target.id = id;
   bridge.haves = await target.adapter.list();
   target.reports = target.adapter.kind === 'drive' ? weeklyReportKeeper(target.adapter, year.id) : null;
-  await target.reports?.load();
+  await target.reports?.load(store.state);
   bridge.target = target;
   bridge.wants = null;
   return target;
@@ -248,6 +248,7 @@ function showBlocked(status) {
 
 async function queueWork(target) {
   warn({ state: 'ready' }, null);
+  await target.reports?.sync(store.state).catch(() => {}); // the Reports tab's folder (or "keep up to date") may have changed
   fillQueue(target);
   if (bridge.running) return undefined;
   if (!bridge.queue.size && !reportWork(target).length) return showOtherWorker(false);
@@ -291,7 +292,7 @@ async function claimCopies(target) {
   showOtherWorker(false);
   if (claim === 'new') {
     bridge.haves = await target.adapter.list();
-    await target.reports?.load();
+    await target.reports?.load(store.state);
     bridge.queue.clear();
     fillQueue(target);
   }
@@ -646,6 +647,11 @@ export function copiesOfLesson(lessonId) {
 export function knownCopies() {
   if (!bridge.target || bridge.status.state !== 'ready' || bridge.target.adapter?.kind !== 'drive') return null;
   return bridge.haves;
+}
+
+/** The Reports tab's reports that are kept up to date: [{ name, url }] (empty when this computer doesn't keep the copies). */
+export function keptReportFiles() {
+  return bridge.status.state === 'ready' ? bridge.target?.reports?.manualFiles() ?? [] : [];
 }
 
 /** The weekly report files in the output folder (empty when this computer doesn't keep the copies). */

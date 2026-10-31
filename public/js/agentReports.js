@@ -20,7 +20,7 @@ function describe(state, s) {
     fromWeek: m.fromWeek, toWeek: m.toWeek,
     schools: m.schoolIds.length ? namesOf(state, 'schools', m.schoolIds) : 'all',
     grades: m.gradeIds.length ? namesOf(state, 'grades', m.gradeIds) : 'all',
-    oneFilePer: m.perGrade ? 'grade' : 'school', folder: m.folder?.name ?? null,
+    oneFilePer: m.perGrade ? 'grade' : 'school', folder: m.folder?.name ?? null, keepUpToDate: m.keepUpToDate,
   };
 }
 
@@ -68,18 +68,21 @@ export const REPORT_COMMANDS = {
     params: {
       fromWeek: ['First week'], toWeek: ['Last week (default: same as fromWeek)'],
       schools: ['Names, or "all"'], grades: ['Names, or "all"'], oneFilePer: ['"school" or "grade"'],
+      keepUpToDate: ['true or false: remake the reports automatically when the schedule changes'],
     },
     run: (state, a) => {
       const manual = patchFrom(a, {
         fromWeek: (v) => weekOf(state, v).number, toWeek: (v) => weekOf(state, v).number,
         schools: (v) => chosen(state, v, school), grades: (v) => chosen(state, v, grade), oneFilePer: filePer,
+        keepUpToDate: (v) => v === true || v === 'true',
       });
-      const { schools, grades, oneFilePer, ...weeks } = manual;
+      const { schools, grades, oneFilePer, keepUpToDate, ...weeks } = manual;
       if (weeks.fromWeek && !weeks.toWeek) weeks.toWeek = Math.max(weeks.fromWeek, reportSettings(year(state)).manual.toWeek ?? 0);
       if (weeks.fromWeek && weeks.toWeek < weeks.fromWeek) fail('The last week has to come after the first week.');
       const s = save(state, {}, {
         ...weeks, ...(schools ? { schoolIds: schools } : {}), ...(grades ? { gradeIds: grades } : {}),
         ...(oneFilePer === undefined ? {} : { perGrade: oneFilePer }),
+        ...(keepUpToDate === undefined ? {} : { keepUpToDate }),
       });
       return { done: 'Report set up. The teacher clicks “Make” on the Reports tab to save it in Google Drive.', ...describe(state, s) };
     },

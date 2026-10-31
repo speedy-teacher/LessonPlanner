@@ -13,6 +13,7 @@ import {
 } from '../public/js/reportPlan.js';
 import { driveReports, REPORT_LABEL, sheetCell, SHEETS, sheetRequests } from '../public/js/reportSheets.js';
 import { runCommand } from '../public/js/agentCommands.js';
+import { weeklyReportKeeper } from '../public/js/reportBridge.js';
 
 const SLIDES = 'application/vnd.google-apps.presentation';
 const DRIVE = { rootKey: 'drive:fakeRoot', yearFolder: 'Music Plan', templateOf: driveFileId, canFill: canFillIn };
@@ -139,6 +140,9 @@ test('Reports tab: one file per school with a tab per grade, or one file per gra
   assert.ok(perGrade.every((f) => f.tabs.length === 1));
   const again = manualReports(t.s, t.year.id, { manual: { ...manual, perGrade: true, schoolIds: [t.schoolA.id] }, label: '', copyOf: () => null });
   assert.equal(again[0].key, perGrade[0].key, 'making the same report again finds the same file');
+  const shifted = manualReports(t.s, t.year.id, { manual: { ...manual, fromWeek: 4, toWeek: 5, perGrade: true, schoolIds: [t.schoolA.id] }, label: '', copyOf: () => null });
+  assert.equal(shifted[0].key, perGrade[0].key, 'other weeks: the same file, brought up to date');
+  assert.notEqual(shifted[0].name, perGrade[0].name);
 });
 
 test('a tab shows the school and grade at the top, then each week, its instruments and its lessons', () => {
@@ -188,6 +192,12 @@ test('the Google Sheet gets a new tab per grade (old tabs out), linked lessons a
   assert.equal(cells[5].values[1].userEnteredFormat.textFormat.link.uri, 'https://example.test/c');
 });
 
+/** Whether a search (Drive "q", maybe "'<folder>' in parents") finds the file. */
+function listed(url, file) {
+  const folder = url.searchParams.get('q')?.match(/^.*'([^']*)' in parents/)?.[1];
+  return !file.trashed && (!folder || Boolean(file.parents?.includes(folder)));
+}
+
 /** A pretend Drive + Sheets that records every request. */
 function fakeGoogle() {
   const files = new Map();
@@ -207,7 +217,7 @@ function fakeGoogle() {
       if (u.searchParams.get('addParents')) f.parents = [u.searchParams.get('addParents')];
       return json(f);
     }
-    return json({ files: [...files.values()].filter((f) => !f.trashed) });
+    return json({ files: [...files.values()].filter((f) => listed(u, f)) });
   };
   return { files, calls, send };
 }
@@ -246,7 +256,7 @@ test('an assistant can set up the report and its options, and preview it', () =>
   const settings = runCommand(t.s, 'reportSettings');
   assert.deepEqual(settings, {
     lessonText: '{{template_name}}', rowsAbove: [], rowsBelow: [], columnsBefore: [], columnsAfter: [], columnNames: true, footer: true, weeklyReports: false, fromWeek: 3, toWeek: 4,
-    schools: ['School A'], grades: ['Kindergarten'], oneFilePer: 'grade', folder: null,
+    schools: ['School A'], grades: ['Kindergarten'], oneFilePer: 'grade', folder: null, keepUpToDate: false,
   });
   const [preview] = runCommand(t.s, 'previewReport');
   assert.equal(preview.file, 'School A – Kindergarten – Weeks 3–4 report');
@@ -351,4 +361,48 @@ test('the title bar wears the grade’s color, with text that reads on it', () =
   assert.ok(Math.abs(bar.backgroundColor.red - 0xf2 / 255) < 0.001);
   assert.ok(bar.textFormat.foregroundColor.red < 0.3, 'dark text on a light bar');
   assert.equal(tint('#000000', 0.5), '#808080');
+});
+
+test('reports made on the Reports tab are kept up to date: made once, updated in place, never twice', async () => {
+  const t = setup();
+  lessonAt(t, t.beat);
+  update(t.s, 'years', t.year.id, { output: { kind: 'drive', folderId: 'copiesRoot', name: 'Output' } });
+  const g = fakeGoogle();
+  const keeper = weeklyReportKeeper({ send: g.send, folderFor: async () => 'weekFolder' }, t.year.id);
+  const context = () => ({ wants: wantedCopies(t.s, t.year.id, DRIVE), copies: [], rootKey: DRIVE.rootKey });
+  const run = async () => {
+    await keeper.sync(t.s);
+    const steps = keeper.steps(t.s, context());
+    await keeper.run(steps, { goOn: () => true, show: () => {}, problem: (e) => { throw e; }, stoppers: [] });
+    return steps.map((s) => `${s.group}:${s.kind}`);
+  };
+  const keep = (manual) => update(t.s, 'years', t.year.id, { reports: { weekly: false, manual: { fromWeek: 3, schoolIds: [t.schoolA.id], gradeIds: [t.k.id], keepUpToDate: true, ...manual } } });
+
+  update(t.s, 'years', t.year.id, { reports: { weekly: false, manual: { fromWeek: 3, schoolIds: [t.schoolA.id], gradeIds: [t.k.id] } } });
+  await keeper.load(t.s);
+  assert.deepEqual(await run(), [], 'off: nothing is made');
+
+  keep({});
+  assert.deepEqual(await run(), ['manual:create'], 'the folder defaults to the lesson copies folder');
+  const [made] = [...g.files.values()];
+  assert.deepEqual(made.parents, ['copiesRoot']);
+  assert.equal(made.appProperties.reportKind, 'manual');
+  assert.deepEqual(await run(), [], 'up to date: nothing to do');
+  assert.deepEqual(keeper.manualFiles().map((f) => f.name), ['School A – Week 3 report']);
+
+  lessonAt(t, t.song);
+  assert.deepEqual(await run(), ['manual:update']);
+  keep({ toWeek: 4 });
+  assert.deepEqual(await run(), ['manual:update'], 'other weeks: the same file is updated and renamed');
+  assert.equal(g.files.size, 1);
+  assert.equal([...g.files.values()][0].name, 'School A – Weeks 3–4 report');
+
+  keeper.manualHaves = []; // another computer made it meanwhile, and this one doesn't know yet
+  assert.deepEqual(await run(), ['manual:create'], 'it thinks it must make it');
+  assert.equal(g.files.size, 1, 'never made twice');
+
+  keep({ folder: { folderId: 'otherFolder', name: 'Other' } });
+  assert.deepEqual(keeper.steps(t.s, context()), [], 'a different folder is looked at first');
+  assert.deepEqual(await run(), ['manual:create']);
+  assert.equal(g.files.size, 2, 'the old one is left where it is');
 });
