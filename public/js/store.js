@@ -55,6 +55,18 @@ export function commit(mutate) {
   return result;
 }
 
+/**
+ * Note something worked out about the data (e.g. what a template file contains): saved like a change,
+ * but not an edit — no undo step, and it doesn't restart the wait before lesson copies update.
+ */
+export function annotate(mutate) {
+  const before = JSON.stringify(store.state);
+  mutate(store.state);
+  if (JSON.stringify(store.state) === before) return;
+  queueSave();
+  notify();
+}
+
 export function undo() {
   travel(store.undoStack, store.redoStack);
 }

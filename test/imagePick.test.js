@@ -141,12 +141,16 @@ test('a lesson on the schedule gets the picture that fits its week', () => {
   assert.deepEqual(imageUses(s, welcome.id).map((u) => u.entry.id), [first.id]);
 });
 
-test('every lesson on the schedule is offered a picture, with nothing to tick', () => {
+test('a lesson takes part in choosing pictures when its template was found to have a picture spot', () => {
   const { s, plain, welcome, weeks, cls } = planner();
   plain.autoFields = [];
   const entry = addWeekLesson(s, { ...cls, weekStart: weeks[0].weekStart, lessonId: plain.id });
+  assert.deepEqual(lessonPictures(s, plain.id), [], 'not scanned, not ticked: no picture');
+  plain.scan = { fileId: 'x', modifiedTime: null, picture: true };
   assert.equal(lessonPictures(s, plain.id)[0].image.id, welcome.id);
   assert.deepEqual(imageUses(s, welcome.id).map((u) => u.entry.id), [entry.id]);
+  plain.scan.picture = false;
+  assert.deepEqual(imageUses(s, welcome.id), [], 'a scan that found no spot wins over an old tick');
 });
 
 test('the weeks a picture fits are listed for checking its rules', () => {
@@ -280,12 +284,4 @@ test('a special period uses every picture whose time fits — the strongest firs
   const entries = [[8, 0], [8, 1], [9, 0]].map(([w, position]) => addWeekLesson(s, { ...cls, weekStart: weeks[w].weekStart, lessonId: lesson.id, position }));
   const ids = entries.map((e) => pictureForEntry(s, e).image.id);
   assert.deepEqual(ids, [greeting.id, season.id, greeting.id], 'the greeting first, then the season picture, then round again');
-});
-
-test('lessons added without a picture spot ticked never move the pictures already planned', () => {
-  const { s, lesson, plain, weeks, cls } = planner();
-  const first = addWeekLesson(s, { ...cls, weekStart: weeks[0].weekStart, lessonId: lesson.id });
-  const before = pictureForEntry(s, first).image.id;
-  addWeekLesson(s, { ...cls, weekStart: weeks[0].weekStart, lessonId: plain.id, position: 0 });
-  assert.equal(pictureForEntry(s, first).image.id, before);
 });

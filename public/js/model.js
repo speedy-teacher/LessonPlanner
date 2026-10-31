@@ -37,7 +37,8 @@ export const COLLECTIONS = {
   deckFolders: 'id, yearId, name, parentId, locations[], watch, seenDriveIds[]',
   // A lesson is one slide deck: what it fills in automatically and which instruments it uses.
   // `locations[]` = where the deck's file lives (see locations.js); `isNew` = pulled in from a watched
-  // Drive folder and not looked at yet.
+  // Drive folder and not looked at yet. `scan` = what reading the template found, { fileId, modifiedTime, picture }
+  // (templateScan.js; only a yes/no about the file, never its contents).
   lessons: 'id, yearId, name, category, autoFields[], instrumentIds[], folderId, locations[], isNew',
   // `mainGradeId` = the grade the eval is mainly for (its title wears that grade's color), or null.
   criteria: 'id, outcomeId, title, gradeIds[], mainGradeId',

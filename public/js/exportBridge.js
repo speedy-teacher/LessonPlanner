@@ -10,7 +10,7 @@
 
 import { h } from './dom.js';
 import { activeYear, find } from './model.js';
-import { refresh, refreshSoon, store, subscribe } from './store.js';
+import { annotate, refresh, refreshSoon, store, subscribe } from './store.js';
 import { google } from './google.js';
 import { current as plan } from './workspace.js';
 import { canFillIn, driveFileId, driveOpenUrl, findLocation, googleTypeFor } from './locations.js';
@@ -21,6 +21,7 @@ import { downloadTemplate, driveCopies } from './exportDrive.js';
 import { folderPermission, localCopies, rememberedFolder } from './exportLocal.js';
 import { dismissNotice, showNotice } from './notices.js';
 import { copyLock } from './copyLock.js';
+import { scanTemplates } from './templateScan.js';
 import { copyPace } from './copyPace.js';
 import { holdPicture, isHeld, picturePlaced, pictureHolds, pictureReport, releaseHeld } from './pictureHolds.js';
 
@@ -230,6 +231,9 @@ async function look() {
   if (blocked?.state === 'other-keeper') return warnBehind(await checkBehind(year, output, blocked));
   if (blocked) return setStatus(blocked);
   noticeSignIn();
+  if (await scanTemplates({ state: store.state, yearId: year.id, token: google.token, annotate })) {
+    bridge.version += 1; // what the templates ask for changed what the copies should be
+  }
   const target = await makeTarget(year, output).catch((err) => ({ blocked: { state: 'problem', reason: err.message } }));
   if (target.blocked) return showBlocked(target.blocked);
   return queueWork(target);

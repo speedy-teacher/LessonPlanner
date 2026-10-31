@@ -150,7 +150,7 @@ function instrumentToggles(l) {
 function autoFieldsSection() {
   return [
     h('h3', {}, 'Filled in automatically'),
-    h('p', { class: 'hint' }, 'When this lesson is on the Lesson Schedule, its copy gets these details filled in (see Setup › School Year › Lesson copies). In the file, type the text on the right (e.g. {{school}}) wherever a detail goes — click it to copy. Any that aren’t in the file are simply skipped.'),
+    h('p', { class: 'hint' }, 'When this lesson is on the Lesson Schedule, its copy gets these details filled in (see Setup › School Year › Lesson copies). In the file, type the text on the right (e.g. {{school}}) wherever a detail goes — click it to copy. Any that aren’t in the file are simply skipped (the planner reads the file to see whether it has a picture spot).'),
     h('div', { class: 'auto-fields big' }, Object.entries(AUTO_FIELDS).map(([key, label]) => autoFieldCode(key, label))),
   ];
 }
