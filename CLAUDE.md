@@ -126,11 +126,12 @@ A browser app for a (non-technical) elementary music teacher to plan a school ye
   `reportRows` (cells { text, url, style } — shared by the tab preview and the Sheet), `lessonLabel` (`year.reports.label`,
   default `{{copy_name}}`; also `{{template_name}}` + every auto-field placeholder), `copyFinder(copies)`.
   Extra rows above/below every lesson (`year.reports.above`/`below`, same words; a row whose words are all empty is left out)
-  and extra columns before/after it (`left`/`right`, titled by `columnTitle`; cells carry `span` → Sheet merges + preview colspan).
+  and extra columns before/after it (`left`/`right` = [{ name, value }], `asColumn` turns older plain text into one;
+  `columnNames: false` hides the names row; cells carry `span` → Sheet merges + preview colspan).
   Row buttons are hidden on the tab for now (settings + `setReportOptions` still work). Instruments line = `instrumentsLine`:
   "Required: <lessons' instruments> / Also available: <others at the school>". Footer "Automatically maintained by Lesson Planner"
   (`linkText` links only those words to `SITE_URL`, Sheets `textFormatRuns`); `footer: false` leaves it out.
-- Settings on the year record: `year.reports = { label, above[], below[], left[], right[], weekly (false = off), manual: { fromWeek, toWeek, schoolIds[], gradeIds[]
+- Settings on the year record: `year.reports = { label, above[], below[], left[], right[], columnNames, footer, weekly (false = off), manual: { fromWeek, toWeek, schoolIds[], gradeIds[]
   (empty = all), perGrade, folder } }` (`reportSettings` fills defaults). Command area `agentReports.js`.
 - Sheets: `reportSheets.js` `driveReports` (labels `lessonPlannerReport`=yearId, `reportKind` weekly|manual, `reportKey`, `hash`,
   `place`); a rewrite adds fresh tabs, deletes the old ones and fills the new in one batchUpdate (`sheetRequests`); only when `hash` changed.

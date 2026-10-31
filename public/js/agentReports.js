@@ -3,7 +3,7 @@
 // (Making the report in Google Drive is the teacher's click: the Make button on the Reports tab.)
 
 import { update } from './model.js';
-import { changedReports, manualReports, reportRows, reportSettings } from './reportPlan.js';
+import { asColumn, changedReports, manualReports, reportRows, reportSettings } from './reportPlan.js';
 import { fail, grade, idsOf, listOf, namesOf, patchFrom, school, weekOf, year } from './agentHelpers.js';
 
 function save(state, patch, manual = {}) {
@@ -16,7 +16,7 @@ function describe(state, s) {
   const m = s.manual;
   return {
     lessonText: s.label || '{{copy_name}}', rowsAbove: s.above, rowsBelow: s.below,
-    columnsBefore: s.left, columnsAfter: s.right, footer: s.footer, weeklyReports: s.weekly,
+    columnsBefore: s.left, columnsAfter: s.right, columnNames: s.columnNames, footer: s.footer, weeklyReports: s.weekly,
     fromWeek: m.fromWeek, toWeek: m.toWeek,
     schools: m.schoolIds.length ? namesOf(state, 'schools', m.schoolIds) : 'all',
     grades: m.gradeIds.length ? namesOf(state, 'grades', m.gradeIds) : 'all',
@@ -40,22 +40,23 @@ export const REPORT_COMMANDS = {
     run: (state) => describe(state, reportSettings(year(state))),
   },
   setReportOptions: {
-    summary: 'Change what each lesson shows in reports: its text (words like {{copy_name}}, {{template_name}}, {{week_number}}; "" = {{copy_name}}) and extra rows above or below it or columns before or after it (e.g. ["{{essential_outcome}}"]; [] = none). Or turn the weekly reports in each week folder on or off.',
+    summary: 'Change what each lesson shows in reports: its text (words like {{copy_name}}, {{template_name}}, {{week_number}}; "" = {{copy_name}}), extra rows above or below it (e.g. ["{{essential_outcome}}"]; [] = none), columns before or after it ([{ name, value }]) and whether column names show. Or turn the weekly reports in each week folder on or off.',
     changes: true,
     params: {
       lessonText: ['e.g. "{{copy_name}} / {{template_name}}"'], rowsAbove: ['List of row texts above each lesson'],
-      rowsBelow: ['List of row texts below each lesson'], columnsBefore: ['List of column texts left of the lesson'],
-      columnsAfter: ['List of column texts right of the lesson'], footer: ['true or false: the "Automatically maintained by Lesson Planner" line'],
+      rowsBelow: ['List of row texts below each lesson'], columnsBefore: ['Columns left of the lesson: [{ name, value }], e.g. { "name": "Outcome", "value": "{{essential_outcome}}" }'],
+      columnsAfter: ['Columns right of the lesson, like columnsBefore'], columnNames: ['true or false: show the column names at the top'], footer: ['true or false: the "Automatically maintained by Lesson Planner" line'],
       weeklyReports: ['true or false'],
     },
     run: (state, a) => {
       const rows = (v) => listOf(v).map((t) => String(t).trim()).filter(Boolean);
+      const columns = (v) => listOf(v).map(asColumn);
       const patch = patchFrom(a, {
-        lessonText: (v) => String(v ?? '').trim(), rowsAbove: rows, rowsBelow: rows, columnsBefore: rows, columnsAfter: rows,
+        lessonText: (v) => String(v ?? '').trim(), rowsAbove: rows, rowsBelow: rows, columnsBefore: columns, columnsAfter: columns, columnNames: (v) => v === true || v === 'true',
         footer: (v) => v === true || v === 'true', weeklyReports: (v) => v === true || v === 'true',
       });
       const renamed = {
-        lessonText: 'label', rowsAbove: 'above', rowsBelow: 'below', columnsBefore: 'left', columnsAfter: 'right', footer: 'footer', weeklyReports: 'weekly',
+        lessonText: 'label', rowsAbove: 'above', rowsBelow: 'below', columnsBefore: 'left', columnsAfter: 'right', columnNames: 'columnNames', footer: 'footer', weeklyReports: 'weekly',
       };
       const s = save(state, Object.fromEntries(Object.entries(patch).map(([k, v]) => [renamed[k], v])));
       return { done: 'Report options saved.', ...describe(state, s) };

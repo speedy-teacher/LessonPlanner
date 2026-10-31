@@ -13,7 +13,9 @@
 //   label  = how each lesson is written, e.g. "{{copy_name}} / {{template_name}}" ('' = DEFAULT_LABEL)
 //   above, below = extra rows shown above / below every lesson, e.g. ["{{essential_outcome}}"]
 //            (same words as the label; a row that comes out empty for a lesson is left out)
-//   left, right = extra columns left / right of the lesson, e.g. ["{{essential_outcome}}"] (titled by columnTitle)
+//   left, right = extra columns left / right of the lesson: [{ name, value }], e.g. { name: 'Outcome', value: '{{essential_outcome}}' }
+//            (value uses the same words as the label; an older plain-text column gets a name from columnTitle)
+//   columnNames = false leaves out the row of column names at the top
 //   footer = false leaves out the "Automatically maintained by Lesson Planner" line at the bottom
 //   weekly = false turns the weekly reports off (on when missing)
 //   manual = { fromWeek, toWeek, schoolIds[], gradeIds[], perGrade, folder: { folderId, name } | null }
@@ -32,7 +34,7 @@ export const LABEL_WORDS = {
   '{{template_name}}': 'The template’s name',
 };
 
-const REPORT_DEFAULTS = { label: '', above: [], below: [], left: [], right: [], footer: true, weekly: true };
+const REPORT_DEFAULTS = { label: '', above: [], below: [], left: [], right: [], columnNames: true, footer: true, weekly: true };
 const MANUAL_DEFAULTS = { fromWeek: null, toWeek: null, schoolIds: [], gradeIds: [], perGrade: false, folder: null };
 
 /** Saved values over defaults (a missing or null value gets the default). */
@@ -41,7 +43,14 @@ const withDefaults = (defaults, saved = {}) => Object.fromEntries(Object.entries
 /** The year's report settings, with everything missing filled in. */
 export function reportSettings(year) {
   const r = year?.reports ?? {};
-  return { ...withDefaults(REPORT_DEFAULTS, r), manual: withDefaults(MANUAL_DEFAULTS, r.manual ?? {}) };
+  const settings = { ...withDefaults(REPORT_DEFAULTS, r), manual: withDefaults(MANUAL_DEFAULTS, r.manual ?? {}) };
+  return { ...settings, left: settings.left.map(asColumn), right: settings.right.map(asColumn) };
+}
+
+/** An extra column as { name, value } (plain text = its value, named after its words). */
+export function asColumn(column) {
+  if (typeof column === 'string') return { name: columnTitle(column), value: column };
+  return { name: String(column?.name ?? ''), value: String(column?.value ?? '') };
 }
 
 /** The year's report settings with some changed (`patch` at the top, `manual` for the Reports tab form). */
@@ -124,7 +133,7 @@ export function reportWeek(state, cls, week, { label, above, below, left = [], r
     return {
       entryId: entry.id, lessonId: entry.lessonId, text: lessonLabel(label, words), url: copy?.url ?? null,
       above: extraRows(above, words), below: extraRows(below, words),
-      left: left.map((t) => fillWords(t, words)), right: right.map((t) => fillWords(t, words)),
+      left: left.map((c) => fillWords(asColumn(c).value, words)), right: right.map((c) => fillWords(asColumn(c).value, words)),
     };
   });
   return { number: week.number, dates: formatRange(days[0], days.at(-1)), instruments: weekInstruments(state, cls, week, lessons.map((l) => l.lessonId)), lessons };
@@ -148,7 +157,10 @@ export function weeksTitle(weeks) {
   return first === last ? `Week ${first}` : `Weeks ${first}–${last}`;
 }
 
-/** One tab: a class over some weeks. { title (tab name), heading, subheading, columns: { left, right } (titles), weeks: [reportWeek] }. */
+/**
+ * One tab: a class over some weeks. { title (tab name), heading, subheading, weeks: [reportWeek],
+ * columns: { left, right (column names), names (show them at the top) }, footer }.
+ */
 export function reportTab(state, cls, weeks, options) {
   const school = nameOf(state, 'schools', cls.schoolId);
   const grade = nameOf(state, 'grades', cls.gradeId);
@@ -157,7 +169,10 @@ export function reportTab(state, cls, weeks, options) {
     title: safeName(grade).slice(0, 90),
     heading: `${school} · ${grade}`,
     subheading: days.length ? `${weeksTitle(weeks)} · ${formatRange(days[0], days.at(-1))}` : weeksTitle(weeks),
-    columns: { left: (options.left ?? []).map(columnTitle), right: (options.right ?? []).map(columnTitle) },
+    columns: {
+      left: (options.left ?? []).map((c) => asColumn(c).name), right: (options.right ?? []).map((c) => asColumn(c).name),
+      names: options.columnNames !== false,
+    },
     footer: options.footer !== false,
     weeks: weeks.map((w) => reportWeek(state, cls, w, options)),
   };
@@ -171,6 +186,9 @@ export const reportHash = (file) => fingerprint(JSON.stringify([file.name, file.
 export const REPORT_NOTE = 'Automatically maintained by Lesson Planner';
 /** The live Lesson Planner site (the footer links "Lesson Planner" here). */
 export const SITE_URL = 'https://speedy-teacher.github.io/LessonPlanner/';
+
+/** Whether a tab has a row of column names at the top. */
+export const showsColumnNames = (tab) => reportWidth(tab) > 2 && tab.columns?.names !== false;
 
 /** How many columns a tab has: the lesson number, extra columns left, the lesson, extra columns right. */
 export function reportWidth(tab) {
@@ -199,9 +217,9 @@ export function reportRows(tab) {
   return rows;
 }
 
-/** Titles over the columns, when there are extra columns (otherwise an empty row). */
+/** Column names at the top, when there are extra columns and their names are shown (otherwise an empty row). */
 function columnHeads(tab) {
-  if (reportWidth(tab) === 2) return [];
+  if (!showsColumnNames(tab)) return [];
   const head = (text) => ({ text, style: 'columnHead' });
   return [head(''), ...tab.columns.left.map(head), head('Lesson'), ...tab.columns.right.map(head)];
 }

@@ -41,3 +41,5 @@
 .extra-icon { flex: none; width: 22px; text-align: center; }
 .sheet-table .cell-columnHead { background: var(--royal-soft); color: var(--royal); font-weight: 800; }
 .sheet-table .cell-column { min-width: 120px; }
+.report-extra-row .report-column-name { flex: 0 1 130px; min-width: 70px; font-weight: 700; }
+.column-colon { font-weight: 800; color: var(--ink-soft); }

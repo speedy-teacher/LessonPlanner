@@ -245,7 +245,7 @@ test('an assistant can set up the report and its options, and preview it', () =>
   runCommand(t.s, 'setReportOptions', { lessonText: '{{template_name}}', weeklyReports: false });
   const settings = runCommand(t.s, 'reportSettings');
   assert.deepEqual(settings, {
-    lessonText: '{{template_name}}', rowsAbove: [], rowsBelow: [], columnsBefore: [], columnsAfter: [], footer: true, weeklyReports: false, fromWeek: 3, toWeek: 4,
+    lessonText: '{{template_name}}', rowsAbove: [], rowsBelow: [], columnsBefore: [], columnsAfter: [], columnNames: true, footer: true, weeklyReports: false, fromWeek: 3, toWeek: 4,
     schools: ['School A'], grades: ['Kindergarten'], oneFilePer: 'grade', folder: null,
   });
   const [preview] = runCommand(t.s, 'previewReport');
@@ -293,13 +293,17 @@ test('columns can be added before and after the lesson, with titles at the top',
   lessonAt(t, t.beat).criterionId = crit.id;
   lessonAt(t, t.song);
   const manual = { ...reportSettings(t.year).manual, fromWeek: 3, schoolIds: [t.schoolA.id], gradeIds: [t.k.id] };
-  const look = { label: '', left: ['{{essential_outcome}}'], right: ['Eval: {{eval_criterion}}'], below: ['Bring scarves'], copyOf: () => null };
+  const look = {
+    label: '', left: [{ name: 'Outcome', value: '{{essential_outcome}}' }],
+    right: ['Eval: {{eval_criterion}}'], // an older plain-text column: named after its words
+    below: ['Bring scarves'], copyOf: () => null,
+  };
   const [file] = manualReports(t.s, t.year.id, { manual, ...look });
   const tab = file.tabs[0];
-  assert.deepEqual(tab.columns, { left: ['Essential outcome'], right: ['Eval: Eval criterion'] });
+  assert.deepEqual(tab.columns, { left: ['Outcome'], right: ['Eval: Eval criterion'], names: true });
   const rows = reportRows(tab);
   const texts = rows.map((r) => r.map((c) => c.text));
-  assert.deepEqual(texts[2], ['', 'Essential outcome', 'Lesson', 'Eval: Eval criterion']);
+  assert.deepEqual(texts[2], ['', 'Outcome', 'Lesson', 'Eval: Eval criterion']);
   assert.deepEqual(texts.slice(5, 9), [
     ['1', 'MU1 · Rhythm', '1 - Beat', 'Eval: Keeps a steady beat'],
     ['', '', 'Bring scarves', ''],
@@ -318,7 +322,13 @@ test('columns can be added before and after the lesson, with titles at the top',
   const widths = requests.filter((r) => r.updateDimensionProperties?.range.dimension === 'COLUMNS').map((r) => r.updateDimensionProperties.properties.pixelSize);
   assert.equal(widths.length, 4);
 
-  runCommand(t.s, 'setReportOptions', { columnsBefore: ['{{essential_outcome}}'] });
-  assert.deepEqual(runCommand(t.s, 'reportSettings').columnsBefore, ['{{essential_outcome}}']);
-  assert.deepEqual(runCommand(t.s, 'previewReport')[0].tabs[0].rows[2], ['', 'Essential outcome', 'Lesson']);
+  const [unnamed] = manualReports(t.s, t.year.id, { manual, ...look, columnNames: false });
+  assert.deepEqual(reportRows(unnamed.tabs[0])[2], [], 'column names can be hidden');
+  assert.equal(sheetRequests([0], [unnamed.tabs[0]], [7])[0].addSheet.properties.gridProperties.frozenRowCount, 2);
+
+  runCommand(t.s, 'setReportOptions', { columnsBefore: [{ name: 'Outcome', value: '{{essential_outcome}}' }] });
+  assert.deepEqual(runCommand(t.s, 'reportSettings').columnsBefore, [{ name: 'Outcome', value: '{{essential_outcome}}' }]);
+  assert.deepEqual(runCommand(t.s, 'previewReport')[0].tabs[0].rows[2], ['', 'Outcome', 'Lesson']);
+  runCommand(t.s, 'setReportOptions', { columnNames: false });
+  assert.deepEqual(runCommand(t.s, 'previewReport')[0].tabs[0].rows[2], []);
 });

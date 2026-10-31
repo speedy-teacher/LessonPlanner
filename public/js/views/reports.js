@@ -195,28 +195,34 @@ const WORDS = {
   ...Object.fromEntries(TEXT_FIELDS.map((key) => [AUTO_FIELD_PLACEHOLDERS[key], AUTO_FIELDS[key]])),
 };
 
-/** A text box for the lesson line or one extra row; it saves when you press Enter or click away. */
+/**
+ * Save once the cursor has moved on (Tab to the next box): the redraw then puts the cursor back
+ * in the box it moved to, not the one just left.
+ */
+const afterFocusMoves = (save) => setTimeout(save, 0);
+
+/** A text box for the lesson line or one extra column's value; it saves when you press Enter or click away. */
 function rowInput(value, { list, index = 0, placeholder = '' }, onSave) {
   return h('input', {
     class: 'inline-edit report-label', value, placeholder, dataset: { key: `report-${list}-${index}` },
     onfocus: () => { wordTarget = { list, index }; },
-    onchange: (e) => onSave(e.target.value.trim()),
+    onchange: (e) => afterFocusMoves(() => onSave(e.target.value.trim())),
     onkeydown: (e) => { if (e.key === 'Enter') e.target.blur(); },
   });
 }
 
-/** Change one extra row (`text` null = take it out). */
-function saveRow(list, index, text) {
-  const rows = [...settings()[list]];
-  if (text === null) rows.splice(index, 1); else rows[index] = text;
-  saveSettings({ [list]: rows });
+/** Change one extra column's name and/or value (`patch` null = take it out). */
+function saveColumn(list, index, patch) {
+  const columns = [...settings()[list]];
+  if (patch === null) columns.splice(index, 1); else columns[index] = { ...columns[index], ...patch };
+  saveSettings({ [list]: columns });
 }
 
-function addRow(list) {
+function addColumn(list) {
   const target = { list, index: settings()[list].length };
-  saveSettings({ [list]: [...settings()[list], ''] }); // redrawing may focus (and target) another box…
-  wordTarget = target; // …so the new row is the one words go into
-  focusLater(target);
+  saveSettings({ [list]: [...settings()[list], { name: '', value: '' }] }); // redrawing may focus (and target) another box…
+  wordTarget = target; // …so the new column's value is where words go
+  focusLater({ ...target, part: 'name' });
 }
 
 // The extra rows and columns around the lesson: setting → [icon, where it goes, add-button text].
@@ -225,27 +231,37 @@ const EXTRAS = {
   right: ['➡️', 'A column after the lesson', '+ Column after'],
 };
 
-function extraRowsList(list) {
+/** Each extra column: "Column name" : value. */
+function columnsList(list) {
   const [icon, where] = EXTRAS[list];
-  return settings()[list].map((text, index) => h('div', { class: 'report-extra-row' },
+  return settings()[list].map((column, index) => h('div', { class: 'report-extra-row' },
     h('span', { class: 'extra-icon', 'data-tip': where }, icon),
-    rowInput(text, { list, index, placeholder: 'e.g. {{essential_outcome}}' }, (next) => saveRow(list, index, next)),
-    h('button', { class: 'icon-btn', title: 'Take it out', 'aria-label': 'Take it out', onclick: () => saveRow(list, index, null) }, '✕')));
+    h('input', {
+      class: 'inline-edit report-column-name', value: column.name, placeholder: 'Column name', 'aria-label': 'Column name',
+      dataset: { key: `report-${list}-${index}-name` },
+      onchange: (e) => afterFocusMoves(() => saveColumn(list, index, { name: e.target.value.trim() })),
+      onkeydown: (e) => { if (e.key === 'Enter') e.target.blur(); },
+    }),
+    h('span', { class: 'column-colon' }, ':'),
+    rowInput(column.value, { list, index, placeholder: 'e.g. {{essential_outcome}}' }, (value) => saveColumn(list, index, { value })),
+    h('button', { class: 'icon-btn', title: 'Take this column out', 'aria-label': 'Take this column out', onclick: () => saveColumn(list, index, null) }, '✕')));
 }
 
 const addButtons = (...lists) => h('div', { class: 'report-add-row' },
-  lists.map((list) => h('button', { class: 'btn small light', 'data-tip': EXTRAS[list][1], onclick: () => addRow(list) }, EXTRAS[list][2])));
+  lists.map((list) => h('button', { class: 'btn small light', 'data-tip': EXTRAS[list][1], onclick: () => addColumn(list) }, EXTRAS[list][2])));
 
-const focusLater = ({ list, index }) => setTimeout(() => document.querySelector(`[data-key="report-${list}-${index}"]`)?.focus(), 0);
+const focusLater = ({ list, index, part }) => setTimeout(() => {
+  document.querySelector(`[data-key="report-${list}-${index}${part ? `-${part}` : ''}"]`)?.focus();
+}, 0);
 
 /** A word button adds its word to the box last typed in (the lesson line when that row is gone). */
 function addWord(word) {
   const s = settings();
   const { list, index } = wordTarget;
   const target = list !== 'label' && index < s[list].length ? wordTarget : { list: 'label', index: 0 };
-  const before = target.list === 'label' ? s.label : s[target.list][target.index];
+  const before = target.list === 'label' ? s.label : s[target.list][target.index].value;
   const text = before ? `${before} ${word}` : word;
-  if (target.list === 'label') saveSettings({ label: text }); else saveRow(target.list, target.index, text);
+  if (target.list === 'label') saveSettings({ label: text }); else saveColumn(target.list, target.index, { value: text });
   focusLater(target);
 }
 
@@ -256,18 +272,21 @@ function labelCard() {
     // Rows above/below each lesson (settings `above`/`below`) still work in reports; their buttons are hidden for now.
     h('p', { class: 'hint' }, 'Used in every report. Add columns before or after each lesson, e.g. its essential outcome. Click a word to add it to the box you last typed in.'),
     h('div', { class: 'report-lesson-rows' },
-      extraRowsList('left'),
+      columnsList('left'),
       h('label', { class: 'field report-lesson-line' }, '🔗 The lesson (linked to its copy)',
         rowInput(s.label, { list: 'label', placeholder: DEFAULT_LABEL }, (label) => saveSettings({ label }))),
-      extraRowsList('right'),
+      columnsList('right'),
       addButtons('left', 'right')),
     h('div', { class: 'label-words' }, Object.entries(WORDS).map(([word, about]) => h('button', {
       class: 'pill small', 'data-tip': about, onclick: () => addWord(word),
     }, word))),
-    h('label', { class: 'check big' },
-      h('input', { type: 'checkbox', checked: s.footer, onchange: (e) => saveSettings({ footer: e.target.checked }) }),
-      h('span', {}, 'Show “Automatically maintained by Lesson Planner” at the bottom of each report')));
+    checkbox(s.columnNames, 'Show column names at the top', (columnNames) => saveSettings({ columnNames })),
+    checkbox(s.footer, 'Show “Automatically maintained by Lesson Planner” at the bottom of each report', (footer) => saveSettings({ footer })));
 }
+
+const checkbox = (checked, text, onChange) => h('label', { class: 'check big' },
+  h('input', { type: 'checkbox', checked, onchange: (e) => onChange(e.target.checked) }),
+  h('span', {}, text));
 
 // ---------- weekly reports ----------
 

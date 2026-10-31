@@ -3,7 +3,7 @@
 // fingerprint, so the planner finds it again from any computer and only rewrites it when it changed.
 // Rewriting replaces every tab in one go (new tabs in, old tabs out), so a report is never half-written.
 
-import { reportRows, reportWidth } from './reportPlan.js';
+import { reportRows, reportWidth, showsColumnNames } from './reportPlan.js';
 
 const DRIVE = 'https://www.googleapis.com/drive/v3/files';
 const SHEETS_API = 'https://sheets.googleapis.com/v4/spreadsheets';
@@ -128,7 +128,7 @@ export function sheetRequests(oldIds, tabs, newIds) {
         properties: {
           sheetId: newIds[i], title: `new ${newIds[i]}`, index: i,
           // the title, the dates and (with extra columns) the column titles stay in view
-          gridProperties: { rowCount: rows.length + 5, columnCount: reportWidth(tab), frozenRowCount: reportWidth(tab) > 2 ? 3 : 2 },
+          gridProperties: { rowCount: rows.length + 5, columnCount: reportWidth(tab), frozenRowCount: showsColumnNames(tab) ? 3 : 2 },
         },
       },
     })),
