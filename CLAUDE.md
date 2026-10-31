@@ -184,6 +184,8 @@ A browser app for a (non-technical) elementary music teacher to plan a school ye
 
 ## Working agreements
 - Feature work on a `feature/...` branch, commit at milestones, then recommend merging to `main` (fast-forward, delete branch).
+- **Before every merge/push to `main`: bump the version** (`VERSION` in `public/js/version.js`, `version` in `package.json` and both in `package-lock.json`;
+  patch = fixes, minor = features) — confirm `git diff main..HEAD -- public/js/version.js` shows it — and run the personal-info check.
 - Talk to the user in plain, non-technical language; give a recommendation and its practical consequence.
 - Privacy: no real names, school names, emails or Google codes in code, tests, commits or chat — use obvious fakes.
   Never open files whose name contains "roster".
