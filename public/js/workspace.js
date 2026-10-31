@@ -422,7 +422,9 @@ async function savePieces(state) {
  * what was loaded (rebaseState), so neither side's work is lost.
  */
 async function syncPieces() {
-  await flushSave();
+  // Changes still waiting for the short save delay go into the pieces first (the page's own save is held
+  // back while syncing), so loading newer pieces from Drive can't drop them.
+  await pieces.save(store.state);
   const startText = JSON.stringify(store.state);
   const results = await pieces.syncAll();
   const loaded = results.some((r) => r.action === 'download' || r.action === 'conflict');
@@ -564,7 +566,7 @@ async function retireOldPlan(old) {
 
 /** A plan in pieces kept on this computer only: each piece gets its own Drive file (links follow). */
 async function movePiecesToDrive(folderId) {
-  await flushSave();
+  await pieces.save(store.state);
   const old = pieces.recs;
   const made = {};
   for (const name of ['schoolYear', 'resources']) {
@@ -602,7 +604,7 @@ export async function listTeammates() {
 
 /** Show a teammate's Lesson Schedule, lesson order, templates and pictures (your own are kept aside). */
 export async function viewTeammate({ fileId, name }) {
-  await flushSave();
+  await pieces.save(store.state);
   const scheduleRec = await getPlan(driveKey(fileId)).catch(() => null) ?? await readTeammateSchedule(fileId);
   await pieces.view(scheduleRec, { name });
   useState(pieces.state());
@@ -622,7 +624,7 @@ async function readTeammateSchedule(fileId) {
 
 /** Back to your own plan. */
 export async function viewMine() {
-  await flushSave();
+  await pieces.save(store.state);
   pieces.viewMine();
   useState(pieces.state());
   showWhereSaved();
