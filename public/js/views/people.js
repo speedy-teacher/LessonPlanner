@@ -29,7 +29,7 @@ export const TEACHER_PAGES = Object.keys(PAGE_PIECES).filter((id) => PAGE_PIECES
 export function pieceBar(pageId) {
   if (!pieces) return null;
   const parts = [
-    TEACHER_PAGES.includes(pageId) && pieces.link('schoolYear')?.fileId ? peoplePicker() : null,
+    TEACHER_PAGES.includes(pageId) && pieces.link('schoolYear')?.fileId ? peoplePicker(pageId) : null,
     ...pieceNotes(pageId),
   ].filter(Boolean);
   return parts.length ? h('div', { class: 'piece-bar', 'data-tour': 'piece-bar' }, parts) : null;
@@ -72,12 +72,21 @@ function note(icon, title, text, kind) {
 
 // ---------- "Looking at" ----------
 
-function peoplePicker() {
+/** What "Looking at" changes on each page (each part is its own file, so only say what the page shows). */
+const PICKER_TIPS = {
+  lessonSchedule: 'Whose lesson schedule and templates to look at',
+  reports: 'Whose lesson schedule and reports to look at',
+  lessons: 'Whose lesson templates to look at',
+  images: 'Whose pictures to look at',
+  outcomes: 'Whose lesson order to look at',
+};
+
+function peoplePicker(pageId) {
   const who = pieces.viewing?.name ?? 'Me';
   const list = h('ul', { class: 'people-list', role: 'listbox' });
   const search = h('input', { type: 'search', placeholder: 'Search names…', 'aria-label': 'Search names', class: 'people-search' });
   const picker = h('details', { class: 'people-picker', 'data-tour': 'people-picker' },
-    h('summary', { class: 'btn small light', 'data-tip': 'Whose Lesson Schedule, templates and pictures to look at' }, '👀 Looking at: ', h('strong', {}, who), ' ▾'),
+    h('summary', { class: 'btn small light', 'data-tip': PICKER_TIPS[pageId] ?? 'Whose plans to look at' }, '👀 Looking at: ', h('strong', {}, who), ' ▾'),
     h('div', { class: 'people-panel' }, search, list));
   let people = [];
   const draw = () => {

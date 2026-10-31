@@ -8,7 +8,7 @@
 // changed differently are put to the teacher.
 
 import { newId } from './model.js';
-import { commit, flushSave, hasPendingSave, refresh, setGuard, setPersist, setSaveStatus, store, useState } from './store.js';
+import { commit, flushSave, refresh, setGuard, setPersist, setSaveStatus, store, useState } from './store.js';
 import { device, setDevice } from './deviceSettings.js';
 import { google } from './google.js';
 import { allPlans, deletePlan, getPlan, putPlan, rescue } from './localCache.js';
@@ -17,7 +17,6 @@ import {
   SCHOOL_YEAR_PROPERTY,
 } from './driveFiles.js';
 import { joinedPieces } from './joinYear.js';
-import { lockOldVersion } from './oldPlanLock.js';
 import { mergeResources, relinkSchedule } from './resourceMerge.js';
 import { driveKey, MISSING_WORDS, PiecePlan, rebaseState } from './pieceEngine.js';
 import { fromPieceFile, PIECES, pieceFileName, pieceKind, splitState, toPieceFile } from './pieces.js';
@@ -552,12 +551,9 @@ async function settleOldPlan() {
   await flushSave();
   if (isDrivePlan() && driveReady()) {
     await syncNow();
-    const fileId = current.fileId;
-    await lockOldVersion({
-      saved: () => !current.changed && !hasPendingSave() && store.saveStatus !== 'error',
-      info: () => planFileInfo(google.token, fileId),
-      keep: (rev) => keepRevision(google.token, fileId, rev),
-    });
+    // Best effort: the old file is never changed or deleted, so a refusal here isn't a reason to stop.
+    const info = await planFileInfo(google.token, current.fileId).catch(() => ({}));
+    if (info.rev) await keepRevision(google.token, current.fileId, info.rev).catch(() => {});
   }
   return { ...current, state: store.state };
 }
