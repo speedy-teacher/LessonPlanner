@@ -70,6 +70,11 @@ function driveError(status, body) {
   return new DriveError('drive_failed');
 }
 
+/** One call to Google at a time, with "slow down" answers retried (also used for reports, reportSheets.js). */
+export function driveSender({ token, fetchFn = fetch, wait = sleep, onSlowDown }) {
+  return (url, init) => call({ fetchFn, token, wait, onSlowDown }, url, init);
+}
+
 const jsonInit = (method, body) => ({ method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
 const quote = (text) => `'${text.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;
 const bytes = (text) => new TextEncoder().encode(text).length;
@@ -110,7 +115,7 @@ const sameValues = (a, b) => JSON.stringify(Object.entries(a).sort()) === JSON.s
  * `rootId` = the output folder; returns { list, create, update, move, remove } (see exportBridge.js).
  */
 export function driveCopies({ token, rootId, yearId, fetchFn = fetch, wait = sleep, onSlowDown }) {
-  const send = (url, init) => call({ fetchFn, token, wait, onSlowDown }, url, init);
+  const send = driveSender({ token, fetchFn, wait, onSlowDown });
   const files = googleFiles(send);
   // "a/b/c" → the folder id (a promise, so copies made at the same time into a new folder make it once), for this visit
   const folders = new Map();
@@ -277,7 +282,8 @@ export function driveCopies({ token, rootId, yearId, fetchFn = fetch, wait = sle
     }
   }
 
-  return { kind: 'drive', list, create, update, move, remove, folderLabels };
+  // `send` and `folderFor` let the weekly reports (reportSheets.js) use the same week folders.
+  return { kind: 'drive', list, create, update, move, remove, folderLabels, folderFor, send };
 }
 
 /**

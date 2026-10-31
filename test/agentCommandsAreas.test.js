@@ -22,7 +22,7 @@ test('help lists every command with its area', () => {
   const list = describeCommands();
   assert.equal(list.length, Object.keys(COMMANDS).length);
   const areas = new Set(list.map((c) => c.area));
-  assert.equal(areas.size, 6);
+  assert.equal(areas.size, 7);
   assert.ok(list.every((c) => c.summary && c.area));
 });
 

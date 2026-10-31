@@ -1,0 +1,33 @@
+/* Reports tab: the report form on the left, a preview that looks like the Google Sheet on the right. */
+.reports-layout { display: grid; grid-template-columns: minmax(320px, 420px) 1fr; gap: 16px; padding: 16px 20px; align-items: start; }
+.reports-layout > * { min-width: 0; }
+.reports-side { display: flex; flex-direction: column; gap: 16px; }
+.reports-card h3, .reports-preview h3 { color: var(--navy); margin: 0 0 6px; }
+.report-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 10px 0; }
+.report-week { border: 1.5px solid var(--line); border-radius: 10px; padding: 5px 8px; font: inherit; background: #fff; color: var(--ink); }
+.report-files { display: flex; flex-direction: column; gap: 6px; margin: 10px 0; }
+.report-made { margin: 10px 0 0; padding-left: 18px; }
+.report-made a { color: var(--royal); font-weight: 700; }
+.report-label { width: 100%; box-sizing: border-box; }
+.label-words { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.pill.small { padding: 3px 9px; font-size: 12px; font-family: ui-monospace, Consolas, monospace; }
+
+.sheet-preview { border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: #fff; }
+.sheet-name { padding: 6px 12px; font-weight: 700; color: var(--ink-soft); background: var(--card-2); border-bottom: 1px solid var(--line); }
+.sheet-body { overflow-x: auto; max-height: 70vh; overflow-y: auto; }
+.sheet-table { border-collapse: collapse; width: 100%; font-size: 13px; }
+.sheet-table td { border: 1px solid #ece3d3; padding: 5px 8px; vertical-align: middle; height: 18px; }
+.sheet-table td:first-child { width: 90px; }
+.sheet-table .cell-heading { background: var(--royal); color: #fff8ec; font-size: 18px; font-weight: 800; height: 34px; }
+.sheet-table .cell-subheading { background: var(--royal-soft); color: var(--royal); font-style: italic; }
+.sheet-table .cell-week { background: var(--sage); color: #fff8ec; font-weight: 800; }
+.sheet-table .cell-label { font-weight: 700; color: var(--ink-soft); }
+.sheet-table .cell-number { text-align: center; color: var(--ink-soft); }
+.sheet-table .cell-lesson a { color: var(--royal); }
+.sheet-table .cell-empty, .sheet-table .cell-note { font-style: italic; color: var(--ink-soft); }
+.sheet-table .cell-note { font-size: 11px; }
+.sheet-tabs { display: flex; gap: 2px; padding: 0 8px; background: var(--card-2); border-top: 1px solid var(--line); overflow-x: auto; }
+.sheet-tab { white-space: nowrap; border: 0; background: transparent; padding: 6px 14px; font: inherit; font-weight: 700; color: var(--ink-soft); cursor: pointer; border-radius: 0 0 8px 8px; }
+.sheet-tab.active { background: #fff; color: var(--royal); box-shadow: 0 2px 0 var(--royal) inset; }
+
+@media (max-width: 900px) { .reports-layout { grid-template-columns: 1fr; } }

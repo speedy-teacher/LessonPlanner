@@ -120,6 +120,21 @@ A browser app for a (non-technical) elementary music teacher to plan a school ye
   Background news redraws via `refreshSoon()` (quietRefresh.js), never `refresh()`, so clicks aren't swallowed.
   Not yet tried against real Google (URL `drive.google.com/uc?export=view&id=`, fallback `lh3.googleusercontent.com/d/`).
 
+## Reports (Google Sheets: each week's lessons in order, linked to their copies, + instruments that week)
+- Pure: `reportPlan.js` (tested in `test/reports.test.js`): `reportTab` (heading "School · Grade", weeks → `reportWeek`
+  { number, dates, instruments ("Drum (all week)" / "Drum (available Sep 8 - Sep 9)"), lessons [{ text, url }] }),
+  `reportRows` (cells { text, url, style } — shared by the tab preview and the Sheet), `lessonLabel` (`year.reports.label`,
+  default `{{copy_name}}`; also `{{template_name}}` + every auto-field placeholder), `copyFinder(copies)`.
+- Settings on the year record: `year.reports = { label, weekly (false = off), manual: { fromWeek, toWeek, schoolIds[], gradeIds[]
+  (empty = all), perGrade, folder } }` (`reportSettings` fills defaults). Command area `agentReports.js`.
+- Sheets: `reportSheets.js` `driveReports` (labels `lessonPlannerReport`=yearId, `reportKind` weekly|manual, `reportKey`, `hash`,
+  `place`); a rewrite adds fresh tabs, deletes the old ones and fills the new in one batchUpdate (`sheetRequests`); only when `hash` changed.
+- Weekly: `reportBridge.js`, run by `exportBridge.js` after the copy queue is empty (same lock, Drive output only): one
+  "Week n report" per week folder that has wanted copies (`weeklyReports` + `reportSteps` reconcile create/update/remove).
+- Reports tab (`views/reports.js`, `css/reports.css`): weeks range, schools/grades toggles, one file per school (tab per grade)
+  or per grade, folder (default the copies' Drive folder), preview, Make (`reportMaker.js`: same key in the same folder = update).
+- Not yet tried against real Google (needs the Sheets API on; `drive.file` covers Sheets the planner made).
+
 ## Images tab (pictures for lesson copies, e.g. bitmojis)
 - `imageFolders` + `images` (Drive only) use the same library code as lesson decks: `library.js` "shelves" (`LESSON_SHELF`
   default, `IMAGE_SHELF`), `views/folderTree.js` (shared tree), `views/deckImport.js` `importFromDrive(kind)` + watched folders.

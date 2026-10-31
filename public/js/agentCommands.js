@@ -7,6 +7,7 @@
 //   agentOutcomes.js  Outcomes, evals and each eval's lesson order
 //   agentLessons.js   Lesson templates and folders
 //   agentImages.js    Images tab: pictures, tags, when to use them
+//   agentReports.js   Reports tab: what a report covers, weekly reports
 // Everything works on the plan's active school year. `runCommands` runs a list of
 // commands on a copy of the data, so either all of them work or nothing changes; the
 // browser (agentBridge.js) then saves it as one undoable change.
@@ -21,6 +22,7 @@ import { SETUP_COMMANDS } from './agentSetup.js';
 import { OUTCOME_COMMANDS } from './agentOutcomes.js';
 import { LESSON_COMMANDS } from './agentLessons.js';
 import { IMAGE_COMMANDS } from './agentImages.js';
+import { REPORT_COMMANDS } from './agentReports.js';
 
 export { CommandError };
 
@@ -29,6 +31,7 @@ export const NEEDS_THE_TEACHER = [
   'Signing in to Google Drive',
   'Bringing in lesson decks or pictures from Google Drive or the computer (the Add button)',
   'Choosing the folder for lesson copies, or moving the plan to another folder',
+  'Making a report in Google Drive (the Make button on the Reports tab) or choosing the folder it goes in',
   'Starting a new school year (it becomes a new plan file) or opening another plan',
 ];
 
@@ -67,6 +70,7 @@ const AREAS = {
   'Outcomes, evals & lesson order': OUTCOME_COMMANDS,
   'Lesson templates & folders': LESSON_COMMANDS,
   'Images (pictures, tags, timing)': IMAGE_COMMANDS,
+  Reports: REPORT_COMMANDS,
 };
 
 export const COMMANDS = Object.assign({}, ...Object.values(AREAS));

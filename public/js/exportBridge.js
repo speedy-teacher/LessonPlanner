@@ -24,6 +24,7 @@ import { copyLock } from './copyLock.js';
 import { scanTemplates } from './templateScan.js';
 import { copyPace } from './copyPace.js';
 import { holdPicture, isHeld, picturePlaced, pictureHolds, pictureReport, releaseHeld } from './pictureHolds.js';
+import { weeklyReportKeeper } from './reportBridge.js';
 
 const WAIT_MS = 1500; // after a sign-in or a new folder; after your own changes it's a minute (SETTLE_MS)
 const RECHECK_MS = 10 * 60 * 1000;
@@ -183,6 +184,8 @@ async function makeTarget(year, output) {
   if (!target.adapter) return target;
   target.id = id;
   bridge.haves = await target.adapter.list();
+  target.reports = target.adapter.kind === 'drive' ? weeklyReportKeeper(target.adapter, year.id) : null;
+  await target.reports?.load();
   bridge.target = target;
   bridge.wants = null;
   return target;
@@ -247,10 +250,13 @@ async function queueWork(target) {
   warn({ state: 'ready' }, null);
   fillQueue(target);
   if (bridge.running) return undefined;
-  if (!bridge.queue.size) return showOtherWorker(false);
+  if (!bridge.queue.size && !reportWork(target).length) return showOtherWorker(false);
   bridge.running = true; // already, while claiming: a second look mustn't start its own run
   try {
-    if (await claimCopies(target)) await work(target);
+    if (await claimCopies(target)) {
+      await work(target);
+      await updateReports(target);
+    }
   } finally {
     target.lock?.release().catch(() => {}); // only clears the note if it's this computer's
     bridge.running = false;
@@ -285,10 +291,31 @@ async function claimCopies(target) {
   showOtherWorker(false);
   if (claim === 'new') {
     bridge.haves = await target.adapter.list();
+    await target.reports?.load();
     bridge.queue.clear();
     fillQueue(target);
   }
-  return bridge.queue.size > 0;
+  return bridge.queue.size > 0 || reportWork(target).length > 0;
+}
+
+// ---------- weekly reports (reportBridge.js), once the copies are done ----------
+
+/** The weekly reports that need making, updating or removing. */
+function reportWork(target) {
+  if (!target.reports) return [];
+  return target.reports.steps(store.state, { wants: [...wanted(target).values()], copies: bridge.haves, rootKey: target.rootKey });
+}
+
+async function updateReports(target) {
+  if (bridge.queue.size || !canGoOn(target) || bridge.target !== target) return; // copies first: reports link to them
+  const line = {};
+  await target.reports.run(reportWork(target), {
+    goOn: () => canGoOn(target) && bridge.target === target,
+    show: (text) => { bridge.doing.set(line, text); drawPanel(); },
+    problem: (err) => problem(err, null),
+    stoppers: STOPPERS,
+  });
+  bridge.doing.delete(line);
 }
 
 function showOtherWorker(on) {
@@ -477,6 +504,7 @@ function describe(step) {
 }
 
 function problem(err, step) {
+  if (!step) return reportProblem(err);
   const name = `“${lessonName(step.want?.lessonId ?? step.have?.lessonId)}”`;
   const messages = {
     api_off: `Filling in details needs the ${err.api ?? 'Google'} switched on in your Google project (see the Google Drive setup guide, step 3). ${name} wasn’t copied yet.`,
@@ -486,6 +514,16 @@ function problem(err, step) {
   showNotice({
     id: 'copies-problem', tone: 'warn', title: 'Lesson copies',
     message: messages[err.message] ?? `Something went wrong with the copy of ${name}. The planner tries again after your next change.`,
+    seconds: 20,
+  });
+}
+
+function reportProblem(err) {
+  showNotice({
+    id: 'copies-report-problem', tone: 'warn', title: 'Weekly reports',
+    message: err.message === 'api_off'
+      ? 'Weekly reports need the Google Sheets API switched on in your Google project (see the Google Drive setup guide, step 3).'
+      : 'A weekly report couldn’t be made or updated. The planner tries again after your next change.',
     seconds: 20,
   });
 }
@@ -544,7 +582,7 @@ function drawPanel() {
   const waiting = settling() ? waitingCount() : 0;
   if (waiting && !bridge.running) return drawWaiting(el, waiting);
   if (bridge.otherWorker && !bridge.running) return drawOtherWorker(el);
-  const left = bridge.queue.size;
+  const left = bridge.queue.size + (bridge.target?.reports?.left ?? 0);
   el.classList.toggle('show', bridge.running && left > 0);
   return el.replaceChildren(
     h('div', { class: 'copy-queue-head' }, h('span', { class: 'copy-spin', 'aria-hidden': 'true' }, '📂'),
@@ -600,4 +638,17 @@ export function copiesOfLesson(lessonId) {
         path: onComputer ? [...copy.path, copy.fileName].join('/') : null,
       };
     });
+}
+
+// ---------- for the Reports tab ----------
+
+/** The open year's Drive lesson copies this computer knows about (null when it doesn't keep them). */
+export function knownCopies() {
+  if (!bridge.target || bridge.status.state !== 'ready' || bridge.target.adapter?.kind !== 'drive') return null;
+  return bridge.haves;
+}
+
+/** The weekly report files in the output folder (empty when this computer doesn't keep the copies). */
+export function weeklyReportFiles() {
+  return bridge.status.state === 'ready' ? bridge.target?.reports?.haves ?? [] : [];
 }
