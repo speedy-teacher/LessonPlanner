@@ -45,3 +45,15 @@ test('the app page is served, with addresses that also work from a web host’s 
     assert.equal((await fetch(`${base}/../server.js`)).status, 404);
   });
 });
+
+test('the browser test scripts are served at /e2e/, but nothing outside that folder is', async () => {
+  await withServer(await mkdtemp(join(tmpdir(), 'planner-')), async (base) => {
+    const res = await fetch(`${base}/e2e/README.md`);
+    assert.equal(res.status, 200);
+    assert.match(await res.text(), /127\.0\.0\.1/);
+    assert.equal((await fetch(`${base}/e2e/newPlans.e2e.js`)).headers.get('content-type'), 'text/javascript; charset=utf-8');
+    assert.notEqual((await fetch(`${base}/e2e/../server.js`)).status, 200);
+    assert.notEqual((await fetch(`${base}/e2e/%2e%2e/server.js`)).status, 200);
+    assert.equal((await fetch(`${base}/e2e/missing.js`)).status, 404);
+  });
+});

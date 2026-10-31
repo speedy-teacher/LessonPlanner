@@ -2,6 +2,7 @@
 // itself is a plain website (the public/ folder) that keeps its data in the
 // browser and Google Drive, so it can be put on any static web host.
 //
+//   GET /e2e/...   -> the browser test scripts in test/e2e (local server only; see test/e2e/README.md)
 //   GET /api/state -> { state: {...} | null }  read-only: the data the older planner
 //                     saved in data/lesson-planner.json, so it can be moved to Drive.
 
@@ -13,6 +14,7 @@ import { exec } from 'node:child_process';
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = join(ROOT, 'public');
+const E2E_DIR = join(ROOT, 'test', 'e2e'); // browser test scripts, served at /e2e/ by this local server only
 
 const TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -48,13 +50,14 @@ async function handle(req, res, loadState) {
   if (req.method !== 'GET') return send(res, 405, { error: 'Method not allowed' });
   const url = new URL(req.url, 'http://localhost');
   if (url.pathname === '/api/state') return send(res, 200, { state: await loadState() });
+  if (url.pathname.startsWith('/e2e/')) return serveStatic(url.pathname.slice('/e2e'.length), res, E2E_DIR);
   return serveStatic(url.pathname, res);
 }
 
-async function serveStatic(pathname, res) {
+async function serveStatic(pathname, res, dir = PUBLIC_DIR) {
   const rel = normalize(decodeURIComponent(pathname === '/' ? '/index.html' : pathname));
-  const file = join(PUBLIC_DIR, rel);
-  if (!file.startsWith(PUBLIC_DIR)) return send(res, 403, { error: 'Forbidden' });
+  const file = join(dir, rel);
+  if (!file.startsWith(dir)) return send(res, 403, { error: 'Forbidden' });
   try {
     const body = await readFile(file);
     res.writeHead(200, { 'Content-Type': TYPES[extname(file)] || 'application/octet-stream', 'Cache-Control': 'no-cache' });
