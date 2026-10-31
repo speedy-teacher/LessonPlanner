@@ -63,6 +63,15 @@ test('a new school year is a new plan: lists, decks and outcomes come along, cal
   assert.deepEqual([state.placements, state.instrumentBlocks, state.weekLessons], [[], [], []]);
   assert.equal(s.years.length, 1, 'the old plan keeps just its own year');
 
+  // Carried-over things keep their ids, so a teacher's templates and pictures (kept across years) still
+  // find their instruments, schools and evals; the links between them come along too.
+  for (const name of ['schools', 'grades', 'instruments', 'outcomes', 'criteria', 'lessons']) {
+    assert.deepEqual(state[name].map((r) => r.id).sort(), s[name].map((r) => r.id).sort(), name);
+  }
+  assert.deepEqual(state.criterionLessons.map((c) => [c.criterionId, c.lessonId, c.gradeId]).sort(),
+    s.criterionLessons.map((c) => [c.criterionId, c.lessonId, c.gradeId]).sort());
+  assert.deepEqual(state.lessons.map((l) => l.instrumentIds), s.lessons.map((l) => l.instrumentIds));
+
   const blank = newYearPlan(s, fields, { copy: false }).state;
   assert.deepEqual([blank.years.length, blank.schools.length, blank.lessons.length], [1, 0, 0]);
 });

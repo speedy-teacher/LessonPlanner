@@ -38,6 +38,37 @@ export function mergePlans(base, mine, theirs) {
   return { state, conflicts };
 }
 
+/** Top-level parts of a piece file that are never combined (they say what the file is). */
+const FIXED = new Set(['kind', 'schemaVersion']);
+
+/**
+ * Combine two computers' versions of one piece file (School Year, Teacher Schedule or Teacher
+ * Resources; see pieces.js), like mergePlans. Links into other pieces are never tidied away: the
+ * other piece may just be out of reach, and the link heals when it's back.
+ */
+export function mergePiece(collections, base, mine, theirs) {
+  const state = structuredClone(mine);
+  const conflicts = [];
+  for (const key of new Set([...Object.keys(mine), ...Object.keys(theirs)])) {
+    if (FIXED.has(key) || collections.includes(key)) continue;
+    state[key] = mergeValue(base[key], mine[key], theirs[key], key).value;
+  }
+  for (const name of collections) {
+    state[name] = mergeCollection(name, base[name] ?? [], mine[name] ?? [], theirs[name] ?? [], conflicts);
+  }
+  tidyWithin(state, collections);
+  return { state, conflicts };
+}
+
+/** tidyLinks + renumber for the links that stay inside one piece. */
+function tidyWithin(piece, collections) {
+  const work = { ...piece };
+  for (const name of Object.keys(COLLECTIONS)) work[name] ??= [];
+  tidyLinks(work, (parent, other) => collections.includes(parent) && collections.includes(other));
+  renumber(work);
+  for (const name of collections) piece[name] = work[name];
+}
+
 function mergeCollection(collection, base, mine, theirs, conflicts) {
   const b = byId(base);
   const m = byId(mine);
@@ -138,9 +169,10 @@ export function same(a, b) {
 // ---------- tidying up after combining ----------
 
 /** Links to records that no longer exist are handled the way deleting those records would (model.js RELATIONS). */
-export function tidyLinks(state) {
+export function tidyLinks(state, wanted = () => true) {
   for (const [parent, links] of Object.entries(RELATIONS)) {
     for (const [other, field, action] of links) {
+      if (!wanted(parent, other)) continue;
       const ids = new Set(state[parent].map((r) => r.id)); // fresh each time: removing cascades
       tidyLink(state, other, field, action, (id) => id != null && !ids.has(id));
     }

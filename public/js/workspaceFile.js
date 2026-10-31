@@ -61,7 +61,31 @@ export function newYearPlan(state, fields, { copy = true } = {}) {
   const base = copy && state ? structuredClone(state) : emptyState();
   const fromId = copy && state ? state.activeYearId : null;
   const year = createYear(base, fields, fromId);
-  return { name: planName(year), state: yearOnly(base, year.id) };
+  return { name: planName(year), state: keepIds(yearOnly(base, year.id)) };
+}
+
+/**
+ * Things carried into a new year keep last year's ids (they're in a file of their own, so ids can't
+ * clash). The teacher's templates and pictures, kept across years, then still find their schools,
+ * grades, instruments and evals.
+ */
+export function keepIds(state) {
+  const oldId = new Map();
+  for (const name of Object.keys(COLLECTIONS)) {
+    if (name === 'years') continue;
+    for (const r of state[name]) if (r.copiedFromId) oldId.set(r.id, r.copiedFromId);
+  }
+  const map = (id) => oldId.get(id) ?? id;
+  for (const name of Object.keys(COLLECTIONS)) state[name].forEach((r) => renameLinks(r, map));
+  return state;
+}
+
+function renameLinks(record, map) {
+  for (const [key, value] of Object.entries(record)) {
+    if (key === 'copiedFromId') continue;
+    if ((key === 'id' || key.endsWith('Id')) && typeof value === 'string') record[key] = map(value);
+    else if (key.endsWith('Ids') && Array.isArray(value)) record[key] = value.map(map);
+  }
 }
 
 /** The text saved in a plan file. */
