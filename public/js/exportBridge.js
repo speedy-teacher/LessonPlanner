@@ -649,7 +649,7 @@ export function knownCopies() {
   return bridge.haves;
 }
 
-/** The Reports tab's reports that are kept up to date: [{ name, url }] (empty when this computer doesn't keep the copies). */
+/** The watched reports found in Drive: [{ key, name, url, folderId }] (empty when this computer doesn't keep the copies). */
 export function keptReportFiles() {
   return bridge.status.state === 'ready' ? bridge.target?.reports?.manualFiles() ?? [] : [];
 }

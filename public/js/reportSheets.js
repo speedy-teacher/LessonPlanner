@@ -60,18 +60,18 @@ function withColors(style, { color, ink }) {
 const linkFormat = (format, uri) => ({ ...format, underline: true, foregroundColor: ROYAL, link: { uri } });
 
 /**
- * One cell for Google Sheets: its text, look, and link — the whole cell links (e.g. to the copy), or
+ * One cell for Google Sheets: its text, look, and link — the whole text links (e.g. to the copy), or
  * with `linkText` only that part of the text does.
  */
 export function sheetCell(cell) {
   const style = withColors(STYLES[cell.style] ?? {}, cell);
   const text = cell.text ?? '';
-  const linkAt = cell.url && cell.linkText ? text.indexOf(cell.linkText) : -1;
-  const textFormat = cell.url && linkAt < 0 ? linkFormat(style.textFormat, cell.url) : style.textFormat;
+  // Google only keeps a link that's in a text run (a link in the cell's own format is ignored).
+  const linkAt = cell.url ? text.indexOf(cell.linkText ?? text) : -1;
   return {
     userEnteredValue: { stringValue: text },
-    userEnteredFormat: { verticalAlignment: 'MIDDLE', wrapStrategy: 'WRAP', ...style, ...(textFormat ? { textFormat } : {}) },
-    ...(linkAt >= 0 ? { textFormatRuns: linkRuns(text, linkAt, cell, style.textFormat ?? {}) } : {}),
+    userEnteredFormat: { verticalAlignment: 'MIDDLE', wrapStrategy: 'WRAP', ...style },
+    ...(linkAt >= 0 ? { textFormatRuns: linkRuns(text, linkAt, { ...cell, linkText: cell.linkText ?? text }, style.textFormat ?? {}) } : {}),
   };
 }
 
@@ -79,7 +79,7 @@ export function sheetCell(cell) {
 function linkRuns(text, at, cell, format) {
   const end = at + cell.linkText.length;
   return [
-    { startIndex: 0, format },
+    ...(at > 0 ? [{ startIndex: 0, format }] : []), // run start indexes must all differ
     { startIndex: at, format: linkFormat(format, cell.url) },
     ...(end < text.length ? [{ startIndex: end, format }] : []),
   ];

@@ -8,7 +8,7 @@ import { addWeekLesson, moveWeekLesson, removeWeekLesson } from '../public/js/we
 import { canFillIn, driveFileId, driveLocation } from '../public/js/locations.js';
 import { wantedCopies } from '../public/js/exportPlan.js';
 import {
-  copyFinder, instrumentsLine, tint, instrumentText, lessonLabel, manualReports, REPORT_NOTE, reportRows, reportSettings, reportSteps, SITE_URL,
+  copyFinder, instrumentsLine, tint, watchedEntry, withWatched, instrumentText, lessonLabel, manualReports, REPORT_NOTE, reportRows, reportSettings, reportSteps, SITE_URL,
   weeklyReports,
 } from '../public/js/reportPlan.js';
 import { driveReports, REPORT_LABEL, sheetCell, SHEETS, sheetRequests } from '../public/js/reportSheets.js';
@@ -189,7 +189,10 @@ test('the Google Sheet gets a new tab per grade (old tabs out), linked lessons a
   const cells = requests.find((r) => r.updateCells).updateCells.rows;
   assert.equal(cells[0].values[0].userEnteredValue.stringValue, 'School A · Kindergarten');
   assert.ok(cells[0].values[0].userEnteredFormat.textFormat.bold);
-  assert.equal(cells[5].values[1].userEnteredFormat.textFormat.link.uri, 'https://example.test/c');
+  const lesson = cells[5].values[1];
+  assert.equal(lesson.userEnteredFormat.textFormat.link, undefined, 'Google ignores a link in the cell format');
+  assert.deepEqual(lesson.textFormatRuns.map((r) => r.format.link?.uri), ['https://example.test/c'], 'the whole lesson text is a link');
+  assert.equal(lesson.textFormatRuns[0].startIndex, 0);
 });
 
 /** Whether a search (Drive "q", maybe "'<folder>' in parents") finds the file. */
@@ -256,7 +259,7 @@ test('an assistant can set up the report and its options, and preview it', () =>
   const settings = runCommand(t.s, 'reportSettings');
   assert.deepEqual(settings, {
     lessonText: '{{template_name}}', rowsAbove: [], rowsBelow: [], columnsBefore: [], columnsAfter: [], columnNames: true, footer: true, weeklyReports: false, fromWeek: 3, toWeek: 4,
-    schools: ['School A'], grades: ['Kindergarten'], oneFilePer: 'grade', folder: null, keepUpToDate: false,
+    schools: ['School A'], grades: ['Kindergarten'], oneFilePer: 'grade', folder: null, keepUpToDate: false, keptUpToDate: [],
   });
   const [preview] = runCommand(t.s, 'previewReport');
   assert.equal(preview.file, 'School A – Kindergarten – Weeks 3–4 report');
@@ -363,7 +366,7 @@ test('the title bar wears the grade’s color, with text that reads on it', () =
   assert.equal(tint('#000000', 0.5), '#808080');
 });
 
-test('reports made on the Reports tab are kept up to date: made once, updated in place, never twice', async () => {
+test('Make with "keep up to date" adds the reports to a list; they are updated in place, never twice, and can be removed', async () => {
   const t = setup();
   lessonAt(t, t.beat);
   update(t.s, 'years', t.year.id, { output: { kind: 'drive', folderId: 'copiesRoot', name: 'Output' } });
@@ -376,33 +379,56 @@ test('reports made on the Reports tab are kept up to date: made once, updated in
     await keeper.run(steps, { goOn: () => true, show: () => {}, problem: (e) => { throw e; }, stoppers: [] });
     return steps.map((s) => `${s.group}:${s.kind}`);
   };
-  const keep = (manual) => update(t.s, 'years', t.year.id, { reports: { weekly: false, manual: { fromWeek: 3, schoolIds: [t.schoolA.id], gradeIds: [t.k.id], keepUpToDate: true, ...manual } } });
+  const form = { fromWeek: 3, toWeek: 3, schoolIds: [t.schoolA.id], gradeIds: [t.k.id], perGrade: false, folder: null };
+  const folder = { folderId: 'reportsFolder', name: 'Reports' };
+  const setReports = (watched, over = {}) => update(t.s, 'years', t.year.id, { reports: { weekly: false, watched, ...over } });
+  const watch = (manual = form) => {
+    const [file] = manualReports(t.s, t.year.id, { manual, copyOf: () => null });
+    return watchedEntry(manual, file, folder);
+  };
 
-  update(t.s, 'years', t.year.id, { reports: { weekly: false, manual: { fromWeek: 3, schoolIds: [t.schoolA.id], gradeIds: [t.k.id] } } });
+  setReports([]);
   await keeper.load(t.s);
-  assert.deepEqual(await run(), [], 'off: nothing is made');
+  assert.deepEqual(await run(), [], 'nothing is on the list: nothing is made');
 
-  keep({});
-  assert.deepEqual(await run(), ['manual:create'], 'the folder defaults to the lesson copies folder');
+  const entry = watch();
+  setReports(withWatched([], [entry]));
+  assert.deepEqual(await run(), ['manual:create']);
   const [made] = [...g.files.values()];
-  assert.deepEqual(made.parents, ['copiesRoot']);
+  assert.deepEqual(made.parents, ['reportsFolder']);
   assert.equal(made.appProperties.reportKind, 'manual');
   assert.deepEqual(await run(), [], 'up to date: nothing to do');
   assert.deepEqual(keeper.manualFiles().map((f) => f.name), ['School A – Week 3 report']);
 
   lessonAt(t, t.song);
-  assert.deepEqual(await run(), ['manual:update']);
-  keep({ toWeek: 4 });
-  assert.deepEqual(await run(), ['manual:update'], 'other weeks: the same file is updated and renamed');
+  assert.deepEqual(await run(), ['manual:update'], 'a schedule change updates the same file');
   assert.equal(g.files.size, 1);
-  assert.equal([...g.files.values()][0].name, 'School A – Weeks 3–4 report');
 
-  keeper.manualHaves = []; // another computer made it meanwhile, and this one doesn't know yet
-  assert.deepEqual(await run(), ['manual:create'], 'it thinks it must make it');
-  assert.equal(g.files.size, 1, 'never made twice');
+  assert.equal(withWatched([entry], [watch()]).length, 1, 'making it again does not add it twice');
+  const other = watch({ ...form, perGrade: true, gradeIds: [t.g1.id] });
+  setReports(withWatched([entry], [other]));
+  assert.deepEqual((await run()).sort(), ['manual:create'], 'a second report in the list is made too');
+  assert.equal(g.files.size, 2);
 
-  keep({ folder: { folderId: 'otherFolder', name: 'Other' } });
-  assert.deepEqual(keeper.steps(t.s, context()), [], 'a different folder is looked at first');
-  assert.deepEqual(await run(), ['manual:create']);
-  assert.equal(g.files.size, 2, 'the old one is left where it is');
+  keeper.manualHaves.set('reportsFolder', []); // another computer made them meanwhile, and this one doesn't know yet
+  await run();
+  assert.equal(g.files.size, 2, 'never made twice');
+
+  setReports([other]); // the first is removed from the list: its file is left in Drive
+  assert.deepEqual(await run(), []);
+  assert.equal(g.files.size, 2);
+  assert.ok([...g.files.values()].every((f) => !f.trashed), 'nothing is deleted from Drive');
+});
+
+test('an assistant can take a report off the kept-up-to-date list', () => {
+  const t = setup();
+  lessonAt(t, t.beat);
+  const form = { ...reportSettings(t.year).manual, fromWeek: 3, schoolIds: [t.schoolA.id], gradeIds: [t.k.id] };
+  const [file] = manualReports(t.s, t.year.id, { manual: form, copyOf: () => null });
+  update(t.s, 'years', t.year.id, { reports: { watched: [watchedEntry(form, file, { folderId: 'f', name: 'Reports' })] } });
+  assert.deepEqual(runCommand(t.s, 'reportSettings').keptUpToDate, ['School A – Week 3 report']);
+  assert.throws(() => runCommand(t.s, 'stopKeepingReportUpToDate', { report: 'Nope' }), /No report called/);
+  const answer = runCommand(t.s, 'stopKeepingReportUpToDate', { report: 'school a – week 3 report' });
+  assert.match(answer.done, /not deleted/);
+  assert.deepEqual(runCommand(t.s, 'reportSettings').keptUpToDate, []);
 });

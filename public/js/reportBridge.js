@@ -6,7 +6,7 @@
 import { activeYear, find } from './model.js';
 import { todayISO } from './dates.js';
 import {
-  copyFinder, currentWeekNumber, manualReports, reportFolder, reportSettings, reportSteps, weeklyReports,
+  copyFinder, currentWeekNumber, reportSettings, reportSteps, watchedReport, weeklyReports,
 } from './reportPlan.js';
 import { driveReports, reportUrl } from './reportSheets.js';
 
@@ -16,31 +16,32 @@ const MANUAL = 'manual';
 /** The weekly-report side of a Drive output folder. `adapter` = driveCopies() (its `send` and `folderFor`). */
 export function weeklyReportKeeper(adapter, yearId) {
   const files = driveReports({ send: adapter.send, yearId });
-  // haves = weekly reports in the week folders; manualHaves = the Reports tab's reports in `manualFolder`
-  const keeper = { haves: [], manualHaves: [], manualFolder: null, failed: new Map(), left: 0 };
+  // haves = weekly reports in the week folders; manualHaves = the watched reports found in each watched folder
+  const keeper = { haves: [], manualHaves: new Map(), failed: new Map(), left: 0 };
 
   const yearOf = (state) => find(state, 'years', yearId);
-  const manualFolderId = (state) => {
-    const year = yearOf(state);
-    return reportSettings(year).manual.keepUpToDate ? reportFolder(year)?.folderId ?? null : null;
-  };
+  const watchedOf = (state) => reportSettings(yearOf(state)).watched;
+  const folderIds = (state) => [...new Set(watchedOf(state).map((w) => w.folder.folderId))];
 
-  /** Look at what's in Drive (the weekly reports, and the Reports tab's folder when it's kept up to date). */
+  /** Look at what's in Drive: the weekly reports, and the folders of the watched reports. */
   keeper.load = async (state) => {
     keeper.haves = await files.list(WEEKLY);
-    await keeper.sync(state, { force: true });
+    keeper.manualHaves = new Map();
+    await keeper.sync(state);
   };
 
-  /** Look in the Reports tab's folder again when it's a different one (or kept up to date only now). */
-  keeper.sync = async (state, { force = false } = {}) => {
-    const folderId = manualFolderId(state);
-    if (!force && folderId === keeper.manualFolder) return;
-    keeper.manualHaves = folderId ? await files.list(MANUAL, { folderId }) : [];
-    keeper.manualFolder = folderId;
+  /** Look in watched folders not looked at yet (a report was just added to the list). */
+  keeper.sync = async (state) => {
+    const wanted = folderIds(state);
+    for (const folderId of wanted) {
+      if (!keeper.manualHaves.has(folderId)) keeper.manualHaves.set(folderId, await files.list(MANUAL, { folderId }));
+    }
+    for (const folderId of keeper.manualHaves.keys()) if (!wanted.includes(folderId)) keeper.manualHaves.delete(folderId);
   };
 
-  /** The Reports tab's reports kept up to date, with where they are: [{ name, url }]. */
-  keeper.manualFiles = () => keeper.manualHaves.map((h) => ({ name: h.name, url: reportUrl(h.id) }));
+  /** The watched reports' files found in Drive: [{ key, name, url, folderId }]. */
+  keeper.manualFiles = () => [...keeper.manualHaves.entries()].flatMap(([folderId, list]) => list
+    .map((h) => ({ key: h.key, name: h.name, url: reportUrl(h.id), folderId })));
 
   const weeklySteps = (state, { wants, copies, rootKey }) => {
     const reports = reportSettings(yearOf(state)).weekly
@@ -49,15 +50,17 @@ export function weeklyReportKeeper(adapter, yearId) {
     return reportSteps(reports, keeper.haves).map((s) => ({ ...s, group: WEEKLY }));
   };
 
-  /** The Reports tab's reports to make or bring up to date (never removed: an old one just stops being updated). */
+  /** The watched reports to make or bring up to date (one that isn't wanted any more is just left alone). */
   const manualSteps = (state, { copies }) => {
     const settings = reportSettings(yearOf(state));
-    const folderId = manualFolderId(state);
-    if (!folderId || folderId !== keeper.manualFolder) return [];
-    const wants = manualReports(state, yearId, {
-      ...settings, copyOf: copyFinder(copies), defaultWeek: currentWeekNumber(yearOf(state), todayISO()),
+    const context = { settings, copyOf: copyFinder(copies), defaultWeek: currentWeekNumber(yearOf(state), todayISO()) };
+    return settings.watched.flatMap((entry) => {
+      const found = keeper.manualHaves.get(entry.folder.folderId);
+      const want = found && watchedReport(state, yearId, entry, context);
+      if (!want) return [];
+      return reportSteps([want], found.filter((h) => h.key === want.key))
+        .filter((s) => s.kind !== 'remove').map((s) => ({ ...s, group: MANUAL, folderId: entry.folder.folderId }));
     });
-    return reportSteps(wants, keeper.manualHaves).filter((s) => s.kind !== 'remove').map((s) => ({ ...s, group: MANUAL, folderId }));
   };
 
   /** What needs doing (not things that failed with the same contents, until something changes). */
@@ -79,15 +82,15 @@ export function weeklyReportKeeper(adapter, yearId) {
     return undefined;
   }
 
-  /** A Reports tab report: made, or updated in place. Looks again first, so two computers never make it twice. */
+  /** A watched report: made, or updated in place. Looks again first, so two computers never make it twice. */
   async function runManual({ kind, want, have, folderId }) {
     let current = have;
     if (kind === 'create') {
-      keeper.manualHaves = await files.list(MANUAL, { folderId });
-      current = keeper.manualHaves.find((h) => h.key === want.key);
+      keeper.manualHaves.set(folderId, await files.list(MANUAL, { folderId }));
+      current = keeper.manualHaves.get(folderId).find((h) => h.key === want.key);
     }
     const made = current ? await files.update(MANUAL, current, want, folderId) : await files.create(MANUAL, want, folderId);
-    keeper.manualHaves = [...keeper.manualHaves.filter((h) => h.id !== made.id && h.key !== want.key), made];
+    keeper.manualHaves.set(folderId, [...keeper.manualHaves.get(folderId).filter((h) => h.id !== made.id && h.key !== want.key), made]);
   }
 
   /**

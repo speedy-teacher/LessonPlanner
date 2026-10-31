@@ -21,6 +21,7 @@ function describe(state, s) {
     schools: m.schoolIds.length ? namesOf(state, 'schools', m.schoolIds) : 'all',
     grades: m.gradeIds.length ? namesOf(state, 'grades', m.gradeIds) : 'all',
     oneFilePer: m.perGrade ? 'grade' : 'school', folder: m.folder?.name ?? null, keepUpToDate: m.keepUpToDate,
+    keptUpToDate: s.watched.map((w) => w.name),
   };
 }
 
@@ -68,7 +69,7 @@ export const REPORT_COMMANDS = {
     params: {
       fromWeek: ['First week'], toWeek: ['Last week (default: same as fromWeek)'],
       schools: ['Names, or "all"'], grades: ['Names, or "all"'], oneFilePer: ['"school" or "grade"'],
-      keepUpToDate: ['true or false: remake the reports automatically when the schedule changes'],
+      keepUpToDate: ['true or false: when the teacher clicks Make, also keep those reports up to date automatically'],
     },
     run: (state, a) => {
       const manual = patchFrom(a, {
@@ -85,6 +86,19 @@ export const REPORT_COMMANDS = {
         ...(keepUpToDate === undefined ? {} : { keepUpToDate }),
       });
       return { done: 'Report set up. The teacher clicks “Make” on the Reports tab to save it in Google Drive.', ...describe(state, s) };
+    },
+  },
+  stopKeepingReportUpToDate: {
+    summary: 'Take a report off the list that is kept up to date (by its name, as shown in reportSettings keptUpToDate). Its file in Google Drive is not deleted.',
+    changes: true,
+    params: { report: ['The report name', true] },
+    run: (state, a) => {
+      const y = year(state);
+      const list = reportSettings(y).watched;
+      const entry = list.find((w) => w.id === a.report || w.name.toLowerCase() === String(a.report).trim().toLowerCase())
+        ?? fail(`No report called "${a.report}" is kept up to date. Choices: ${list.map((w) => w.name).join(', ') || 'none'}.`);
+      const s = save(state, { watched: list.filter((w) => w.id !== entry.id) });
+      return { done: `“${entry.name}” is no longer kept up to date. Its file in Google Drive was not deleted.`, ...describe(state, s) };
     },
   },
   previewReport: {

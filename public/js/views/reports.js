@@ -12,8 +12,10 @@ import { pickFolderFromDrive } from '../drive.js';
 import { todayISO } from '../dates.js';
 import { AUTO_FIELD_PLACEHOLDERS, AUTO_FIELDS, TEXT_FIELDS } from '../model.js';
 import { schoolWeeks } from '../weekPlan.js';
+import { showNotice } from '../notices.js';
 import {
   changedReports, copyFinder, currentWeekNumber, DEFAULT_LABEL, LABEL_WORDS, manualReports, reportFolder, reportRows, reportSettings, reportWidth,
+  watchedEntry, watchedReport, withWatched,
 } from '../reportPlan.js';
 import { listDriveCopies, makeReports } from '../reportMaker.js';
 import { copyStatus, keptReportFiles, knownCopies, recheckCopies, weeklyReportFiles } from '../exportBridge.js';
@@ -49,9 +51,9 @@ function copiesForPreview() {
   return looked.key === key ? looked.copies : [];
 }
 
-function reportFiles() {
+function reportFiles(copies = copiesForPreview()) {
   const s = settings();
-  return manualReports(store.state, year().id, { ...s, copyOf: copyFinder(copiesForPreview()), defaultWeek: thisWeek() });
+  return manualReports(store.state, year().id, { ...s, copyOf: copyFinder(copies), defaultWeek: thisWeek() });
 }
 
 export function renderReports() {
@@ -78,7 +80,7 @@ function formCard(files) {
     folderChoice(),
     makeButton(files),
     madeList(),
-    keepSection(files));
+    keepSection());
 }
 
 function weekPickers(manual) {
@@ -146,18 +148,24 @@ function makeButton(files) {
   let why = '';
   if (!connected) why = 'Connect Google Drive first.';
   else if (!folder) why = 'Choose a Drive folder first.';
-  const label = making ? 'Making…' : `Make ${files.length === 1 ? 'the report' : `${files.length} reports`}`;
+  const what = files.length === 1 ? 'the report' : `${files.length} reports`;
+  const label = making ? 'Making…' : `Make ${what}${settings().manual.keepUpToDate ? ' and keep up to date' : ''}`;
   return h('div', { class: 'report-row' },
-    h('button', { class: 'btn', disabled: Boolean(why) || making || !files.length, onclick: () => make(files, folder) }, label),
+    h('button', { class: 'btn', disabled: Boolean(why) || making || !files.length, onclick: () => make(folder) }, label),
     why ? h('span', { class: 'hint' }, why) : null);
 }
 
-async function make(files, folder) {
+async function make(folder) {
   making = true;
   refreshSoon();
   try {
+    // Look at the lesson copies right now, so every lesson links to its copy.
+    const copies = knownCopies() ?? await listDriveCopies({ token: google.token, year: year() });
+    const files = reportFiles(copies);
     made = await makeReports({ token: google.token, yearId: year().id, files, folderId: folder.folderId });
-    toast(made.length === 1 ? `Report saved in “${folder.name}”.` : `${made.length} reports saved in “${folder.name}”.`);
+    const watching = settings().manual.keepUpToDate;
+    if (watching) watchReports(files, folder);
+    toast(`${made.length === 1 ? 'Report' : `${made.length} reports`} saved in “${folder.name}”${watching ? ' and kept up to date' : ''}.`);
     recheckCopies(); // look at the folder again, so keeping them up to date finds these files
   } catch (err) {
     console.warn('Reports:', err);
@@ -179,34 +187,62 @@ function madeList() {
 
 // ---------- keeping them up to date ----------
 
-/** What stops reports being kept up to date right now, in plain words ('' = nothing). */
+/** Add reports just made to the list that's kept up to date (remembering how they were made). */
+function watchReports(files, folder) {
+  const { manual, watched } = settings();
+  saveSettings({ watched: withWatched(watched, files.map((f) => watchedEntry(manual, f, folder))) });
+}
+
+/** Take a report off the list: its file in Drive is left alone. */
+function stopWatching(entry, name) {
+  saveSettings({ watched: settings().watched.filter((w) => w.id !== entry.id) });
+  recheckCopies();
+  showNotice({
+    id: `report-unwatched-${entry.id}`, tone: 'info', title: 'Report no longer kept up to date',
+    message: `“${name}” wasn’t deleted from your Google Drive — it was only removed from the Lesson Planner’s list, so it won’t be updated any more.`,
+    seconds: 15,
+  });
+}
+
+/** What stops the watched reports being kept up to date right now, in plain words ('' = nothing). */
 function keepProblem() {
-  const output = year().output;
-  if (!reportFolder(year())) return 'Choose a Drive folder (above) first.';
-  if (output?.kind !== 'drive') return 'This needs the lesson copies in a Google Drive folder (Setup › School Year › Lesson copies).';
+  if (year().output?.kind !== 'drive') return 'This needs the lesson copies in a Google Drive folder (Setup › School Year › Lesson copies).';
   return '';
 }
 
-function keepStatus(on) {
+function keepStatus() {
   const problem = keepProblem();
-  if (!on) return 'Off: reports stay as they are until you click Make again.';
   if (problem) return problem;
   const state = copyStatus().state;
-  const kept = keptReportFiles();
-  if (state === 'ready') return `✓ ${kept.length} ${kept.length === 1 ? 'report is' : 'reports are'} kept up to date.`;
+  if (state === 'ready') return '✓ Kept up to date about a minute after you change the Lesson Schedule or Instrument Schedule.';
   return state === 'other-keeper' || state === 'other-computer'
     ? 'They’re updated by the computer that keeps the lesson copies.'
     : 'They’re updated once Google Drive is connected and the lesson copies are checked.';
 }
 
+/** One row of the list: the report, where it is, and a button to stop keeping it up to date. */
+function watchedRow(entry, found, look) {
+  const file = watchedReport(store.state, year().id, entry, look);
+  const name = file?.name ?? entry.name;
+  const there = found.find((f) => f.folderId === entry.folder.folderId && f.key === file?.key);
+  return h('li', { class: 'report-watched' },
+    there ? h('a', { href: there.url, target: '_blank', rel: 'noopener' }, `📄 ${name}`) : h('span', {}, `📄 ${name}`),
+    h('span', { class: 'hint' }, ` ☁️ ${entry.folder.name}${file ? '' : ' · its school or grades are gone'}`),
+    h('button', { class: 'btn small light', 'data-tip': 'Stop keeping this report up to date (its file stays in Drive)', onclick: () => stopWatching(entry, name) }, 'Remove'));
+}
+
 /** One place for everything that's kept current: the reports made here, and the weekly reports. */
 function keepSection() {
-  const { manual, weekly } = settings();
-  const kept = manual.keepUpToDate ? keptReportFiles() : [];
+  const { manual, weekly, watched } = settings();
+  const look = { settings: settings(), copyOf: () => null, defaultWeek: thisWeek() };
+  const found = keptReportFiles();
   return h('div', { class: 'report-keep' },
-    checkbox(manual.keepUpToDate, 'Keep these reports up to date automatically', (keepUpToDate) => saveSettings({ manual: { keepUpToDate } })),
-    h('p', { class: 'hint' }, `${keepStatus(manual.keepUpToDate)} They’re rewritten about a minute after you change the Lesson Schedule or Instrument Schedule, in the same files and the same folder.`),
-    kept.length ? h('ul', { class: 'report-made' }, kept.map((f) => h('li', {}, h('a', { href: f.url, target: '_blank', rel: 'noopener' }, `📄 ${f.name}`)))) : null,
+    checkbox(manual.keepUpToDate, 'Keep these reports up to date automatically (when I click Make)', (keepUpToDate) => saveSettings({ manual: { keepUpToDate } })),
+    h('h4', {}, 'Reports kept up to date'),
+    watched.length
+      ? h('ul', { class: 'report-made' }, watched.map((w) => watchedRow(w, found, look)))
+      : h('p', { class: 'hint' }, 'None yet. Tick the box above, then click Make, and the reports are added here.'),
+    watched.length ? h('p', { class: 'hint' }, keepStatus()) : null,
     weekly ? h('p', { class: 'hint' }, `🗓️ Weekly reports in every week folder are kept up to date too (${weeklyReportFiles().length} so far).`) : null);
 }
 
