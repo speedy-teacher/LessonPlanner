@@ -507,7 +507,7 @@ function warn(status, message) {
 function warnBehind(status) {
   if (status.behind === 0) return warn(status, null);
   const count = status.behind ? `${status.behind} lesson ${status.behind === 1 ? 'copy is' : 'copies are'} out of date. ` : '';
-  return warn(status, `${count}${status.keeperName} keeps this plan’s lesson copies, so only they can update them. They catch up once ${status.keeperName} opens the planner.`);
+  return warn(status, `${count}${status.keeperName} keeps this plan’s lesson copies, so only they can update them. Ask ${status.keeperName} to open the Lesson Planner (and connect Google Drive) — the copies catch up by themselves then.`);
 }
 
 function warnOtherComputer(status) {

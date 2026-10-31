@@ -212,7 +212,7 @@ async function syncOnce() {
   current = { ...current, canEdit: info.canEdit, name: info.name, folderId: info.folderId };
   const action = syncAction({ localChanges: current.changed && info.canEdit, knownRev: current.rev, remoteRev: info.rev });
   if (action === 'upload') await upload();
-  if (action === 'download') await download('Loaded the newest version of this plan from Google Drive.');
+  if (action === 'download') await download('Loaded the newest version of this plan from Google Drive (it was changed on another computer).');
   if (action === 'conflict') await combineWithDrive();
   showWhereSaved();
 }
@@ -260,7 +260,7 @@ function tellCombined(conflicts, theirs) {
     return showNotice({ id: 'plan-sync', tone: 'info', title: 'Google Drive', message: 'Combined your changes with newer changes from Google Drive.' });
   }
   return showNotice({
-    id: 'plan-sync', tone: 'warn', title: 'The same thing was changed in two places',
+    id: 'plan-sync', tone: 'warn', title: 'The same thing was changed by two people',
     message: `Everything else was combined. For these, your version was kept: ${conflictSummary(store.state, theirs, conflicts)}.`,
     seconds: null,
     actions: [
