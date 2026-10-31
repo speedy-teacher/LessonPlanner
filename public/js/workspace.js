@@ -13,10 +13,12 @@ import { device, setDevice } from './deviceSettings.js';
 import { google } from './google.js';
 import { allPlans, deletePlan, getPlan, putPlan, rescue } from './localCache.js';
 import {
-  createPlanFile, folderName, keepRevision, movePlanFile, PIECE_PROPERTY, planFileInfo, readPlanFile, savePlanFile, SCHOOL_YEAR_PROPERTY,
+  createPlanFile, folderName, keepRevision, movePlanFile, PIECE_PROPERTY, planFileInfo, readPlanFile, renamePlanFile, savePlanFile,
+  SCHOOL_YEAR_PROPERTY,
 } from './driveFiles.js';
+import { joinedPieces } from './joinYear.js';
 import { driveKey, MISSING_WORDS, PiecePlan, rebaseState } from './pieceEngine.js';
-import { PIECES, pieceFileName, pieceKind, splitState, toPieceFile } from './pieces.js';
+import { fromPieceFile, PIECES, pieceFileName, pieceKind, splitState, toPieceFile } from './pieces.js';
 import {
   forgetPlan, fromWorkspaceFile, rememberPlan, shouldKeepRevision, splitYears, syncAction, toWorkspaceFile,
 } from './workspaceFile.js';
@@ -172,6 +174,7 @@ export async function removeComputerPlan(key) {
 
 /** Copy a plan that's only on this computer into Google Drive (it becomes a Drive plan). */
 export async function moveToDrive({ folderId = null } = {}) {
+  if (pieces) return movePiecesToDrive(folderId);
   const old = current;
   const text = toWorkspaceFile(store.state);
   const file = await createPlanFile(google.token, { name: old.name, text, folderId });
@@ -488,4 +491,89 @@ export async function createPiecePlan(state, { open = true, folderId = null } = 
   if (open) await openPieces(schedule);
   else setDevice({ recent: rememberPlan(device.recent, entryFor(schedule)) });
   return schedule;
+}
+
+// ---------- moving an older one-file plan to pieces ----------
+
+/** What an older plan file is renamed to once it's been moved to pieces (it's kept, untouched). */
+export const OLD_PLAN_SUFFIX = ' (old – before sharing)';
+
+/**
+ * Turn the open one-file plan into its own School Year + Teacher Schedule + Teacher Resources (in the
+ * same Drive folder). Drive keeps today's version of the old file forever, and the old file stays.
+ */
+export async function splitCurrentPlan() {
+  const old = await settleOldPlan();
+  const schedule = await createPiecePlan(store.state, { open: false, folderId: old.folderId ?? null });
+  await retireOldPlan(old);
+  await openPieces(schedule);
+  return pieces;
+}
+
+/** A School Year file someone shared (picked in Google's picker): its details and contents. */
+export async function readSchoolYear(fileId) {
+  const file = await readPlanFile(google.token, fileId);
+  let piece;
+  try { piece = fromPieceFile(file.text, 'schoolYear'); } catch { throw new Error('not_a_school_year'); }
+  return { file, piece };
+}
+
+/**
+ * Join a shared School Year: the open one-file plan's schedule, lesson order, templates and pictures
+ * become this teacher's own pieces, pointed at the shared School Year (`map` from joinYear.js).
+ */
+export async function joinSchoolYear({ file, piece }, map) {
+  const old = await settleOldPlan();
+  const { schedule, resources } = joinedPieces(store.state, piece, map);
+  const yearRec = {
+    key: driveKey(file.fileId), piece: 'schoolYear', name: file.name, fileId: file.fileId, folderId: file.folderId, rev: file.rev,
+    base: file.text, canEdit: file.canEdit, changed: false, keptDay: null, savedAt: Date.now(), data: piece,
+  };
+  await putPlan(yearRec);
+  const year = piece.years[0];
+  const res = await newPieceRecord('resources', resources, { fileName: pieceFileName('resources', year), folderId: old.folderId ?? null });
+  await putPlan(res);
+  schedule.meta = { ...schedule.meta, links: { schoolYear: linkTo(yearRec), resources: linkTo(res) }, ownerId: google.userId || null };
+  const sched = await newPieceRecord('schedule', schedule, { fileName: pieceFileName('schedule', year), folderId: res.folderId, schoolYearFileId: file.fileId });
+  await putPlan(sched);
+  await retireOldPlan(old);
+  await openPieces(sched);
+  return pieces;
+}
+
+/** Make sure the old plan's latest changes are saved, and ask Drive to keep today's version forever. */
+async function settleOldPlan() {
+  await flushSave();
+  if (isDrivePlan() && driveReady()) {
+    await syncNow();
+    const info = await planFileInfo(google.token, current.fileId);
+    if (info.rev) await keepRevision(google.token, current.fileId, info.rev).catch(() => {});
+  }
+  return { ...current, state: store.state };
+}
+
+async function retireOldPlan(old) {
+  const name = `${old.name}${OLD_PLAN_SUFFIX}`;
+  if (old.fileId && driveReady()) await renamePlanFile(google.token, old.fileId, name).catch(() => {});
+  await putPlan({ ...old, name });
+  setDevice({ recent: forgetPlan(device.recent, old.key) });
+}
+
+/** A plan in pieces kept on this computer only: each piece gets its own Drive file (links follow). */
+async function movePiecesToDrive(folderId) {
+  await flushSave();
+  const old = pieces.recs;
+  const made = {};
+  for (const name of ['schoolYear', 'resources']) {
+    if (!old[name] || old[name].fileId) { made[name] = old[name]; continue; }
+    made[name] = await newPieceRecord(name, old[name].data, { fileName: old[name].name, folderId });
+    await putPlan(made[name]);
+  }
+  const data = structuredClone(old.schedule.data);
+  data.meta.links = { ...data.meta.links, ...Object.fromEntries(['schoolYear', 'resources'].filter((n) => made[n]).map((n) => [n, linkTo(made[n])])) };
+  const schedule = await newPieceRecord('schedule', data, { fileName: old.schedule.name, folderId, schoolYearFileId: made.schoolYear?.fileId ?? null });
+  await putPlan(schedule);
+  for (const rec of Object.values(old)) if (rec && !rec.fileId) await deletePlan(rec.key);
+  setDevice({ recent: forgetPlan(device.recent, old.schedule.key) });
+  await openPieces(schedule, { sameDocument: true });
 }

@@ -16,6 +16,7 @@ import {
 } from '../workspace.js';
 import { showNotice } from '../notices.js';
 import { askFolderThen, currentFolderRow, folderChooser } from './planFolders.js';
+import { canMoveToPieces, openShareSetup } from './shareSetup.js';
 
 const PROBLEMS = {
   signed_out: 'Google signed you out. Click anywhere to reconnect, then try again.',
@@ -105,7 +106,10 @@ function thisPlan(done) {
       !current.fileId && driveConnected()
         ? h('button', { class: 'btn small', onclick: done(saveToDrive) }, '☁ Save to Google Drive')
         : null,
-      current.fileId ? h('a', { class: 'btn small light', href: `https://drive.google.com/file/d/${encodeURIComponent(current.fileId)}/view`, target: '_blank', rel: 'noopener', title: 'Open the file in Google Drive (to share it, or see past versions)' }, 'Share or see past versions in Drive ↗') : null));
+      current.fileId ? h('a', { class: 'btn small light', href: `https://drive.google.com/file/d/${encodeURIComponent(current.fileId)}/view`, target: '_blank', rel: 'noopener', title: 'Open the file in Google Drive (to share it, or see past versions)' }, 'Share or see past versions in Drive ↗') : null,
+      canMoveToPieces()
+        ? h('button', { class: 'btn small', 'data-tour': 'share-department', onclick: openShareSetup, title: 'Share the School Year with colleagues; your lessons and templates stay yours' }, '🤝 Share with your department…')
+        : null));
 }
 
 function saveToDrive() {

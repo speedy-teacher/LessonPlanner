@@ -7,6 +7,7 @@ import { clientId } from './deviceSettings.js';
 import { openLastPlan, syncNow } from './workspace.js';
 import { drivePill, showSignInNotice, warnIfGoogleNotSetUp } from './views/googleCard.js';
 import { planButton, refreshPlansMenu, welcome } from './views/plans.js';
+import { offerSharing } from './views/shareSetup.js';
 import { renderPlan, planKeys } from './views/plan.js';
 import { renderSchedule, scheduleKeys } from './views/schedule.js';
 import { renderLessonSchedule, lessonScheduleKeys, showThisWeek } from './views/lessonSchedule.js';
@@ -174,6 +175,7 @@ async function start() {
   setInterval(() => { if (document.visibilityState === 'visible') syncNow(); }, SYNC_EVERY_MS);
   try {
     if (!await openLastPlan()) render();
+    offerSharing();
   } catch (err) {
     console.error(err);
     render();

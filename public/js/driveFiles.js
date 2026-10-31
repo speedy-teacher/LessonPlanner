@@ -150,3 +150,9 @@ export async function folderName(token, folderId, { fetchFn = fetch } = {}) {
   const body = await (await call(fetchFn, token, url)).json();
   return body.parents?.length ? body.name : 'My Drive';
 }
+
+/** Give a plan file a new name. */
+export async function renamePlanFile(token, fileId, name, { fetchFn = fetch } = {}) {
+  const url = `${API}/${encodeURIComponent(fileId)}?fields=name&supportsAllDrives=true`;
+  await call(fetchFn, token, url, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) });
+}

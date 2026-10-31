@@ -1,0 +1,16 @@
+/* Sharing a plan in pieces: the "Share with your department" window, view-only banners, people picker. */
+
+.modal-card:has(.share-setup) { width: min(600px, 100%); max-height: 90vh; overflow-y: auto; }
+.share-setup { display: flex; flex-direction: column; gap: 12px; }
+.share-pieces { display: flex; flex-direction: column; gap: 6px; padding-left: 18px; }
+.share-choices { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
+.share-choice {
+  display: flex; flex-direction: column; gap: 4px; align-items: flex-start; text-align: left;
+  background: var(--royal-soft); border: 2px solid transparent; border-radius: 14px; padding: 14px; cursor: pointer; font: inherit; color: inherit;
+}
+.share-choice:hover:not(:disabled) { border-color: var(--royal); }
+.share-choice:disabled { opacity: .55; cursor: not-allowed; }
+.share-choice-icon { font-size: 26px; }
+.share-review { display: flex; flex-direction: column; gap: 8px; }
+.share-match { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; background: var(--gold-soft); border-radius: 10px; padding: 8px 10px; }
+.share-match select { max-width: 100%; }
