@@ -29,6 +29,29 @@ export function setPersist(next) {
   persister = next;
 }
 
+// Checks every change against the parts of the plan that can't be changed (pieces shared as "Viewer").
+let guard = null;
+
+/**
+ * `check(before, after)` → { state, blocked }: the change without what it may not touch, and what it
+ * tried to touch. `before()` gives the data before the change (worked out only when needed).
+ * `refused(blocked)` runs when a change was only made of such parts.
+ */
+export function setGuard(check, refused = () => {}) {
+  guard = check ? { check, refused } : null;
+}
+
+/** The changed data after the guard: null when nothing allowed changed. */
+function guarded(beforeText) {
+  if (!guard) return store.state;
+  const { state, blocked } = guard.check(() => JSON.parse(beforeText), store.state);
+  if (!blocked.length) return state;
+  const kept = normalize(state);
+  if (JSON.stringify(kept) !== beforeText) return kept;
+  guard.refused(blocked);
+  return null;
+}
+
 /** Show a plan (a different one starts with a fresh undo history). */
 export function useState(state, { sameDocument = false } = {}) {
   clearTimeout(saveTimer);
@@ -46,6 +69,9 @@ export function commit(mutate) {
   const before = JSON.stringify(store.state);
   const result = mutate(store.state);
   if (JSON.stringify(store.state) === before) return result;
+  const allowed = guarded(before);
+  if (!allowed) { store.state = normalize(JSON.parse(before)); notify(); return result; }
+  store.state = allowed;
   store.undoStack.push(before);
   if (store.undoStack.length > UNDO_LIMIT) store.undoStack.shift();
   store.redoStack = [];
@@ -63,6 +89,7 @@ export function annotate(mutate) {
   const before = JSON.stringify(store.state);
   mutate(store.state);
   if (JSON.stringify(store.state) === before) return;
+  store.state = guarded(before) ?? normalize(JSON.parse(before));
   queueSave();
   notify();
 }
@@ -146,6 +173,13 @@ export function setSaveStatus(status, text = STATUS_TEXT[status]) {
   if (!el) return;
   el.textContent = text;
   el.dataset.status = status;
+}
+
+/** Save waiting changes now (instead of after the short delay). */
+export async function flushSave() {
+  if (!dirty) return;
+  clearTimeout(saveTimer);
+  await save();
 }
 
 /** Changes are waiting for the short save delay. */

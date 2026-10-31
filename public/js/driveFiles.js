@@ -10,7 +10,7 @@ const UPLOAD = 'https://www.googleapis.com/upload/drive/v3/files';
 const FOLDER_MIME = 'application/vnd.google-apps.folder';
 const FOLDER_PROPERTY = { key: 'lessonPlanner', value: 'folder' };
 export const FOLDER_NAME = 'Lesson Planner';
-const FILE_FIELDS = 'id,name,parents,headRevisionId,modifiedTime,ownedByMe,capabilities(canEdit),owners(displayName)';
+const FILE_FIELDS = 'id,name,parents,headRevisionId,modifiedTime,ownedByMe,capabilities(canEdit),owners(displayName,permissionId),properties';
 
 async function call(fetchFn, token, url, init = {}) {
   let res;
@@ -28,10 +28,22 @@ async function call(fetchFn, token, url, init = {}) {
 
 const has = ({ key, value }) => `properties has { key='${key}' and value='${value}' }`;
 
-/** Plan files you can open (yours and ones shared with you), newest first. */
+/**
+ * Plan files you can open (yours and ones shared with you), newest first: older one-file plans and
+ * Teacher Schedules (each brings its School Year and Teacher Resources along). `kind` tells them apart.
+ */
 export async function listPlanFiles(token, { fetchFn = fetch } = {}) {
+  return findFiles(token, `(${has(WORKSPACE_PROPERTY)} or ${has(PIECE_PROPERTY('schedule'))})`, { fetchFn });
+}
+
+/** Teacher Schedules that use the given School Year file (yours and teammates' shared with you). */
+export async function listSchedulesFor(token, schoolYearFileId, { fetchFn = fetch } = {}) {
+  return findFiles(token, has({ key: SCHOOL_YEAR_PROPERTY, value: schoolYearFileId }), { fetchFn });
+}
+
+async function findFiles(token, query, { fetchFn }) {
   const params = new URLSearchParams({
-    q: `${has(WORKSPACE_PROPERTY)} and trashed = false`,
+    q: `${query} and trashed = false`,
     fields: `files(${FILE_FIELDS})`, orderBy: 'modifiedTime desc', pageSize: '100',
     supportsAllDrives: 'true', includeItemsFromAllDrives: 'true',
   });
@@ -42,9 +54,24 @@ export async function listPlanFiles(token, { fetchFn = fetch } = {}) {
 function fileInfo(f) {
   return {
     fileId: f.id, name: f.name, folderId: f.parents?.[0] ?? null, rev: f.headRevisionId ?? null, modifiedTime: f.modifiedTime ?? null,
-    ownedByMe: f.ownedByMe !== false, canEdit: f.capabilities?.canEdit !== false, owner: f.owners?.[0]?.displayName ?? '',
+    ownedByMe: f.ownedByMe !== false, canEdit: f.capabilities?.canEdit !== false, ...ownerOf(f), ...labelsOf(f),
   };
 }
+
+function ownerOf(f) {
+  const owner = f.owners?.[0] ?? {};
+  return { owner: owner.displayName ?? '', ownerId: owner.permissionId ?? null };
+}
+
+function labelsOf(f) {
+  const labels = f.properties ?? {};
+  return { kind: labels[WORKSPACE_PROPERTY.key] ?? null, schoolYearFileId: labels[SCHOOL_YEAR_PROPERTY] ?? null };
+}
+
+/** The label on a piece file (pieces.js): lessonPlanner = schoolYear | schedule | resources. */
+export const PIECE_PROPERTY = (piece) => ({ key: WORKSPACE_PROPERTY.key, value: piece });
+/** On a Teacher Schedule: the School Year file it uses (so teammates can be found). */
+export const SCHOOL_YEAR_PROPERTY = 'lpSchoolYear';
 
 /** The "Lesson Planner" folder in your Drive (made the first time). */
 async function planFolder(token, fetchFn) {
@@ -65,9 +92,10 @@ async function planFolder(token, fetchFn) {
  * Save a new plan file into `folderId` (a folder you picked), or else the "Lesson Planner" folder.
  * Returns { fileId, name, folderId, rev, canEdit }.
  */
-export async function createPlanFile(token, { name, text, folderId = null }, { fetchFn = fetch } = {}) {
+export async function createPlanFile(token, { name, text, folderId = null, properties = null }, { fetchFn = fetch } = {}) {
   const parent = folderId || await planFolder(token, fetchFn);
-  const meta = { name, mimeType: WORKSPACE_MIME, parents: [parent], properties: { [WORKSPACE_PROPERTY.key]: WORKSPACE_PROPERTY.value } };
+  const labels = properties ?? { [WORKSPACE_PROPERTY.key]: WORKSPACE_PROPERTY.value };
+  const meta = { name, mimeType: WORKSPACE_MIME, parents: [parent], properties: labels };
   const boundary = `planner${Date.now()}`;
   const body = [
     `--${boundary}`, 'Content-Type: application/json; charset=UTF-8', '', JSON.stringify(meta),

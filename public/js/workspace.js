@@ -8,11 +8,15 @@
 // changed differently are put to the teacher.
 
 import { newId } from './model.js';
-import { commit, refresh, setPersist, setSaveStatus, store, useState } from './store.js';
+import { commit, flushSave, refresh, setGuard, setPersist, setSaveStatus, store, useState } from './store.js';
 import { device, setDevice } from './deviceSettings.js';
 import { google } from './google.js';
 import { allPlans, deletePlan, getPlan, putPlan, rescue } from './localCache.js';
-import { createPlanFile, folderName, keepRevision, movePlanFile, planFileInfo, readPlanFile, savePlanFile } from './driveFiles.js';
+import {
+  createPlanFile, folderName, keepRevision, movePlanFile, PIECE_PROPERTY, planFileInfo, readPlanFile, savePlanFile, SCHOOL_YEAR_PROPERTY,
+} from './driveFiles.js';
+import { driveKey, MISSING_WORDS, PiecePlan, rebaseState } from './pieceEngine.js';
+import { PIECES, pieceFileName, pieceKind, splitState, toPieceFile } from './pieces.js';
 import {
   forgetPlan, fromWorkspaceFile, rememberPlan, shouldKeepRevision, splitYears, syncAction, toWorkspaceFile,
 } from './workspaceFile.js';
@@ -28,6 +32,12 @@ const UPLOAD_DELAY_MS = 2000;
  */
 export let current = null;
 
+/**
+ * The open plan's pieces (pieceEngine.js) when it's made of School Year + Teacher Schedule + Teacher
+ * Resources files; null for an older one-file plan. `current` then describes the Teacher Schedule.
+ */
+export let pieces = null;
+
 let uploadTimer = null;
 let saves = 0; // counts saves, to tell whether more changes came in while sending to Drive
 let syncing = false;
@@ -36,16 +46,27 @@ let syncAgain = false;
 setPersist({
   save: async (state) => {
     if (!current) return;
+    if (pieces) return savePieces(state);
     saves += 1;
     current = { ...current, state, changed: Boolean(current.fileId), savedAt: Date.now() };
     await putPlan(current);
     showWhereSaved();
     queueUpload();
   },
-  closing: (state) => { if (current) rescue({ ...current, state, changed: Boolean(current.fileId), savedAt: Date.now() }); },
+  closing: (state) => {
+    if (pieces) rescue({ key: rescueKey(current.key), state, savedAt: Date.now() });
+    else if (current) rescue({ ...current, state, changed: Boolean(current.fileId), savedAt: Date.now() });
+  },
 });
 
-const driveKey = (fileId) => `drive:${fileId}`;
+// Changes to pieces you can only look at are taken back out at once (see pieces.js keepViewOnly).
+setGuard(
+  (before, after) => (pieces?.readOnly().length ? pieces.guard(before(), after) : { state: after, blocked: [] }),
+  (blocked) => showNotice({
+    id: 'view-only', tone: 'warn', title: 'View only',
+    message: `You can look at the ${blocked.map((name) => PIECES[name].label).join(' and ')} but not change it. ${blocked.map(whyViewOnly).join(' ')}`,
+  }),
+);
 const isDrivePlan = () => Boolean(current?.fileId);
 const driveReady = () => google.status === 'connected' && google.token;
 
@@ -55,11 +76,17 @@ const driveReady = () => google.status === 'connected' && google.token;
 export async function openLastPlan() {
   const record = device.lastKey ? await getPlan(device.lastKey).catch(() => null) : null;
   if (!record) return false;
-  show(record);
+  await showAny(record);
   return true;
 }
 
+/** An older one-file plan, or a Teacher Schedule (with its pieces). */
+function showAny(record) {
+  return record.piece === 'schedule' ? openPieces(record) : show(record);
+}
+
 function show(record, { sameDocument = false } = {}) {
+  pieces = null;
   current = record;
   setDevice({ lastKey: record.key, recent: rememberPlan(device.recent, entryFor(record)) });
   useState(record.state, { sameDocument });
@@ -74,19 +101,27 @@ function entryFor(record) {
 export async function openDrivePlan(fileId) {
   const cached = await getPlan(driveKey(fileId)).catch(() => null);
   if (cached) {
-    show(cached);
+    await showAny(cached);
     return syncNow();
   }
   const file = await readPlanFile(google.token, fileId);
-  const record = { key: driveKey(fileId), name: file.name, fileId, folderId: file.folderId, rev: file.rev, base: file.text, canEdit: file.canEdit, changed: false, keptDay: null, state: fromWorkspaceFile(file.text) };
-  await putPlan(record);
-  return show(record);
+  const kind = pieceKind(JSON.parse(file.text));
+  if (kind && kind !== 'schedule') throw new Error('not_a_schedule');
+  const record = { key: driveKey(fileId), name: file.name, fileId, folderId: file.folderId, rev: file.rev, base: file.text, canEdit: file.canEdit, changed: false, keptDay: null };
+  if (kind) {
+    const scheduleRec = { ...record, piece: 'schedule', savedAt: 0, data: JSON.parse(file.text) };
+    await putPlan(scheduleRec);
+    return openPieces(scheduleRec);
+  }
+  const plan = { ...record, state: fromWorkspaceFile(file.text) };
+  await putPlan(plan);
+  return show(plan);
 }
 
 /** Open a plan kept on this computer (by its key). */
 export async function openSavedPlan(key) {
   const record = await getPlan(key);
-  if (record) show(record);
+  if (record) await showAny(record);
 }
 
 /**
@@ -197,7 +232,7 @@ export async function syncNow() {
   if (syncing) { syncAgain = true; return undefined; }
   syncing = true;
   try {
-    await syncOnce();
+    await (pieces ? syncPieces() : syncOnce());
   } catch (err) {
     syncProblem(err);
   } finally {
@@ -310,6 +345,7 @@ export function showWhereSaved(trouble = null) {
   if (!current) return;
   refresh();
   if (!isDrivePlan()) return setSaveStatus('local', 'Saved on this computer');
+  if (pieces) return showWherePiecesSaved(trouble);
   if (!current.canEdit) return setSaveStatus('local', 'View only — changes stay on this computer');
   if (!current.changed) return setSaveStatus('saved', 'Saved to Google Drive');
   if (trouble === 'problem') return setSaveStatus('error', 'Couldn’t save to Drive — saved on this computer');
@@ -322,3 +358,134 @@ const CHECK_EVERY_MS = 5 * 60 * 1000;
 window.addEventListener('focus', () => { if (isDrivePlan()) syncNow(); });
 setInterval(() => { if (isDrivePlan()) syncNow(); }, CHECK_EVERY_MS);
 window.addEventListener('online', () => { if (isDrivePlan()) syncNow(); });
+
+// ---------- plans made of pieces (School Year + Teacher Schedule + Teacher Resources) ----------
+
+const rescueKey = (key) => `rescue:${key}`;
+const cacheCalls = { get: getPlan, put: putPlan };
+let saveAfterSync = false;
+
+function driveCalls() {
+  return {
+    info: (id) => planFileInfo(google.token, id),
+    read: (id) => readPlanFile(google.token, id),
+    save: (id, text) => savePlanFile(google.token, id, text),
+    keep: (id, rev) => keepRevision(google.token, id, rev),
+  };
+}
+
+/** What `current` says about a plan made of pieces: its Teacher Schedule's details. */
+function scheduleInfo() {
+  const rec = pieces.recs.schedule;
+  return {
+    kind: 'pieces', key: rec.key, name: rec.name, fileId: rec.fileId ?? null, folderId: rec.folderId ?? null,
+    canEdit: rec.canEdit !== false, changed: pieces.unsaved().length > 0, savedAt: rec.savedAt,
+  };
+}
+
+/** Open a Teacher Schedule with its School Year and Teacher Resources (this computer's copies first, then Drive). */
+async function openPieces(scheduleRec, { sameDocument = false } = {}) {
+  const plan = new PiecePlan({ drive: scheduleRec.fileId ? driveCalls() : null, cache: cacheCalls });
+  await plan.load(scheduleRec);
+  pieces = plan;
+  current = scheduleInfo();
+  setDevice({ lastKey: current.key, recent: rememberPlan(device.recent, entryFor(current)) });
+  useState(plan.state(), { sameDocument });
+  await takeRescued(scheduleRec);
+  showWhereSaved();
+  if (isDrivePlan()) syncNow();
+}
+
+/** Changes kept while the page was closing (newer than every piece) are saved now. */
+async function takeRescued(scheduleRec) {
+  const rescued = await getPlan(rescueKey(scheduleRec.key)).catch(() => null);
+  const newest = Math.max(...Object.values(pieces.recs).map((r) => r?.savedAt || 0));
+  if (!rescued?.state || (rescued.savedAt || 0) <= newest) return;
+  await pieces.save(rescued.state);
+  useState(pieces.state(), { sameDocument: true });
+}
+
+async function savePieces(state) {
+  if (syncing) { saveAfterSync = true; return; }
+  await pieces.save(state);
+  current = scheduleInfo();
+  showWhereSaved();
+  queueUpload();
+}
+
+/**
+ * Bring every piece up to date with Drive. Anything changed on the page meanwhile is put on top of
+ * what was loaded (rebaseState), so neither side's work is lost.
+ */
+async function syncPieces() {
+  await flushSave();
+  const startText = JSON.stringify(store.state);
+  const results = await pieces.syncAll();
+  const loaded = results.some((r) => r.action === 'download' || r.action === 'conflict');
+  const editedMeanwhile = JSON.stringify(store.state) !== startText;
+  if (editedMeanwhile) useState(rebaseState(JSON.parse(startText), store.state, pieces.datas()), { sameDocument: true });
+  else if (loaded) useState(pieces.state());
+  if (editedMeanwhile || saveAfterSync) {
+    saveAfterSync = false;
+    await pieces.save(store.state);
+    syncAgain = true;
+  }
+  current = scheduleInfo();
+  for (const r of results) if (r.conflicts?.length) tellCombined(r.conflicts, r.theirs);
+  tellPieceTrouble(results);
+}
+
+function tellPieceTrouble(results) {
+  const lost = results.filter((r) => r.error && r.error !== 'offline' && r.error !== 'signed_out');
+  if (!lost.length) return;
+  showNotice({
+    id: 'piece-trouble', tone: 'warn', title: 'Part of this plan can’t be loaded',
+    message: lost.map((r) => `${PIECES[r.name].label}: ${MISSING_WORDS[r.error] ?? 'Google Drive had a problem.'}`).join(' '),
+  });
+}
+
+function whyViewOnly(name) {
+  if (pieces?.access(name) === 'none') return `${PIECES[name].label}: ${MISSING_WORDS[pieces.missing[name]] ?? ''}`;
+  return `Whoever shared the ${PIECES[name].label} can make you an Editor in Google Drive.`;
+}
+
+function showWherePiecesSaved(trouble) {
+  if (trouble === 'problem') return setSaveStatus('error', 'Couldn’t save to Drive — saved on this computer');
+  if (!pieces.unsaved().length) return setSaveStatus('saved', 'Saved to Google Drive');
+  return setSaveStatus('local', driveReady() ? 'Saving to Google Drive…' : 'Saved on this computer — will save to Drive when connected');
+}
+
+/** A new piece file: in Google Drive when connected (labelled so it can be found again), else on this computer. */
+async function newPieceRecord(name, data, { fileName, folderId, schoolYearFileId = null }) {
+  const base = { piece: name, name: fileName, fileId: null, folderId: null, rev: null, base: null, canEdit: true, changed: false, keptDay: null, savedAt: Date.now(), data };
+  if (!driveReady()) return { ...base, key: `computer:${newId('piece')}` };
+  const text = toPieceFile(data);
+  const properties = { [PIECE_PROPERTY(name).key]: name, ...(schoolYearFileId ? { [SCHOOL_YEAR_PROPERTY]: schoolYearFileId } : {}) };
+  const file = await createPlanFile(google.token, { name: fileName, text, folderId, properties });
+  return { ...base, key: driveKey(file.fileId), fileId: file.fileId, folderId: file.folderId, rev: file.rev, base: text };
+}
+
+const linkTo = (rec) => ({ key: rec.key, fileId: rec.fileId, name: rec.name });
+
+/**
+ * Make a plan as three piece files (School Year, Teacher Resources, Teacher Schedule) from one year's
+ * data, in Drive when connected (in `folderId`, or the "Lesson Planner" folder), else on this computer.
+ * Opens it unless `open` is false. Returns the Teacher Schedule's record.
+ */
+export async function createPiecePlan(state, { open = true, folderId = null } = {}) {
+  const year = state.years.find((y) => y.id === state.activeYearId) ?? state.years[0];
+  const split = splitState(state);
+  const made = {};
+  for (const name of ['schoolYear', 'resources']) {
+    made[name] = await newPieceRecord(name, split[name], { fileName: pieceFileName(name, year), folderId });
+    await putPlan(made[name]);
+  }
+  split.schedule.meta = { ...split.schedule.meta, links: { schoolYear: linkTo(made.schoolYear), resources: linkTo(made.resources) }, ownerId: google.userId || null };
+  const schedule = await newPieceRecord('schedule', split.schedule, {
+    fileName: pieceFileName('schedule', year), folderId: made.schoolYear.folderId ?? folderId, schoolYearFileId: made.schoolYear.fileId,
+  });
+  await putPlan(schedule);
+  if (open) await openPieces(schedule);
+  else setDevice({ recent: rememberPlan(device.recent, entryFor(schedule)) });
+  return schedule;
+}

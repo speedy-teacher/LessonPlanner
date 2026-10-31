@@ -198,3 +198,11 @@ export function keepViewOnly(before, after, readOnly, previous = {}) {
   for (const name of blocked) now[name] = was[name];
   return { state: composeState(now), changed: changed.filter((name) => !blocked.includes(name)), blocked };
 }
+
+/** The Drive file name of a piece, e.g. "School Year 2026–27". */
+export function pieceFileName(name, year) {
+  const yearName = year?.name ? ` ${year.name}` : '';
+  if (name === 'schoolYear') return `School Year${yearName}`;
+  if (name === 'schedule') return `Lesson Schedule${yearName}`;
+  return 'Teacher Resources';
+}
