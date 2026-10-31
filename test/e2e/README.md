@@ -39,3 +39,44 @@ Cases make their data with the app's own commands (`window.lessonPlanner.run`) a
 | E8 | The "on this computer" list shows only plans (Lesson Schedules and older plans), not pieces. |
 | E9 | Removing a local plan removes its Schedule and School Year, never the Teacher Resources or the other year. |
 | E10 | With no Drive, the plans menu and new-year window offer no Drive-only buttons. |
+
+# Browser tests: "Looking at" per tab
+
+The cases are described in `docs/plans/looking-at-per-tab-e2e.md`; the code is `lookingAt.e2e.js` (the runner) with the
+cases in `lookingAtLists.js` (L1-L5, L12), `lookingAtAccess.js` (L6-L8, L13) and `lookingAtMine.js` (L9-L11), and the
+scenario builders in `lookingAtKit.js`. `helpers.js` holds the helpers both test files share.
+
+## A pretend Google Drive
+Colleagues sharing files needs Drive, which the tests must never touch. `fakeDrive.js` is an in-memory Drive inside the
+page: it replaces `window.fetch` for Google addresses only, answers exactly what `public/js/driveFiles.js` sends (searches
+by label and owner, reading, creating, saving, moving, renaming, keeping a revision), and **refuses anything else on a
+Google address** (the case then fails with "a request tried to reach Google"). The sign-in is faked by setting the page's
+Google state to connected with a made-up pass; nothing ever opens Google's window. Never click "Connect Google Drive".
+
+Test helpers: `addFile` (a colleague's file, owner by name), `edit(fileId, fn)` (a colleague changes it in Drive),
+`share(fileId, 'writer' | 'reader' | null)`, `read`, `revOf`. All names are made up (Pat Example, Sam Sample, Lee Placeholder).
+
+## How to run
+Same as above, one case per page load (reset, reload, run), only at `http://127.0.0.1:5178/`:
+
+- `const t = await import('/e2e/lookingAt.e2e.js'); await t.reset();`
+- reload the page
+- `const t = await import('/e2e/lookingAt.e2e.js'); await t.run({ only: 'L1' })`
+
+Keep only one browser tab open on 127.0.0.1:5178 (`reset()` can wait forever if another tab holds the database open).
+
+| Case | Proves |
+| --- | --- |
+| L1 | Lesson Schedule, Reports and Outcomes list only Lesson Schedules that use this School Year (and are shared with me). |
+| L2 | Lesson Templates and Images list only people who shared Teacher Resources, sorted, one row per person. |
+| L3 | Looking at someone's Resources on Images leaves Lesson Templates, Lesson Schedule and the Calendar on mine. |
+| L4 | A schedule shared without its Resources shows their entries, "Not shared with you" for templates, none of mine. |
+| L5 | Each tab remembers its own choice; opening another plan clears them. |
+| L6 | A colleague's Resources shared as Editor merges both ways (my tag rename + their new picture both kept). |
+| L7 | A colleague's Lesson Schedule shared as Editor merges both ways. |
+| L8 | A Viewer file stays view only: buttons hidden, changes refused, nothing sent. |
+| L9 | An edit to my own schedule while looking at someone's Resources is kept, saved, and never sent to them. |
+| L10 | Undo never crosses people. |
+| L11 | Lesson copies and reports still come from my own plan while looking. |
+| L12 | The assistant's `people` / `lookAt` work per tab. |
+| L13 | A colleague un-sharing (and sharing again) never breaks the page. |

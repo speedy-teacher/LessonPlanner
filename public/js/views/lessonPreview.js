@@ -26,8 +26,8 @@ export function lessonPreview(lessonId, { number, fields = [], warn = false, sma
 }
 
 /** The first slide's picture, or the deck's name with a note when there's no picture. */
-export function slideCanvas(lesson) {
-  const thumb = lesson ? deckThumbnail(lesson) : { status: 'none', reason: 'This lesson deck was removed.' };
+export function slideCanvas(lesson, missingWhy = null) {
+  const thumb = lesson ? deckThumbnail(lesson) : { status: 'none', reason: missingWhy ?? 'This lesson deck was removed.' };
   const el = drawCanvas(lesson, thumb);
   const fileId = lesson ? driveFileId(lesson) : null;
   if (fileId) { el.dataset.thumbFile = fileId; shownDecks.set(fileId, lesson); }
@@ -36,8 +36,8 @@ export function slideCanvas(lesson) {
 }
 
 /** The picture of a filled-in copy (a Drive file) in place of its template; the lesson's name stays. */
-export function copyCanvas(lesson, copyFile) {
-  if (!lesson || !copyFile) return slideCanvas(lesson);
+export function copyCanvas(lesson, copyFile, missingWhy = null) {
+  if (!lesson || !copyFile) return slideCanvas(lesson, missingWhy);
   return slideCanvas({ ...lesson, locations: [driveLocation(copyFile)] });
 }
 

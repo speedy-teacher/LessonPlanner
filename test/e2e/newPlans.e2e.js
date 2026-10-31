@@ -8,117 +8,20 @@
 
 import * as workspace from '/js/workspace.js';
 import { flushSave, setUi, store } from '/js/store.js';
-import { allPlans, deletePlan, getPlan } from '/js/localCache.js';
+import { allPlans, getPlan } from '/js/localCache.js';
 import { isNoticeShown } from '/js/notices.js';
 import { offerSharing } from '/js/views/shareSetup.js';
 import { emptyState, createYear, add } from '/js/model.js';
 import { seedState } from '/js/seed.js';
 import { toWorkspaceFile } from '/js/workspaceFile.js';
+import {
+  check, chooseFile, click, commands, find, guardHost, modal, openPlansMenu, saved, sleep, startNewYear, text, waitFor, watchErrors, yearOpen,
+} from './helpers.js';
+
+export { reset } from './helpers.js';
 
 const YEAR1 = { name: 'Test Year 2030–31', start: '2030-08-26', end: '2031-06-13' };
 const YEAR2 = { name: 'Test Year 2031–32', start: '2031-08-25', end: '2032-06-11' };
-
-// ---------- tiny helpers ----------
-
-function check(cond, message) {
-  if (!cond) throw new Error(message);
-}
-
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-/** Wait until `fn()` is truthy (returns its value); fail with `what` after `ms`. */
-async function waitFor(fn, ms = 6000, what = 'something to happen') {
-  const end = Date.now() + ms;
-  for (;;) {
-    const value = await fn();
-    if (value) return value;
-    if (Date.now() > end) throw new Error(`Timed out waiting for ${what}`);
-    await sleep(40);
-  }
-}
-
-function guardHost() {
-  if (location.hostname !== '127.0.0.1') {
-    throw new Error(`Refusing to run at ${location.hostname}: use http://127.0.0.1:5178 (it has no real plans and can't reach Google Drive).`);
-  }
-}
-
-const text = (el) => el.textContent.replace(/\s+/g, ' ').trim();
-const modal = () => document.querySelector('#modal.show');
-const scope = () => modal() ?? document;
-
-/** An element by CSS selector, or (any other string) the button/link/label whose words match. */
-function find(target, root = scope()) {
-  if (/^[[.#]/.test(target)) return root.querySelector(target);
-  const items = [...root.querySelectorAll('button, a, label, summary, [role="tab"]')];
-  return items.find((el) => text(el) === target) ?? items.find((el) => text(el).includes(target));
-}
-
-async function click(target) {
-  const el = await waitFor(() => find(target), 6000, `"${target}" to appear`);
-  el.click();
-  await sleep(30);
-}
-
-/** Fill the field whose label reads `label` (inside the open window, else the page). */
-async function fill(label, value) {
-  const field = await waitFor(() => [...scope().querySelectorAll('label.field')].find((l) => text(l.querySelector('span')) === label), 4000, `field "${label}"`);
-  const input = field.querySelector('input');
-  input.value = value;
-  input.dispatchEvent(new Event('input', { bubbles: true }));
-  input.dispatchEvent(new Event('change', { bubbles: true }));
-}
-
-function tick(box, on) {
-  if (box.checked !== on) box.click();
-}
-
-/** Give a file input a file with `json` as its words, as if chosen. */
-function chooseFile(input, json, name = 'plan.json') {
-  const data = new DataTransfer();
-  data.items.add(new File([typeof json === 'string' ? json : JSON.stringify(json)], name, { type: 'application/json' }));
-  input.files = data.files;
-  input.dispatchEvent(new Event('change', { bubbles: true }));
-}
-
-async function openPlansMenu() {
-  await click('[data-tour="plan-button"]');
-  await waitFor(modal, 4000, 'the plans menu');
-}
-
-/** Start a new school year through the buttons (the welcome screen, or the plans menu). */
-async function startNewYear({ name, start, end, copy }) {
-  if (!modal() && find('[data-tour="plan-button"]')) await openPlansMenu();
-  await click('[data-tour="start-year"]');
-  await waitFor(() => modal()?.querySelector('[aria-label="Start a new school year"]') ?? modal(), 4000, 'the new-year window');
-  await fill('Name', name);
-  await fill('First day', start);
-  await fill('Last day', end);
-  const box = [...modal().querySelectorAll('label.check input[type="checkbox"]')].find((b) => text(b.parentElement).startsWith('Copy schools'));
-  if (box && copy !== undefined) tick(box, copy);
-  await click('Create year');
-  await waitFor(() => !modal() && yearOpen(name), 10000, `the year "${name}" to open`);
-  await flushSave();
-}
-
-function yearOpen(name) {
-  const state = store.state;
-  return state && workspace.pieces && state.years.find((y) => y.id === state.activeYearId)?.name === name;
-}
-
-/** Run assistant commands (the real data-changing path); fail the case if any is refused. */
-function commands(steps) {
-  const results = window.lessonPlanner.run(steps);
-  const bad = [].concat(results).find((r) => r?.error);
-  check(!bad, `command refused: ${bad?.error}`);
-  return results;
-}
-
-async function saved() {
-  await flushSave();
-  await sleep(50);
-  return allPlans();
-}
 
 const counts = (s) => [s.schools.length, s.lessons.length, s.weekLessons.length].join();
 const ofPiece = (records, piece) => records.filter((r) => r.piece === piece);
@@ -356,23 +259,6 @@ async function importFile(json) {
 
 // ---------- running ----------
 
-/** Watch for errors while a case runs. */
-function watchErrors() {
-  const errors = [];
-  const onError = (e) => errors.push(`error: ${e.message}`);
-  const onReject = (e) => errors.push(`unhandled rejection: ${e.reason?.message ?? e.reason}`);
-  const original = console.error;
-  console.error = (...args) => { errors.push(`console.error: ${args.map(String).join(' ')}`); original.apply(console, args); };
-  window.addEventListener('error', onError);
-  window.addEventListener('unhandledrejection', onReject);
-  return () => {
-    window.removeEventListener('error', onError);
-    window.removeEventListener('unhandledrejection', onReject);
-    console.error = original;
-    return errors;
-  };
-}
-
 async function runCase(name) {
   const stop = watchErrors();
   let error = null;
@@ -406,17 +292,4 @@ export async function run({ only: wanted } = {}) {
   }
   const passed = results.filter((r) => r.ok).length;
   return { passed, failed: results.length - passed, results };
-}
-
-/** Make this a fresh computer: forget every cached plan and setting. Then reload the page. */
-export async function reset() {
-  guardHost();
-  await flushSave();
-  for (const rec of await allPlans()) await deletePlan(rec.key);
-  for (const { name } of (await indexedDB.databases?.()) ?? []) indexedDB.deleteDatabase(name); // finishes when the page closes its copy
-  localStorage.clear();
-  sessionStorage.clear();
-  // The app keeps a quick copy of unsaved work as the page closes; clear that too, after it has run.
-  window.addEventListener('pagehide', () => { localStorage.clear(); });
-  return 'Fresh. Reload the page now.';
 }

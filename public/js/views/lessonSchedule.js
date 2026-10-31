@@ -166,7 +166,9 @@ function entryCard(entry, index, week, placements) {
   const lesson = find(store.state, 'lessons', entry.lessonId);
   const outcome = entryOutcome(store.state, entry, placements);
   const missing = missingInstruments(store.state, entry, week).map((id) => name('instruments', id));
-  const tip = [lesson?.name, outcome ? outcomeLabel(outcome) : 'Not part of an eval this week',
+  // A template that can't be had says why (not shared with you, gone…) instead of just going blank.
+  const gone = lesson ? null : unavailableWhy('lessons', entry.lessonId);
+  const tip = [lesson?.name ?? gone, outcome ? outcomeLabel(outcome) : 'Not part of an eval this week',
     missing.length ? `⚠ ${missing.join(', ')} isn’t at the school this week` : null].filter(Boolean).join('\n');
   return h('div', {
     class: `ls-card ${missing.length ? 'has-warn' : ''}`, draggable: 'true',
@@ -174,7 +176,7 @@ function entryCard(entry, index, week, placements) {
     ondragstart: (e) => e.dataTransfer.setData('text/plain', JSON.stringify({ entryId: entry.id })),
     onclick: (e) => { if (!e.target.closest('.ls-x')) cardMenu(e, entry, lesson); },
   },
-  h('div', { class: 'ls-thumb' }, copyCanvas(lesson, copyFileOfEntry(entry.id))),
+  h('div', { class: 'ls-thumb' }, copyCanvas(lesson, copyFileOfEntry(entry.id), gone)),
   h('div', { class: 'ls-card-caption' },
     h('span', { class: 'slide-num' }, index + 1),
     missing.length ? h('span', { class: 'warn', 'aria-label': 'Instrument warning' }, '⚠') : null,

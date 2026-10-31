@@ -8,7 +8,7 @@
 // changed differently are put to the teacher.
 
 import { newId } from './model.js';
-import { commit, flushSave, refresh, setGuard, setPersist, setSaveStatus, store, useState } from './store.js';
+import { commit, flushSave, refresh, refreshSoon, setGuard, setPersist, setSaveStatus, store, useState } from './store.js';
 import { device, setDevice } from './deviceSettings.js';
 import { google } from './google.js';
 import { allPlans, deletePlan, getPlan, putPlan, rescue } from './localCache.js';
@@ -476,6 +476,8 @@ async function syncPieces() {
 }
 
 function tellPieceTrouble(results) {
+  // A piece found missing or unshared changes what pages say about it (greyed links, notes), so redraw.
+  if (results.some((r) => r.error)) refreshSoon();
   const lost = results.filter((r) => r.error && r.error !== 'offline' && r.error !== 'signed_out');
   if (!lost.length) return;
   showNotice({
