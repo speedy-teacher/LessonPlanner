@@ -52,6 +52,13 @@ instruments, **Open this eval in Outcomes, Evals & Lesson Order** (its lesson li
 up the button to press or the box to fill in, waits for you to do it, and offers the next tutorial at the end. A dot on 🎓
 means there's a tutorial you haven't seen yet.
 
+**🤝 Sharing with a department** — a plan can be three files, shared separately: the **School Year** (calendars, schools,
+grades, instruments, events, outcomes & evals — share it with your department), your **Lesson Schedule** (weekly lessons,
+lesson order, reports, your colors) and your **Teacher Resources** (lesson templates and pictures, kept across years).
+"Share with your department…" in the plan menu moves an older plan over (the old file is kept). On the teacher pages,
+**👀 Looking at** shows a teammate's schedule, templates and pictures; anything shared with you as Viewer is shown
+view only, and anything not shared with you is greyed out with the reason.
+
 The top bar shows a Drive status pill (click to sign in or open settings). Notices pop up in the bottom-left corner (`public/js/notices.js` — reusable: message, buttons, auto-hide).
 
 ## Data model
@@ -65,6 +72,8 @@ of an eval in teaching order, by `position` — each grade of the eval has its o
 `placements` (an eval criterion for a school + grade from `startDate` to `endDate`) and
 `instrumentBlocks` (year-scoped, never copied). Outcomes carry a `color` shared by all their evals.
 Older saved files are upgraded automatically when loaded (`schemaVersion`).
+Shared plans keep these collections in three piece files (`public/js/pieces.js`): School Year, Teacher Schedule
+(which points at the other two) and Teacher Resources; the app works on them combined.
 
 ## For developers
 

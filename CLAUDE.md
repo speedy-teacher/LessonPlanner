@@ -57,6 +57,29 @@ A browser app for a (non-technical) elementary music teacher to plan a school ye
 - `RELATIONS` drives cascading deletes. `settings` = app-wide values. `schemaVersion` + `migrate()` — back up the data file
   to `data/backups/before-<change>.json` before any migration. Design data for expandability and reuse.
 
+## Plans in pieces (department sharing; plan: `docs/plans/data-split.md`)
+- `pieces.js` (pure + tested): `PIECES` says which piece every collection is saved in — **School Year** (years, schools,
+  grades, instruments, outcomes, criteria, placements, instrumentBlocks, holidays), **Teacher Schedule** (weekLessons,
+  criterionLessons + `yearSettings` {output, reports} + `looks` {grades, instruments} colors + `meta` {links, ownerId, year})
+  and **Teacher Resources** (lessons, deckFolders, images, imageFolders, tagGroups, tags, localRoots; no yearId — kept
+  across years). `TEACHER_FIELDS` = School Year record fields that are the teacher's own. `splitState`/`composeState`:
+  the app still works on one combined state; a missing piece is empty and **links into it are never tidied** (heals when
+  it's back). `keepViewOnly` = store guard (`setGuard`) that takes changes to view-only pieces back out.
+  A new year keeps carried-over ids (`keepIds`), so a long-lived Resources still matches.
+- `pieceEngine.js` `PiecePlan` (tested against a fake Drive): per-piece cache record (`piece`, `data`, `rev`, `base`…),
+  save only changed pieces, per-piece sync/`mergePiece` (planMerge.js; tidies only links inside the piece), `missing` /
+  `stale` / `access(name)` ('edit' | 'view' | 'none'), `view(theirSchedule)`/`viewMine()`/`myState()` for teammates,
+  `rebaseState` for edits made during a sync, `whyUnavailable` for greyed links. Drive labels: `lessonPlanner` =
+  schoolYear|schedule|resources, `lpSchoolYear` on a Schedule (teammates found with `listSchedulesFor`, never stored).
+- `workspace.js`: `pieces` (null = older one-file plan, still fully supported), `createPiecePlan`, `splitCurrentPlan`,
+  `joinSchoolYear` (`joinYear.js` matches by name, tested), `viewTeammate`/`viewMine`, `myPlanState()` (exports and
+  reports read only this), `copiesWaitFor()` (copies pause while looking, and wait — never trash — while a piece is missing).
+- UI: `views/shareSetup.js` (guided move), `views/people.js` (bar under the tabs: "Looking at" + view-only/missing notes;
+  `PAGE_PIECES`), `views/viewOnly.js` (`markViewOnly` after each render: `data-piece` zones, edit controls hidden via
+  `css/sharing.css`, inputs off except search/filters/`data-look`, `[data-edit]` clicks caught). Mark new edit buttons
+  `data-edit` (`'hide'` to hide), personal parts `data-piece="schedule"`, and use `goButton`/`unavailableWhy` (common.js)
+  for links to other records.
+
 ## UI patterns (`public/js/`)
 - Pages are listed in `tabInfo.js` (id, label, icon, Setup-menu or tab); `app.js` adds how each is drawn.
 - `commit(mutate)` for every data change (undo/redo, autosave); `setUi(patch)` for view state; `refresh()` to redraw.

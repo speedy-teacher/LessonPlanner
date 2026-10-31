@@ -5,6 +5,7 @@
 // reach the page underneath, while clicks on the dim part don't. The page redraws itself after
 // every change, so the lit-up parts are looked up again on every animation frame.
 
+import { pieces } from '../workspace.js';
 import { h } from '../dom.js';
 import { createRunner, mergeBoxes, targetNames } from '../tutorialPlan.js';
 import { store } from '../store.js';
@@ -37,6 +38,7 @@ export function tutorialContext() {
   const year = state?.years.find((y) => y.id === state.activeYearId) ?? null;
   return {
     hasPlan: Boolean(state),
+    inPieces: Boolean(pieces), // the plan is shared in parts (School Year + Lesson Schedule + Teacher Resources)
     tab: store.ui.tab || 'plan',
     ui: store.ui,
     state: state ?? { criteria: [] },

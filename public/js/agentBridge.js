@@ -13,7 +13,8 @@
 
 import { commit, hasPendingSave, store, undo } from './store.js';
 import { google } from './google.js';
-import { current } from './workspace.js';
+import { current, listTeammates, pieces, viewMine, viewTeammate } from './workspace.js';
+import { PIECE_NAMES, PIECES } from './pieces.js';
 import { showNotice } from './notices.js';
 import { copyStatus } from './exportBridge.js';
 import { COMMANDS, CommandError, NEEDS_THE_TEACHER, describeCommands, runCommands } from './agentCommands.js';
@@ -23,7 +24,9 @@ const GUIDE = 'Lesson Planner commands. First call lessonPlanner.status() to see
   + 'Things are named as shown in the app (school, grade, lesson, eval) or by id. Weeks are a week number or any date in the week. '
   + 'Dates look like 2026-09-14; positions start at 1. Lists can be arrays of names. Start with "overview". '
   + 'Read before you change things, and do a whole request in one run([...]) so it is one Undo. '
-  + 'If a command is missing for something, say so rather than editing data another way.';
+  + 'If a command is missing for something, say so rather than editing data another way. '
+  + 'A plan is three parts (status().parts): the School Year (shared by a department), the teacher’s Lesson Schedule and their Teacher Resources. '
+  + 'A part shown as "view" or "none" cannot be changed. lessonPlanner.people() lists teammates; lessonPlanner.lookAt(name or "me") shows their schedule, templates and pictures.';
 
 function announce(steps, results) {
   const done = results.map((r) => r?.done).filter(Boolean);
@@ -38,6 +41,8 @@ function run(nameOrSteps, args = {}) {
   if (!store.state) return { error: 'No plan is open. Ask the teacher to open one first.' };
   try {
     const outcome = runCommands(store.state, steps);
+    const refused = outcome.changed ? viewOnlyParts(outcome.state) : [];
+    if (refused.length) return { error: `Nothing was changed: the ${refused.join(' and ')} can only be looked at (shared as Viewer, or not available).` };
     if (outcome.changed) {
       commit((state) => {
         Object.keys(state).forEach((k) => delete state[k]);
@@ -50,6 +55,34 @@ function run(nameOrSteps, args = {}) {
     if (err instanceof CommandError) return { error: err.message };
     throw err;
   }
+}
+
+/** The view-only parts of the plan a change would touch (all or nothing: the change is refused). */
+function viewOnlyParts(next) {
+  if (!pieces?.readOnly().length) return [];
+  return pieces.guard(store.state, next).blocked.map((name) => PIECES[name].label);
+}
+
+/** Each part of a plan in pieces: 'edit', 'view' (look only) or 'none' (not available); plus whose plans are shown. */
+function partsStatus() {
+  if (!pieces) return null;
+  return { ...Object.fromEntries(PIECE_NAMES.map((name) => [name, pieces.access(name)])), lookingAt: pieces.viewing?.name ?? 'me' };
+}
+
+/** Teammates whose Lesson Schedules use this School Year and are shared with the teacher. */
+async function people() {
+  return pieces ? (await listTeammates()).map((p) => p.name) : [];
+}
+
+/** Show a teammate's schedule, templates and pictures (by name), or "me" for the teacher's own. */
+async function lookAt(name = 'me') {
+  if (!pieces) return { error: 'This plan isn’t shared in parts yet (see “Share with your department” in the plan menu).' };
+  if (String(name).trim().toLowerCase() === 'me') { await viewMine(); return { lookingAt: 'me' }; }
+  const all = await listTeammates();
+  const person = all.find((p) => p.name.toLowerCase() === String(name).trim().toLowerCase());
+  if (!person) return { error: `No teammate called “${name}”. Teammates: ${all.map((p) => p.name).join(', ') || 'none shared yet'}.` };
+  await viewTeammate(person);
+  return { lookingAt: person.name, parts: partsStatus() };
 }
 
 /** What the assistant needs to know before and after changing things: which plan, signed in, saved. */
@@ -65,6 +98,7 @@ function status() {
     allChangesSaved: !facts.pending && store.saveStatus !== 'error', saveStatus: store.saveStatus,
     nextStep: nextStepFor(facts),
     lessonCopies: facts.planOpen ? copyStatus() : null, // { state, pictures?: pictures that couldn't be placed, and why }
+    parts: partsStatus(), // School Year / Lesson Schedule / Teacher Resources: 'edit' | 'view' | 'none' (null = older one-file plan)
   };
 }
 
@@ -118,6 +152,6 @@ function offerAsTools() {
 }
 
 export function startAgentBridge() {
-  window.lessonPlanner = Object.freeze({ status, help, run, guide: GUIDE });
+  window.lessonPlanner = Object.freeze({ status, help, run, people, lookAt, guide: GUIDE });
   offerAsTools();
 }

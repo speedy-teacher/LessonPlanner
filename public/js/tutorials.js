@@ -4,7 +4,7 @@
 // popMenu/menuItem). test/tutorials.test.js checks every name used here exists in the page code.
 //
 // `ctx` (made in views/tutorialGuide.js):
-//   hasPlan, tab, ui, state, year, google ('connected', 'idle'…), driveAvailable (the website has its Google codes),
+//   hasPlan, inPieces (plan shared in parts), tab, ui, state, year, google ('connected', 'idle'…), driveAvailable (the website has its Google codes),
 //   count(collection) (this year's records),
 //   isOpen(name) (a menu or list with that data-tour name is open), exists(name), modal (open dialog's title or null)
 //
@@ -534,7 +534,51 @@ const plans = {
   ],
 };
 
+const sharing = {
+  id: 'sharing',
+  icon: '🤝',
+  title: 'Share with your department',
+  about: 'Share the School Year with colleagues, and look at their lesson schedules and templates.',
+  ready: needsPlan,
+  steps: [
+    {
+      target: 'plan-button',
+      text: 'Click your plan’s name.',
+      skipIf: (ctx) => ctx.inPieces,
+      until: (ctx) => ctx.modal === 'Your plans',
+    },
+    {
+      target: 'share-department',
+      text: 'Click “🤝 Share with your department…”.',
+      skipIf: (ctx) => ctx.inPieces,
+      until: (ctx) => ctx.modal === 'Share with your department',
+      backIf: (ctx) => !ctx.modal,
+    },
+    {
+      selector: MODAL,
+      title: 'Three parts, shared separately',
+      text: 'Your plan becomes three files: the School Year (share it with your department), your Lesson Schedule and your Teacher Resources (yours). Pick “Start a new shared School Year” if you’re the first, or “Join” to use one a colleague shared.',
+      skipIf: (ctx) => ctx.inPieces,
+      until: (ctx) => ctx.inPieces,
+      backIf: (ctx) => !ctx.modal && !ctx.inPieces,
+    },
+    ...goTo('lessonSchedule'),
+    {
+      target: 'people-picker',
+      title: 'Look at a teammate’s plans',
+      text: 'Click “👀 Looking at” and pick a name to see that teammate’s Lesson Schedule, lesson order, templates and pictures. Pick “Me” to come back. (Teammates show up once they’ve shared their Lesson Schedule with you.)',
+      skipIf: (ctx) => !ctx.exists('people-picker'),
+    },
+    {
+      target: 'piece-bar',
+      title: 'View only',
+      text: 'When something was shared with you as “Viewer”, a note says so here: you can look, search and open things, but not change them.',
+      skipIf: (ctx) => !ctx.exists('piece-note-view'),
+    },
+  ],
+};
+
 export const TUTORIALS = [
   welcome, googleDrive, schoolYear, lessonTemplates, outcomes, instrumentSchedule, evalCalendar,
-  lessonSchedule, images, lessonCopies, reports, plans,
+  lessonSchedule, images, lessonCopies, reports, plans, sharing,
 ];

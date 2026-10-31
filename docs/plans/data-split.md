@@ -1,6 +1,6 @@
 # Plan: splitting a plan into three shareable pieces
 
-Status: **proposal, waiting for approval.** Nothing is built yet.
+Status: **built** (steps 1–7), version 0.5.0. Not yet tried against real Google Drive with two accounts.
 
 ## 1. The three pieces
 
