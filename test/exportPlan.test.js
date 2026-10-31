@@ -108,17 +108,19 @@ test('a folder on the computer copies files as they are (nothing filled in)', ()
   assert.deepEqual(want.values, {});
 });
 
-test('lesson numbers run through the class’s whole schedule; dates are the school days of the week', () => {
+test('lesson number counts within the week; lesson number abs runs through the year; dates are the school days of the week', () => {
   const { s, year, plain, numbered, cls, weeks } = setup();
   addWeekLesson(s, { ...cls, weekStart: weeks[0].weekStart, lessonId: plain.id });
   addWeekLesson(s, { ...cls, weekStart: weeks[1].weekStart, lessonId: plain.id });
   const third = addWeekLesson(s, { ...cls, weekStart: weeks[1].weekStart, lessonId: numbered.id });
   const values = entryValues(s, third, weeks[1]);
-  assert.equal(values.lessonNumber, '3');
+  assert.equal(values.lessonNumber, '2');
+  assert.equal(values.lessonNumberAbs, '3');
   assert.equal(values.week, '2');
   assert.equal(values.date, 'Aug 31 – Sep 4');
   assert.equal(entryValues(s, third, weeks[0]).school, 'School A');
-  assert.equal(wants(s, year.id).at(-1).values['{{lesson_number}}'], '3');
+  assert.equal(wants(s, year.id).at(-1).values['{{lesson_number}}'], '2');
+  assert.equal(wants(s, year.id).at(-1).values['{{lesson_number_abs}}'], '3');
 });
 
 test('names are safe for folders on the computer', () => {

@@ -38,11 +38,21 @@ export function fingerprint(text) {
 
 const scheduleOrder = (a, b) => a.weekStart.localeCompare(b.weekStart) || a.position - b.position;
 
-/** Each entry's running lesson number for its class (school + grade) through the year: entry id → 1, 2, 3… */
+/**
+ * Each entry's lesson numbers for its class (school + grade): entry id → { week, abs }.
+ * `week` = 1st, 2nd… lesson of its week; `abs` = running number from the start of the school year.
+ */
 export function lessonNumbers(entries) {
   const numbers = new Map();
   const byClass = Map.groupBy([...entries].sort(scheduleOrder), (e) => `${e.yearId}|${e.schoolId}|${e.gradeId}`);
-  for (const list of byClass.values()) list.forEach((e, i) => numbers.set(e.id, i + 1));
+  for (const list of byClass.values()) {
+    const inWeek = new Map();
+    list.forEach((e, i) => {
+      const week = (inWeek.get(e.weekStart) ?? 0) + 1;
+      inWeek.set(e.weekStart, week);
+      numbers.set(e.id, { week, abs: i + 1 });
+    });
+  }
   return numbers;
 }
 
@@ -61,7 +71,8 @@ export function entryValues(state, entry, week, numbers = lessonNumbers(state.we
     grade: nameOf('grades', entry.gradeId),
     date: formatRange(days[0], days.at(-1)),
     week: String(week.number),
-    lessonNumber: String(numbers.get(entry.id) || ''),
+    lessonNumber: String(numbers.get(entry.id)?.week || ''),
+    lessonNumberAbs: String(numbers.get(entry.id)?.abs || ''),
     instrument: lessonInstruments(state, lesson).map((i) => i.name).join(', '),
     outcome: outcomeLabel(find(state, 'outcomes', criterion?.outcomeId)),
     criterion: criterion?.title || '',
