@@ -20,6 +20,7 @@ import {
 import { listDriveCopies, makeReports } from '../reportMaker.js';
 import { copyStatus, keptReportFiles, knownCopies, recheckCopies, weeklyReportFiles } from '../exportBridge.js';
 import { current, emptyNote, year } from './common.js';
+import { pieces } from '../workspace.js';
 
 // Copies looked up for the preview when this computer doesn't keep them (this visit only).
 const looked = { key: null, copies: null, busy: false };
@@ -142,12 +143,16 @@ async function chooseFolder() {
   toast(`Reports go to “${picked.name}”.`);
 }
 
+/** Why reports can't be made right now ('' = they can). */
+function whyNotMake(folder) {
+  if (pieces?.own) return 'You can only make reports from your own Lesson Schedule — switch “Looking at” back to Me.';
+  if (google.status !== 'connected') return 'Connect Google Drive first.';
+  return folder ? '' : 'Choose a Drive folder first.';
+}
+
 function makeButton(files) {
   const folder = reportFolder(year());
-  const connected = google.status === 'connected';
-  let why = '';
-  if (!connected) why = 'Connect Google Drive first.';
-  else if (!folder) why = 'Choose a Drive folder first.';
+  const why = whyNotMake(folder);
   const what = files.length === 1 ? 'the report' : `${files.length} reports`;
   const label = making ? 'Making…' : `Make ${what}${settings().manual.keepUpToDate ? ' and keep up to date' : ''}`;
   return h('div', { class: 'report-row' },

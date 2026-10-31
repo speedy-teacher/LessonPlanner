@@ -12,7 +12,7 @@ import { h } from './dom.js';
 import { activeYear, find } from './model.js';
 import { annotate, refresh, refreshSoon, store, subscribe } from './store.js';
 import { google } from './google.js';
-import { current as plan } from './workspace.js';
+import { copiesWaitFor, myPlanState, current as plan } from './workspace.js';
 import { canFillIn, driveFileId, driveOpenUrl, findLocation, googleTypeFor } from './locations.js';
 import { groupCopies, keysToDo, nextStep, safeName, SETTLE_MS, sparesFor, updateTime, wantedCopies } from './exportPlan.js';
 import { SLIDES } from './exportGoogle.js';
@@ -74,7 +74,7 @@ const settling = () => Date.now() < lastEdit() + SETTLE_MS;
  * (the computer folder must be allowed again) · 'other-computer' · 'other-keeper' ({ keeperName, behind }).
  */
 export function copyStatus() {
-  const output = (store.state && activeYear(store.state)?.output) ?? null;
+  const output = myOutput();
   if (!output) return { state: 'none' };
   // A folder just chosen (or another year): say so until it's been looked at.
   const status = bridge.statusFor === JSON.stringify(output) ? bridge.status : { state: 'checking' };
@@ -89,7 +89,7 @@ function picturesStatus() {
   }));
 }
 
-const imageNamed = (fileId) => store.state?.images.find((i) => driveFileId(i) === fileId) ?? null;
+const imageNamed = (fileId) => myPlanState()?.images.find((i) => driveFileId(i) === fileId) ?? null;
 
 /** Start watching for changes (once, when the planner opens). */
 export function startExportBridge() {
@@ -157,14 +157,22 @@ export function recheckCopies() {
 function setStatus(status) {
   const before = JSON.stringify([bridge.status, bridge.statusFor]);
   bridge.status = status;
-  bridge.statusFor = JSON.stringify((store.state && activeYear(store.state)?.output) ?? null);
+  bridge.statusFor = JSON.stringify(myOutput());
   if (JSON.stringify([status, bridge.statusFor]) !== before) refresh();
+}
+
+/** Your own plan's copies folder (also while looking at a teammate's plan: only your own copies are ever made). */
+function myOutput() {
+  const mine = myPlanState();
+  return (mine && activeYear(mine)?.output) ?? null;
 }
 
 /** Who may change the copies, and what's stopping this computer from doing it (null = nothing). */
 function blocker(output) {
   if (!output) return { state: 'none' };
   if (!plan || plan.canEdit === false) return { state: 'view-only' };
+  const pieceWait = copiesWaitFor();
+  if (pieceWait) return pieceWait;
   if (google.status !== 'connected' || !google.token) return { state: 'waiting' };
   return otherKeeper(output);
 }
@@ -185,7 +193,7 @@ async function makeTarget(year, output) {
   target.id = id;
   bridge.haves = await target.adapter.list();
   target.reports = target.adapter.kind === 'drive' ? weeklyReportKeeper(target.adapter, year.id) : null;
-  await target.reports?.load(store.state);
+  await target.reports?.load(myPlanState());
   bridge.target = target;
   bridge.wants = null;
   return target;
@@ -218,7 +226,7 @@ async function localTarget(year) {
 async function checkBehind(year, output, status) {
   try {
     const haves = await driveCopies({ token: google.token, rootId: output.folderId, yearId: year.id }).list();
-    const wants = wantedCopies(store.state, year.id, { ...driveTarget(year, output), yearFolder: plan.name });
+    const wants = wantedCopies(myPlanState(), year.id, { ...driveTarget(year, output), yearFolder: plan.name });
     return { ...status, behind: keysToDo(wants, haves).length };
   } catch {
     return { ...status, behind: null }; // can't see the copies: say who keeps them anyway
@@ -228,7 +236,7 @@ async function checkBehind(year, output, status) {
 // ---------- working out what to do ----------
 
 async function look() {
-  const year = store.state && activeYear(store.state);
+  const year = myPlanState() && activeYear(myPlanState());
   const output = year?.output ?? null;
   const blocked = blocker(output);
   if (blocked?.state === 'other-keeper') return warnBehind(await checkBehind(year, output, blocked));
@@ -248,7 +256,7 @@ function showBlocked(status) {
 
 async function queueWork(target) {
   warn({ state: 'ready' }, null);
-  await target.reports?.sync(store.state).catch(() => {}); // the Reports tab's folder (or "keep up to date") may have changed
+  await target.reports?.sync(myPlanState()).catch(() => {}); // the Reports tab's folder (or "keep up to date") may have changed
   fillQueue(target);
   if (bridge.running) return undefined;
   if (!bridge.queue.size && !reportWork(target).length) return showOtherWorker(false);
@@ -292,7 +300,7 @@ async function claimCopies(target) {
   showOtherWorker(false);
   if (claim === 'new') {
     bridge.haves = await target.adapter.list();
-    await target.reports?.load(store.state);
+    await target.reports?.load(myPlanState());
     bridge.queue.clear();
     fillQueue(target);
   }
@@ -304,7 +312,7 @@ async function claimCopies(target) {
 /** The weekly reports that need making, updating or removing. */
 function reportWork(target) {
   if (!target.reports) return [];
-  return target.reports.steps(store.state, { wants: [...wanted(target).values()], copies: bridge.haves, rootKey: target.rootKey });
+  return target.reports.steps(myPlanState(), { wants: [...wanted(target).values()], copies: bridge.haves, rootKey: target.rootKey });
 }
 
 async function updateReports(target) {
@@ -327,7 +335,7 @@ function showOtherWorker(on) {
 
 function wanted(target) {
   if (bridge.wants?.version !== bridge.version || bridge.wants.targetId !== target.id) {
-    const list = wantedCopies(store.state, target.yearId, { ...target, yearFolder: plan.name });
+    const list = wantedCopies(myPlanState(), target.yearId, { ...target, yearFolder: plan.name });
     bridge.wants = { version: bridge.version, targetId: target.id, map: new Map(list.map((w) => [w.key, w])) };
   }
   return bridge.wants.map;
@@ -350,7 +358,7 @@ function signature(target, key) {
 
 /** Keep working through the queue? Not while your latest change settles (a look is already planned). */
 function canGoOn(target) {
-  return Boolean(target) && !settling() && blocker(activeYear(store.state)?.output) === null;
+  return Boolean(target) && !settling() && blocker(activeYear(myPlanState())?.output) === null;
 }
 
 /** Work through the queue, a few entries at once (each entry one step at a time). */
@@ -432,7 +440,7 @@ const dropHave = (have) => { bridge.haves = bridge.haves.filter((c) => c.id !== 
 
 async function run(target, step) {
   const { adapter } = target;
-  const source = findLocation(find(store.state, 'lessons', step.want?.lessonId), 'drive');
+  const source = findLocation(find(myPlanState(), 'lessons', step.want?.lessonId), 'drive');
   if (step.kind === 'create') {
     const made = await adapter.create(step.want, source);
     bridge.haves = [...bridge.haves, made];
@@ -490,7 +498,7 @@ function pictureProblem(have, want) {
 }
 
 function lessonName(id) {
-  return find(store.state, 'lessons', id)?.name ?? 'a lesson';
+  return find(myPlanState(), 'lessons', id)?.name ?? 'a lesson';
 }
 
 const where = (want) => want.path.slice(1).join(' › ');
@@ -536,7 +544,7 @@ let lastWarning = null; // so a closed warning only comes back when something's 
 
 function warn(status, message) {
   setStatus(status);
-  const text = JSON.stringify([store.state?.activeYearId, message]);
+  const text = JSON.stringify([myPlanState()?.activeYearId, message]);
   if (text === lastWarning) return;
   lastWarning = text;
   if (!message) return dismissNotice(BEHIND_NOTICE);

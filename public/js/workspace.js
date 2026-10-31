@@ -379,7 +379,7 @@ function driveCalls() {
 
 /** What `current` says about a plan made of pieces: its Teacher Schedule's details. */
 function scheduleInfo() {
-  const rec = pieces.recs.schedule;
+  const rec = (pieces.own ?? pieces.recs).schedule; // your own, also while looking at a teammate's
   return {
     kind: 'pieces', key: rec.key, name: rec.name, fileId: rec.fileId ?? null, folderId: rec.folderId ?? null,
     canEdit: rec.canEdit !== false, changed: pieces.unsaved().length > 0, savedAt: rec.savedAt,
@@ -626,7 +626,24 @@ export async function viewMine() {
   return syncNow();
 }
 
+let mine = { key: [], state: null };
+
 /** Your own plan's data, also while looking at a teammate's (lesson copies and reports come from it). */
 export function myPlanState() {
-  return pieces ? pieces.myState() : store.state;
+  if (!pieces?.own) return store.state;
+  const key = [pieces.recs.schoolYear, pieces.own.schedule, pieces.own.resources];
+  if (key.some((rec, i) => rec !== mine.key[i])) mine = { key, state: pieces.myState() };
+  return mine.state;
+}
+
+/**
+ * Why your lesson copies can't be updated right now because of the plan's pieces (null = they can):
+ * you're looking at a teammate's plan ('looking'), or your School Year or Teacher Resources isn't loaded
+ * ('missing-piece') — copies are never removed just because their template can't be reached.
+ */
+export function copiesWaitFor() {
+  if (!pieces) return null;
+  if (pieces.own) return { state: 'looking' };
+  const piece = ['schoolYear', 'resources'].find((name) => pieces.access(name) === 'none' && pieces.missing[name] !== 'not_linked');
+  return piece ? { state: 'missing-piece', piece: PIECES[piece].label } : null;
 }
