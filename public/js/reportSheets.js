@@ -3,7 +3,7 @@
 // fingerprint, so the planner finds it again from any computer and only rewrites it when it changed.
 // Rewriting replaces every tab in one go (new tabs in, old tabs out), so a report is never half-written.
 
-import { reportRows } from './reportPlan.js';
+import { reportRows, reportWidth } from './reportPlan.js';
 
 const DRIVE = 'https://www.googleapis.com/drive/v3/files';
 const SHEETS_API = 'https://sheets.googleapis.com/v4/spreadsheets';
@@ -11,7 +11,15 @@ export const SHEETS = 'application/vnd.google-apps.spreadsheet';
 export const REPORT_LABEL = 'lessonPlannerReport';
 const FIELDS = 'id,name,parents,appProperties';
 
-const COLUMN_WIDTHS = [90, 480];
+const NUMBER_WIDTH = 90;
+const LESSON_WIDTH = 420;
+const COLUMN_WIDTH = 220; // an extra column
+
+/** Column widths (pixels): lesson number, extra columns left, the lesson, extra columns right. */
+function columnWidths(tab) {
+  const extra = (list) => (list ?? []).map(() => COLUMN_WIDTH);
+  return [NUMBER_WIDTH, ...extra(tab.columns?.left), LESSON_WIDTH, ...extra(tab.columns?.right)];
+}
 
 /** '#5b3f8c' → Google's { red, green, blue } (0–1). */
 function rgb(hex) {
@@ -36,6 +44,9 @@ const STYLES = {
   instruments: { textFormat: text({}) },
   number: { horizontalAlignment: 'CENTER', textFormat: text({ foregroundColor: INK_SOFT }) },
   lesson: { textFormat: text({}) },
+  column: { textFormat: text({}) },
+  columnHead: { backgroundColor: ROYAL_SOFT, textFormat: text({ bold: true, foregroundColor: ROYAL }) },
+  extra: { textFormat: text({ fontSize: 9, foregroundColor: INK_SOFT }) },
   empty: { textFormat: text({ italic: true, foregroundColor: INK_SOFT }) },
   note: { textFormat: text({ italic: true, fontSize: 9, foregroundColor: INK_SOFT }) },
 };
@@ -62,15 +73,26 @@ function uniqueTitles(tabs) {
   });
 }
 
-const fullRow = (sheetId, row) => ({ sheetId, startRowIndex: row, endRowIndex: row + 1, startColumnIndex: 0, endColumnIndex: 2 });
+/** Merges for cells that cover more than one column (`span`). */
+function merges(sheetId, rows) {
+  return rows.flatMap((row, r) => {
+    let column = 0;
+    return row.flatMap((cell) => {
+      const start = column;
+      column += cell.span ?? 1;
+      return (cell.span ?? 1) > 1
+        ? [{ mergeCells: { range: { sheetId, startRowIndex: r, endRowIndex: r + 1, startColumnIndex: start, endColumnIndex: column }, mergeType: 'MERGE_ALL' } }]
+        : [];
+    });
+  });
+}
 
-function tabRequests(sheetId, title, rows) {
-  const headingRows = [0, 1, rows.length - 1]; // title, dates and the note at the bottom span both columns
+function tabRequests(sheetId, title, { tab, rows }) {
   return [
     { updateSheetProperties: { properties: { sheetId, title }, fields: 'title' } },
     { updateCells: { start: { sheetId, rowIndex: 0, columnIndex: 0 }, rows: rows.map((r) => ({ values: r.map(sheetCell) })), fields: 'userEnteredValue,userEnteredFormat' } },
-    ...headingRows.map((row) => ({ mergeCells: { range: fullRow(sheetId, row), mergeType: 'MERGE_ALL' } })),
-    ...COLUMN_WIDTHS.map((pixelSize, i) => ({
+    ...merges(sheetId, rows),
+    ...columnWidths(tab).map((pixelSize, i) => ({
       updateDimensionProperties: { range: { sheetId, dimension: 'COLUMNS', startIndex: i, endIndex: i + 1 }, properties: { pixelSize }, fields: 'pixelSize' },
     })),
     { updateDimensionProperties: { range: { sheetId, dimension: 'ROWS', startIndex: 0, endIndex: 1 }, properties: { pixelSize: 44 }, fields: 'pixelSize' } },
@@ -82,19 +104,20 @@ function tabRequests(sheetId, title, rows) {
  * take the old tabs (`oldIds`) out, then name and fill the new ones.
  */
 export function sheetRequests(oldIds, tabs, newIds) {
-  const rows = tabs.map(reportRows);
+  const parts = tabs.map((tab) => ({ tab, rows: reportRows(tab) }));
   const titles = uniqueTitles(tabs);
   return [
-    ...tabs.map((tab, i) => ({
+    ...parts.map(({ tab, rows }, i) => ({
       addSheet: {
         properties: {
           sheetId: newIds[i], title: `new ${newIds[i]}`, index: i,
-          gridProperties: { rowCount: rows[i].length + 5, columnCount: COLUMN_WIDTHS.length, frozenRowCount: 2 },
+          // the title, the dates and (with extra columns) the column titles stay in view
+          gridProperties: { rowCount: rows.length + 5, columnCount: reportWidth(tab), frozenRowCount: reportWidth(tab) > 2 ? 3 : 2 },
         },
       },
     })),
     ...oldIds.map((sheetId) => ({ deleteSheet: { sheetId } })),
-    ...tabs.flatMap((tab, i) => tabRequests(newIds[i], titles[i], rows[i])),
+    ...parts.flatMap((part, i) => tabRequests(newIds[i], titles[i], part)),
   ];
 }
 

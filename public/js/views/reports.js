@@ -12,7 +12,7 @@ import { pickFolderFromDrive } from '../drive.js';
 import { todayISO } from '../dates.js';
 import { AUTO_FIELD_PLACEHOLDERS, AUTO_FIELDS, TEXT_FIELDS } from '../model.js';
 import { schoolWeeks } from '../weekPlan.js';
-import { copyFinder, DEFAULT_LABEL, LABEL_WORDS, manualReports, reportRows, reportSettings } from '../reportPlan.js';
+import { changedReports, copyFinder, DEFAULT_LABEL, LABEL_WORDS, manualReports, reportRows, reportSettings, reportWidth } from '../reportPlan.js';
 import { listDriveCopies, makeReports } from '../reportMaker.js';
 import { copyStatus, knownCopies, weeklyReportFiles } from '../exportBridge.js';
 import { current, emptyNote, year } from './common.js';
@@ -27,9 +27,7 @@ const settings = () => reportSettings(year());
 /** Save a change to the year's report settings (`patch` for the top level, `manual` for the report form). */
 function saveSettings({ manual, ...patch }) {
   const y = year();
-  const now = reportSettings(y);
-  const next = { label: now.label, weekly: now.weekly, ...patch, manual: { ...now.manual, ...manual } };
-  commit((s) => update(s, 'years', y.id, { reports: next }));
+  commit((s) => update(s, 'years', y.id, { reports: changedReports(y, patch, manual) }));
 }
 
 function thisWeek(weeks) {
@@ -56,7 +54,7 @@ function reportFiles() {
   const s = settings();
   const weeks = schoolWeeks(year());
   return manualReports(store.state, year().id, {
-    manual: s.manual, label: s.label, copyOf: copyFinder(copiesForPreview()), defaultWeek: thisWeek(weeks),
+    ...s, copyOf: copyFinder(copiesForPreview()), defaultWeek: thisWeek(weeks),
   });
 }
 
@@ -189,23 +187,85 @@ function madeList() {
 
 // ---------- how lessons are written ----------
 
-function labelCard() {
-  const { label } = settings();
-  const words = {
-    ...LABEL_WORDS,
-    ...Object.fromEntries(TEXT_FIELDS.map((key) => [AUTO_FIELD_PLACEHOLDERS[key], AUTO_FIELDS[key]])),
-  };
-  const input = h('input', {
-    class: 'inline-edit report-label', value: label, placeholder: DEFAULT_LABEL, dataset: { key: 'report-label' },
-    onchange: (e) => saveSettings({ label: e.target.value.trim() }),
+// The box the word buttons add to: 'label', or 'above'/'below' + row number (the last one typed in).
+let wordTarget = { list: 'label', index: 0 };
+
+const WORDS = {
+  ...LABEL_WORDS,
+  ...Object.fromEntries(TEXT_FIELDS.map((key) => [AUTO_FIELD_PLACEHOLDERS[key], AUTO_FIELDS[key]])),
+};
+
+/** A text box for the lesson line or one extra row; it saves when you press Enter or click away. */
+function rowInput(value, { list, index = 0, placeholder = '' }, onSave) {
+  return h('input', {
+    class: 'inline-edit report-label', value, placeholder, dataset: { key: `report-${list}-${index}` },
+    onfocus: () => { wordTarget = { list, index }; },
+    onchange: (e) => onSave(e.target.value.trim()),
     onkeydown: (e) => { if (e.key === 'Enter') e.target.blur(); },
   });
-  const addWord = (word) => saveSettings({ label: `${input.value.trim() || ''}${input.value.trim() ? ' ' : ''}${word}` });
+}
+
+/** Change one extra row (`text` null = take it out). */
+function saveRow(list, index, text) {
+  const rows = [...settings()[list]];
+  if (text === null) rows.splice(index, 1); else rows[index] = text;
+  saveSettings({ [list]: rows });
+}
+
+function addRow(list) {
+  const target = { list, index: settings()[list].length };
+  saveSettings({ [list]: [...settings()[list], ''] }); // redrawing may focus (and target) another box…
+  wordTarget = target; // …so the new row is the one words go into
+  focusLater(target);
+}
+
+// The extra rows and columns around the lesson: setting → [icon, where it goes, add-button text].
+const EXTRAS = {
+  above: ['⬆️', 'A row above the lesson', '+ Row above'],
+  left: ['⬅️', 'A column before the lesson', '+ Column before'],
+  right: ['➡️', 'A column after the lesson', '+ Column after'],
+  below: ['⬇️', 'A row below the lesson', '+ Row below'],
+};
+
+function extraRowsList(list) {
+  const [icon, where] = EXTRAS[list];
+  return settings()[list].map((text, index) => h('div', { class: 'report-extra-row' },
+    h('span', { class: 'extra-icon', 'data-tip': where }, icon),
+    rowInput(text, { list, index, placeholder: 'e.g. {{essential_outcome}}' }, (next) => saveRow(list, index, next)),
+    h('button', { class: 'icon-btn', title: 'Take it out', 'aria-label': 'Take it out', onclick: () => saveRow(list, index, null) }, '✕')));
+}
+
+const addButtons = (...lists) => h('div', { class: 'report-add-row' },
+  lists.map((list) => h('button', { class: 'btn small light', 'data-tip': EXTRAS[list][1], onclick: () => addRow(list) }, EXTRAS[list][2])));
+
+const focusLater = ({ list, index }) => setTimeout(() => document.querySelector(`[data-key="report-${list}-${index}"]`)?.focus(), 0);
+
+/** A word button adds its word to the box last typed in (the lesson line when that row is gone). */
+function addWord(word) {
+  const s = settings();
+  const { list, index } = wordTarget;
+  const target = list !== 'label' && index < s[list].length ? wordTarget : { list: 'label', index: 0 };
+  const before = target.list === 'label' ? s.label : s[target.list][target.index];
+  const text = before ? `${before} ${word}` : word;
+  if (target.list === 'label') saveSettings({ label: text }); else saveRow(target.list, target.index, text);
+  focusLater(target);
+}
+
+function labelCard() {
+  const s = settings();
   return h('section', { class: 'card reports-card' },
-    h('h3', {}, '✏️ How each lesson is written'),
-    h('p', { class: 'hint' }, `Used in every report. Empty = ${DEFAULT_LABEL} (the copy’s file name). Click a word to add it.`),
-    h('label', { class: 'field' }, 'Lesson text', input),
-    h('div', { class: 'label-words' }, Object.entries(words).map(([word, about]) => h('button', {
+    h('h3', {}, '✏️ What each lesson shows'),
+    h('p', { class: 'hint' }, 'Used in every report. Add rows or columns around each lesson, e.g. its essential outcome. Click a word to add it to the box you last typed in. A row whose words are all empty for a lesson is left out.'),
+    h('div', { class: 'report-lesson-rows' },
+      addButtons('above'),
+      extraRowsList('above'),
+      extraRowsList('left'),
+      h('label', { class: 'field report-lesson-line' }, '🔗 The lesson (linked to its copy)',
+        rowInput(s.label, { list: 'label', placeholder: DEFAULT_LABEL }, (label) => saveSettings({ label }))),
+      extraRowsList('right'),
+      extraRowsList('below'),
+      addButtons('left', 'right', 'below')),
+    h('div', { class: 'label-words' }, Object.entries(WORDS).map(([word, about]) => h('button', {
       class: 'pill small', 'data-tip': about, onclick: () => addWord(word),
     }, word))));
 }
@@ -252,10 +312,11 @@ function previewFile(file, tabIndex) {
 }
 
 function sheetTable(tab) {
+  const width = reportWidth(tab);
   return h('table', { class: 'sheet-table' }, reportRows(tab).map((row) => h('tr', {},
-    row.length === 1 || !row.length
-      ? h('td', { colspan: 2, class: `cell-${row[0]?.style ?? 'blank'}` }, row[0]?.text ?? '')
-      : row.map((cell) => h('td', { class: `cell-${cell.style}` }, cellText(cell))))));
+    row.length
+      ? row.map((cell) => h('td', { colspan: cell.span ?? 1, class: `cell-${cell.style}` }, cellText(cell)))
+      : h('td', { colspan: width, class: 'cell-blank' }))));
 }
 
 function cellText(cell) {

@@ -9,13 +9,16 @@
 // This module only works out what a report says (pure, shared with the Node tests). Rows are plain
 // cells { text, url?, style } so the Reports tab preview and the Google Sheet (reportSheets.js) match.
 //
-// Report settings live on the year record: `year.reports` = { label, weekly, manual }
+// Report settings live on the year record: `year.reports` = { label, above, below, weekly, manual }
 //   label  = how each lesson is written, e.g. "{{copy_name}} / {{template_name}}" ('' = DEFAULT_LABEL)
+//   above, below = extra rows shown above / below every lesson, e.g. ["{{essential_outcome}}"]
+//            (same words as the label; a row that comes out empty for a lesson is left out)
+//   left, right = extra columns left / right of the lesson, e.g. ["{{essential_outcome}}"] (titled by columnTitle)
 //   weekly = false turns the weekly reports off (on when missing)
 //   manual = { fromWeek, toWeek, schoolIds[], gradeIds[], perGrade, folder: { folderId, name } | null }
 
 import { formatRange, formatShort } from './dates.js';
-import { AUTO_FIELD_PLACEHOLDERS, find, inYear, TEXT_FIELDS, toRanges } from './model.js';
+import { AUTO_FIELD_PLACEHOLDERS, AUTO_FIELDS, find, inYear, TEXT_FIELDS, toRanges } from './model.js';
 import { entryValues, fingerprint, lessonNumbers, safeName } from './exportPlan.js';
 import { instrumentsInWeek, schoolWeeks, weekLessonsFor } from './weekPlan.js';
 import { driveOpenUrl } from './locations.js';
@@ -28,25 +31,52 @@ export const LABEL_WORDS = {
   '{{template_name}}': 'The template’s name',
 };
 
+const REPORT_DEFAULTS = { label: '', above: [], below: [], left: [], right: [], weekly: true };
+const MANUAL_DEFAULTS = { fromWeek: null, toWeek: null, schoolIds: [], gradeIds: [], perGrade: false, folder: null };
+
+/** Saved values over defaults (a missing or null value gets the default). */
+const withDefaults = (defaults, saved = {}) => Object.fromEntries(Object.entries(defaults).map(([k, v]) => [k, saved[k] ?? v]));
+
 /** The year's report settings, with everything missing filled in. */
 export function reportSettings(year) {
   const r = year?.reports ?? {};
-  const m = r.manual ?? {};
-  return {
-    label: r.label || '',
-    weekly: r.weekly !== false,
-    manual: {
-      fromWeek: m.fromWeek ?? null, toWeek: m.toWeek ?? null,
-      schoolIds: m.schoolIds ?? [], gradeIds: m.gradeIds ?? [], perGrade: Boolean(m.perGrade), folder: m.folder ?? null,
-    },
-  };
+  return { ...withDefaults(REPORT_DEFAULTS, r), manual: withDefaults(MANUAL_DEFAULTS, r.manual ?? {}) };
+}
+
+/** The year's report settings with some changed (`patch` at the top, `manual` for the Reports tab form). */
+export function changedReports(year, patch = {}, manual = {}) {
+  const { manual: before, ...top } = reportSettings(year);
+  return { ...top, ...patch, manual: { ...before, ...manual } };
 }
 
 /** The lesson label with its words swapped for the lesson's details (unknown words stay as typed). */
 export function lessonLabel(label, words) {
-  const text = (label || DEFAULT_LABEL).replace(/\{\{\s*([\w]+)\s*\}\}/g, (all, key) => words[`{{${key}}}`] ?? all);
-  return text.trim() || words['{{copy_name}}'];
+  return fillWords(label || DEFAULT_LABEL, words) || words['{{copy_name}}'];
 }
+
+const WORD = /\{\{\s*([\w]+)\s*\}\}/g;
+
+/** Text with its {{words}} swapped for the lesson's details (unknown words stay as typed). */
+export function fillWords(text, words) {
+  return String(text ?? '').replace(WORD, (all, key) => words[`{{${key}}}`] ?? all).trim();
+}
+
+/** An extra row for a lesson, or '' when all its words are empty for it (e.g. "Outcome: {{essential_outcome}}" without an eval). */
+function extraRow(text, words) {
+  const used = [...String(text ?? '').matchAll(WORD)].map((m) => words[`{{${m[1]}}}`]);
+  return used.length && used.every((v) => v === '') ? '' : fillWords(text, words);
+}
+
+/** A column's title: its words named, e.g. "{{essential_outcome}}" → "Essential outcome". */
+export function columnTitle(text) {
+  const names = {
+    '{{copy_name}}': 'Copy', '{{template_name}}': 'Template',
+    ...Object.fromEntries(TEXT_FIELDS.map((key) => [AUTO_FIELD_PLACEHOLDERS[key], AUTO_FIELDS[key]])),
+  };
+  return fillWords(text, names) || 'Notes';
+}
+
+const extraRows = (texts, words) => (texts ?? []).map((t) => extraRow(t, words)).filter(Boolean);
 
 /** "Drum (all week)" or "Drum (available Oct 6 - Oct 7)" (days apart: "Oct 6, Oct 8 - Oct 9"). */
 export function instrumentText(name, { days, allWeek }) {
@@ -65,10 +95,11 @@ export function weekInstruments(state, cls, week) {
 }
 
 /**
- * One week of a class: { number, dates, instruments: [text], lessons: [{ entryId, text, url }] }.
+ * One week of a class: { number, dates, instruments: [text], lessons: [{ entryId, text, url, above, below, left, right }] }
+ * (above/below = the lesson's extra rows, left/right = its extra columns, see reportSettings).
  * `copyOf(entryId)` → { name, url } of its lesson copy, or null (not made yet, or no template).
  */
-export function reportWeek(state, cls, week, { label, copyOf, numbers }) {
+export function reportWeek(state, cls, week, { label, above, below, left = [], right = [], copyOf, numbers }) {
   const days = week.days.length ? week.days : [week.weekStart];
   const lessons = weekLessonsFor(state, cls, week.weekStart).map((entry) => {
     const lesson = find(state, 'lessons', entry.lessonId);
@@ -77,7 +108,11 @@ export function reportWeek(state, cls, week, { label, copyOf, numbers }) {
     const words = Object.fromEntries(TEXT_FIELDS.map((key) => [AUTO_FIELD_PLACEHOLDERS[key], values[key] ?? '']));
     words['{{copy_name}}'] = copy?.name || `${entry.position + 1} - ${lesson?.name ?? 'Lesson'}`;
     words['{{template_name}}'] = lesson?.name ?? '';
-    return { entryId: entry.id, text: lessonLabel(label, words), url: copy?.url ?? null };
+    return {
+      entryId: entry.id, text: lessonLabel(label, words), url: copy?.url ?? null,
+      above: extraRows(above, words), below: extraRows(below, words),
+      left: left.map((t) => fillWords(t, words)), right: right.map((t) => fillWords(t, words)),
+    };
   });
   return { number: week.number, dates: formatRange(days[0], days.at(-1)), instruments: weekInstruments(state, cls, week), lessons };
 }
@@ -100,7 +135,7 @@ export function weeksTitle(weeks) {
   return first === last ? `Week ${first}` : `Weeks ${first}–${last}`;
 }
 
-/** One tab: a class over some weeks. { title (tab name), heading, subheading, weeks: [reportWeek] }. */
+/** One tab: a class over some weeks. { title (tab name), heading, subheading, columns: { left, right } (titles), weeks: [reportWeek] }. */
 export function reportTab(state, cls, weeks, options) {
   const school = nameOf(state, 'schools', cls.schoolId);
   const grade = nameOf(state, 'grades', cls.gradeId);
@@ -109,6 +144,7 @@ export function reportTab(state, cls, weeks, options) {
     title: safeName(grade).slice(0, 90),
     heading: `${school} · ${grade}`,
     subheading: days.length ? `${weeksTitle(weeks)} · ${formatRange(days[0], days.at(-1))}` : weeksTitle(weeks),
+    columns: { left: (options.left ?? []).map(columnTitle), right: (options.right ?? []).map(columnTitle) },
     weeks: weeks.map((w) => reportWeek(state, cls, w, options)),
   };
 }
@@ -120,25 +156,51 @@ export const reportHash = (file) => fingerprint(JSON.stringify([file.name, file.
 
 export const REPORT_NOTE = 'Made by the Lesson Planner. It’s rewritten when the Lesson Schedule changes, so changes typed here don’t stay.';
 
+/** How many columns a tab has: the lesson number, extra columns left, the lesson, extra columns right. */
+export function reportWidth(tab) {
+  return 2 + (tab.columns?.left.length ?? 0) + (tab.columns?.right.length ?? 0);
+}
+
 /**
- * A tab as rows of cells: [{ text, url?, style }]. Styles: heading, subheading, week, label, instruments,
- * lesson, number, empty. Column A holds labels and lesson numbers, column B the rest.
+ * A tab as rows of cells: [{ text, url?, style, span? }] (span = how many columns the cell covers, default 1).
+ * Styles: heading, subheading, columnHead, week, label, instruments, lesson, column (an extra column),
+ * extra (a lesson's rows above/below it), number, empty, note. Column A holds labels and lesson numbers.
  */
 export function reportRows(tab) {
-  const rows = [
-    [{ text: tab.heading, style: 'heading' }],
-    [{ text: tab.subheading, style: 'subheading' }],
-    [],
-  ];
+  const width = reportWidth(tab);
+  const wide = (text, style) => ({ text, style, span: width });
+  const rest = (text, style) => ({ text, style, span: width - 1 });
+  const rows = [[wide(tab.heading, 'heading')], [wide(tab.subheading, 'subheading')], columnHeads(tab)];
   for (const week of tab.weeks) {
-    rows.push([{ text: `Week ${week.number}`, style: 'week' }, { text: week.dates, style: 'week' }]);
-    rows.push([{ text: 'Instruments', style: 'label' }, { text: week.instruments.join('\n') || 'None scheduled', style: 'instruments' }]);
-    if (!week.lessons.length) rows.push([{ text: '', style: 'number' }, { text: 'No lessons on the schedule', style: 'empty' }]);
-    week.lessons.forEach((l, i) => rows.push([{ text: String(i + 1), style: 'number' }, { text: l.text, url: l.url, style: 'lesson' }]));
+    rows.push([{ text: `Week ${week.number}`, style: 'week' }, rest(week.dates, 'week')]);
+    rows.push([{ text: 'Instruments', style: 'label' }, rest(week.instruments.join('\n') ||'None scheduled', 'instruments')]);
+    if (!week.lessons.length) rows.push([{ text: '', style: 'number' }, rest('No lessons on the schedule', 'empty')]);
+    week.lessons.forEach((l, i) => rows.push(...lessonRows(tab, l, i)));
     rows.push([]);
   }
-  rows.push([{ text: REPORT_NOTE, style: 'note' }]);
+  rows.push([wide(REPORT_NOTE, 'note')]);
   return rows;
+}
+
+/** Titles over the columns, when there are extra columns (otherwise an empty row). */
+function columnHeads(tab) {
+  if (reportWidth(tab) === 2) return [];
+  const head = (text) => ({ text, style: 'columnHead' });
+  return [head(''), ...tab.columns.left.map(head), head('Lesson'), ...tab.columns.right.map(head)];
+}
+
+/** A lesson's rows: its extra rows above, the lesson itself (numbered, linked to its copy, with its columns), its rows below. */
+function lessonRows(tab, lesson, i) {
+  const blanks = (titles) => titles.map(() => ({ text: '', style: 'column' }));
+  const { left = [], right = [] } = tab.columns ?? {};
+  const extra = (text) => [{ text: '', style: 'number' }, ...blanks(left), { text, style: 'extra' }, ...blanks(right)];
+  const column = (text) => ({ text, style: 'column' });
+  return [
+    ...(lesson.above ?? []).map(extra),
+    [{ text: String(i + 1), style: 'number' }, ...(lesson.left ?? []).map(column),
+      { text: lesson.text, url: lesson.url, style: 'lesson' }, ...(lesson.right ?? []).map(column)],
+    ...(lesson.below ?? []).map(extra),
+  ];
 }
 
 // ---------- weekly reports (one per week folder of the lesson copies) ----------
@@ -148,7 +210,7 @@ export function reportRows(tab) {
  * wanted copy), placed in that folder. `wants` = wantedCopies(); `copyOf(entryId)` → { name, url } | null.
  * Returns [{ key, path, name, place, hash, tabs }].
  */
-export function weeklyReports(state, yearId, { wants, copyOf, label, rootKey }) {
+export function weeklyReports(state, yearId, { wants, copyOf, label, above, below, left, right, rootKey }) {
   const weeks = new Map(schoolWeeks(find(state, 'years', yearId)).map((w) => [w.weekStart, w]));
   const numbers = lessonNumbers(state.weekLessons.filter((e) => e.yearId === yearId && weeks.has(e.weekStart)));
   const files = new Map();
@@ -157,7 +219,7 @@ export function weeklyReports(state, yearId, { wants, copyOf, label, rootKey }) 
     const key = entry && `${entry.schoolId}|${entry.gradeId}|${entry.weekStart}`;
     if (!entry || files.has(key)) continue;
     const week = weeks.get(entry.weekStart);
-    const tab = reportTab(state, entry, [week], { label, copyOf, numbers });
+    const tab = reportTab(state, entry, [week], { label, above, below, left, right, copyOf, numbers });
     const file = { key, path: want.path, name: safeName(`Week ${week.number} report`), tabs: [tab] };
     files.set(key, { ...file, place: fingerprint(JSON.stringify([rootKey, want.path])), hash: reportHash(file) });
   }
@@ -197,7 +259,7 @@ export function manualWeeks(year, manual, defaultWeek = 1) {
  * and grade. Schools and grades not chosen = every one. Returns [{ key, name, schoolId, gradeIds, tabs, hash }]
  * (the key finds the same file again, so making the report again updates it).
  */
-export function manualReports(state, yearId, { manual, label, copyOf, defaultWeek }) {
+export function manualReports(state, yearId, { manual, label, above, below, left, right, copyOf, defaultWeek }) {
   const year = find(state, 'years', yearId);
   const weeks = manualWeeks(year, manual, defaultWeek);
   const chosen = (collection, ids) => inYear(state, collection, yearId).filter((r) => !ids.length || ids.includes(r.id));
@@ -207,7 +269,7 @@ export function manualReports(state, yearId, { manual, label, copyOf, defaultWee
   const numbers = lessonNumbers(state.weekLessons.filter((e) => e.yearId === yearId));
   const groups = manual.perGrade ? grades.map((g) => [g]) : [grades];
   return schools.flatMap((school) => groups.map((group) => {
-    const tabs = group.map((g) => reportTab(state, { yearId, schoolId: school.id, gradeId: g.id }, weeks, { label, copyOf, numbers }));
+    const tabs = group.map((g) => reportTab(state, { yearId, schoolId: school.id, gradeId: g.id }, weeks, { label, above, below, left, right, copyOf, numbers }));
     const who = manual.perGrade ? `${school.name} – ${group[0].name}` : school.name;
     const file = {
       key: fingerprint(JSON.stringify([school.id, group.map((g) => g.id), weeks[0].number, weeks.at(-1).number])),

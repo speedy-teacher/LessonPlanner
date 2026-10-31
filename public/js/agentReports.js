@@ -3,20 +3,20 @@
 // (Making the report in Google Drive is the teacher's click: the Make button on the Reports tab.)
 
 import { update } from './model.js';
-import { manualReports, reportRows, reportSettings } from './reportPlan.js';
-import { fail, grade, idsOf, namesOf, patchFrom, school, weekOf, year } from './agentHelpers.js';
+import { changedReports, manualReports, reportRows, reportSettings } from './reportPlan.js';
+import { fail, grade, idsOf, listOf, namesOf, patchFrom, school, weekOf, year } from './agentHelpers.js';
 
 function save(state, patch, manual = {}) {
   const y = year(state);
-  const now = reportSettings(y);
-  update(state, 'years', y.id, { reports: { label: now.label, weekly: now.weekly, ...patch, manual: { ...now.manual, ...manual } } });
+  update(state, 'years', y.id, { reports: changedReports(y, patch, manual) });
   return reportSettings(y);
 }
 
 function describe(state, s) {
   const m = s.manual;
   return {
-    lessonText: s.label || '{{copy_name}}', weeklyReports: s.weekly,
+    lessonText: s.label || '{{copy_name}}', rowsAbove: s.above, rowsBelow: s.below,
+    columnsBefore: s.left, columnsAfter: s.right, weeklyReports: s.weekly,
     fromWeek: m.fromWeek, toWeek: m.toWeek,
     schools: m.schoolIds.length ? namesOf(state, 'schools', m.schoolIds) : 'all',
     grades: m.gradeIds.length ? namesOf(state, 'grades', m.gradeIds) : 'all',
@@ -40,12 +40,23 @@ export const REPORT_COMMANDS = {
     run: (state) => describe(state, reportSettings(year(state))),
   },
   setReportOptions: {
-    summary: 'Change how each lesson is written in reports (words like {{copy_name}}, {{template_name}}, {{week_number}}; "" = {{copy_name}}), or turn the weekly reports in each week folder on or off.',
+    summary: 'Change what each lesson shows in reports: its text (words like {{copy_name}}, {{template_name}}, {{week_number}}; "" = {{copy_name}}) and extra rows above or below it or columns before or after it (e.g. ["{{essential_outcome}}"]; [] = none). Or turn the weekly reports in each week folder on or off.',
     changes: true,
-    params: { lessonText: ['e.g. "{{copy_name}} / {{template_name}}"'], weeklyReports: ['true or false'] },
+    params: {
+      lessonText: ['e.g. "{{copy_name}} / {{template_name}}"'], rowsAbove: ['List of row texts above each lesson'],
+      rowsBelow: ['List of row texts below each lesson'], columnsBefore: ['List of column texts left of the lesson'],
+      columnsAfter: ['List of column texts right of the lesson'], weeklyReports: ['true or false'],
+    },
     run: (state, a) => {
-      const patch = patchFrom(a, { lessonText: (v) => String(v ?? '').trim(), weeklyReports: (v) => v === true || v === 'true' });
-      const s = save(state, { ...('lessonText' in patch ? { label: patch.lessonText } : {}), ...('weeklyReports' in patch ? { weekly: patch.weeklyReports } : {}) });
+      const rows = (v) => listOf(v).map((t) => String(t).trim()).filter(Boolean);
+      const patch = patchFrom(a, {
+        lessonText: (v) => String(v ?? '').trim(), rowsAbove: rows, rowsBelow: rows, columnsBefore: rows, columnsAfter: rows,
+        weeklyReports: (v) => v === true || v === 'true',
+      });
+      const renamed = {
+        lessonText: 'label', rowsAbove: 'above', rowsBelow: 'below', columnsBefore: 'left', columnsAfter: 'right', weeklyReports: 'weekly',
+      };
+      const s = save(state, Object.fromEntries(Object.entries(patch).map(([k, v]) => [renamed[k], v])));
       return { done: 'Report options saved.', ...describe(state, s) };
     },
   },
@@ -76,7 +87,7 @@ export const REPORT_COMMANDS = {
     params: {},
     run: (state) => {
       const s = reportSettings(year(state));
-      return manualReports(state, year(state).id, { manual: s.manual, label: s.label, copyOf: () => null, defaultWeek: 1 })
+      return manualReports(state, year(state).id, { ...s, copyOf: () => null, defaultWeek: 1 })
         .map((f) => ({ file: f.name, tabs: f.tabs.map((t) => ({ tab: t.title, rows: reportRows(t).map((r) => r.map((c) => c.text)) })) }));
     },
   },

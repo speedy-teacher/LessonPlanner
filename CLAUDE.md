@@ -125,7 +125,9 @@ A browser app for a (non-technical) elementary music teacher to plan a school ye
   { number, dates, instruments ("Drum (all week)" / "Drum (available Sep 8 - Sep 9)"), lessons [{ text, url }] }),
   `reportRows` (cells { text, url, style } — shared by the tab preview and the Sheet), `lessonLabel` (`year.reports.label`,
   default `{{copy_name}}`; also `{{template_name}}` + every auto-field placeholder), `copyFinder(copies)`.
-- Settings on the year record: `year.reports = { label, weekly (false = off), manual: { fromWeek, toWeek, schoolIds[], gradeIds[]
+  Extra rows above/below every lesson (`year.reports.above`/`below`, same words; a row whose words are all empty is left out)
+  and extra columns before/after it (`left`/`right`, titled by `columnTitle`; cells carry `span` → Sheet merges + preview colspan).
+- Settings on the year record: `year.reports = { label, above[], below[], left[], right[], weekly (false = off), manual: { fromWeek, toWeek, schoolIds[], gradeIds[]
   (empty = all), perGrade, folder } }` (`reportSettings` fills defaults). Command area `agentReports.js`.
 - Sheets: `reportSheets.js` `driveReports` (labels `lessonPlannerReport`=yearId, `reportKind` weekly|manual, `reportKey`, `hash`,
   `place`); a rewrite adds fresh tabs, deletes the old ones and fills the new in one batchUpdate (`sheetRequests`); only when `hash` changed.

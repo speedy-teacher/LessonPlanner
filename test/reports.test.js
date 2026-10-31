@@ -214,13 +214,80 @@ test('an assistant can set up the report and its options, and preview it', () =>
   runCommand(t.s, 'setReportOptions', { lessonText: '{{template_name}}', weeklyReports: false });
   const settings = runCommand(t.s, 'reportSettings');
   assert.deepEqual(settings, {
-    lessonText: '{{template_name}}', weeklyReports: false, fromWeek: 3, toWeek: 4,
+    lessonText: '{{template_name}}', rowsAbove: [], rowsBelow: [], columnsBefore: [], columnsAfter: [], weeklyReports: false, fromWeek: 3, toWeek: 4,
     schools: ['School A'], grades: ['Kindergarten'], oneFilePer: 'grade', folder: null,
   });
   const [preview] = runCommand(t.s, 'previewReport');
   assert.equal(preview.file, 'School A – Kindergarten – Weeks 3–4 report');
   assert.deepEqual(preview.tabs[0].rows[5], ['1', 'Beat']);
   assert.throws(() => runCommand(t.s, 'setupReport', { fromWeek: 4, toWeek: 3 }), /after the first week/);
+  runCommand(t.s, 'setReportOptions', { rowsAbove: ['{{essential_outcome}}'], rowsBelow: 'Eval: {{eval_criterion}}' });
+  assert.deepEqual(runCommand(t.s, 'reportSettings').rowsBelow, ['Eval: {{eval_criterion}}']);
+  assert.equal(runCommand(t.s, 'reportSettings').lessonText, '{{template_name}}', 'other options are kept');
   runCommand(t.s, 'setupReport', { schools: 'all' });
   assert.equal(runCommand(t.s, 'reportSettings').schools, 'all');
+});
+
+test('rows can be added above and below each lesson, e.g. its essential outcome', () => {
+  const t = setup();
+  const outcome = add(t.s, 'outcomes', { yearId: t.year.id, code: 'MU1', title: 'Rhythm', color: '#6b8f5e' });
+  const crit = add(t.s, 'criteria', { outcomeId: outcome.id, title: 'Keeps a steady beat', gradeIds: [t.k.id], mainGradeId: null });
+  const entry = lessonAt(t, t.beat);
+  entry.criterionId = crit.id;
+  lessonAt(t, t.song); // no eval: its outcome row is left out, its plain row stays
+  const manual = { ...reportSettings(t.year).manual, fromWeek: 3, schoolIds: [t.schoolA.id], gradeIds: [t.k.id] };
+  const look = { label: '', above: ['{{essential_outcome}}'], below: ['Eval: {{eval_criterion}}', 'Bring scarves'], copyOf: () => null };
+  const [file] = manualReports(t.s, t.year.id, { manual, ...look });
+  const rows = reportRows(file.tabs[0]).slice(5, -2).map((r) => r.map((c) => `${c.text}${c.style === 'extra' ? '*' : ''}`));
+  assert.deepEqual(rows, [
+    ['', 'MU1 · Rhythm*'], ['1', '1 - Beat'], ['', 'Eval: Keeps a steady beat*'], ['', 'Bring scarves*'],
+    ['2', '2 - Song'], ['', 'Bring scarves*'],
+  ]);
+  const settings = reportSettings({ reports: { above: ['{{essential_outcome}}'] } });
+  assert.deepEqual([settings.above, settings.below], [['{{essential_outcome}}'], []]);
+
+  const [weeklyReport] = weeklyReports(t.s, t.year.id, {
+    wants: wantedCopies(t.s, t.year.id, DRIVE), copyOf: () => null, rootKey: DRIVE.rootKey, label: '', above: ['{{essential_outcome}}'],
+  });
+  assert.deepEqual(weeklyReport.tabs[0].weeks[0].lessons[0].above, ['MU1 · Rhythm']);
+  const cells = sheetRequests([0], [weeklyReport.tabs[0]], [5]).find((r) => r.updateCells).updateCells.rows;
+  assert.equal(cells[5].values[1].userEnteredValue.stringValue, 'MU1 · Rhythm');
+  assert.equal(cells[5].values[1].userEnteredFormat.textFormat.fontSize, 9);
+});
+
+test('columns can be added before and after the lesson, with titles at the top', () => {
+  const t = setup();
+  const outcome = add(t.s, 'outcomes', { yearId: t.year.id, code: 'MU1', title: 'Rhythm', color: '#6b8f5e' });
+  const crit = add(t.s, 'criteria', { outcomeId: outcome.id, title: 'Keeps a steady beat', gradeIds: [t.k.id], mainGradeId: null });
+  lessonAt(t, t.beat).criterionId = crit.id;
+  lessonAt(t, t.song);
+  const manual = { ...reportSettings(t.year).manual, fromWeek: 3, schoolIds: [t.schoolA.id], gradeIds: [t.k.id] };
+  const look = { label: '', left: ['{{essential_outcome}}'], right: ['Eval: {{eval_criterion}}'], below: ['Bring scarves'], copyOf: () => null };
+  const [file] = manualReports(t.s, t.year.id, { manual, ...look });
+  const tab = file.tabs[0];
+  assert.deepEqual(tab.columns, { left: ['Essential outcome'], right: ['Eval: Eval criterion'] });
+  const rows = reportRows(tab);
+  const texts = rows.map((r) => r.map((c) => c.text));
+  assert.deepEqual(texts[2], ['', 'Essential outcome', 'Lesson', 'Eval: Eval criterion']);
+  assert.deepEqual(texts.slice(5, 9), [
+    ['1', 'MU1 · Rhythm', '1 - Beat', 'Eval: Keeps a steady beat'],
+    ['', '', 'Bring scarves', ''],
+    ['2', '', '2 - Song', 'Eval:'],
+    ['', '', 'Bring scarves', ''],
+  ]);
+  assert.equal(rows[0][0].span, 4, 'the title spans every column');
+  assert.equal(rows[3][1].span, 3, 'the week dates span the rest of the row');
+
+  const requests = sheetRequests([0], [tab], [7]);
+  assert.equal(requests[0].addSheet.properties.gridProperties.columnCount, 4);
+  assert.equal(requests[0].addSheet.properties.gridProperties.frozenRowCount, 3);
+  const merged = requests.filter((r) => r.mergeCells).map((r) => r.mergeCells.range);
+  assert.deepEqual(merged[0], { sheetId: 7, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 0, endColumnIndex: 4 });
+  assert.ok(merged.some((m) => m.startRowIndex === 3 && m.startColumnIndex === 1 && m.endColumnIndex === 4));
+  const widths = requests.filter((r) => r.updateDimensionProperties?.range.dimension === 'COLUMNS').map((r) => r.updateDimensionProperties.properties.pixelSize);
+  assert.equal(widths.length, 4);
+
+  runCommand(t.s, 'setReportOptions', { columnsBefore: ['{{essential_outcome}}'] });
+  assert.deepEqual(runCommand(t.s, 'reportSettings').columnsBefore, ['{{essential_outcome}}']);
+  assert.deepEqual(runCommand(t.s, 'previewReport')[0].tabs[0].rows[2], ['', 'Essential outcome', 'Lesson']);
 });
