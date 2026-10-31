@@ -18,7 +18,11 @@
 //   columnNames = false leaves out the row of column names at the top
 //   footer = false leaves out the "Automatically maintained by Lesson Planner" line at the bottom
 //   weekly = false turns the weekly reports off (on when missing)
-//   manual = { fromWeek, toWeek, schoolIds[], gradeIds[], perGrade, folder: { folderId, name } | null }
+//   manual = { fromWeek, toWeek, schoolIds[], gradeIds[], perGrade, folder: { folderId, name } | null, keepUpToDate }
+//            keepUpToDate = "Make" also adds the reports it makes to `watched`
+//   watched = the reports the export bridge keeps up to date (same file, same folder), each remembering how it was made:
+//            [{ id, name, schoolId, gradeIds[], perGrade, fromWeek, toWeek, folder: { folderId, name } }]
+//            Taking one off the list never touches the file in Drive.
 
 import { formatRange, formatShort } from './dates.js';
 import { AUTO_FIELD_PLACEHOLDERS, AUTO_FIELDS, find, inYear, TEXT_FIELDS, toRanges } from './model.js';
@@ -35,8 +39,8 @@ export const LABEL_WORDS = {
   '{{template_name}}': 'The template’s name',
 };
 
-const REPORT_DEFAULTS = { label: '', above: [], below: [], left: [], right: [], columnNames: true, footer: true, weekly: true };
-const MANUAL_DEFAULTS = { fromWeek: null, toWeek: null, schoolIds: [], gradeIds: [], perGrade: false, folder: null };
+const REPORT_DEFAULTS = { label: '', above: [], below: [], left: [], right: [], columnNames: true, footer: true, weekly: true, watched: [] };
+const MANUAL_DEFAULTS = { fromWeek: null, toWeek: null, schoolIds: [], gradeIds: [], perGrade: false, folder: null, keepUpToDate: false };
 
 /** Saved values over defaults (a missing or null value gets the default). */
 const withDefaults = (defaults, saved = {}) => Object.fromEntries(Object.entries(defaults).map(([k, v]) => [k, saved[k] ?? v]));
@@ -193,8 +197,11 @@ export function reportTab(state, cls, weeks, options) {
   };
 }
 
+/** Changes when how a report is laid out in the Sheet changes, so reports made the old way are rewritten. */
+const LAYOUT_VERSION = 2;
+
 /** A report file's fingerprint (it changes only when what the file shows would). */
-export const reportHash = (file) => fingerprint(JSON.stringify([file.name, file.tabs]));
+export const reportHash = (file) => fingerprint(JSON.stringify([LAYOUT_VERSION, file.name, file.tabs]));
 
 // ---------- the rows a tab shows ----------
 
@@ -301,6 +308,43 @@ export function reportSteps(wants, haves) {
 
 // ---------- reports made from the Reports tab ----------
 
+/** The week number of the school week `today` falls in (the first week when it's not in a school week). */
+export function currentWeekNumber(year, today) {
+  const weeks = schoolWeeks(year);
+  return (weeks.find((w) => w.weekStart <= today && today <= w.friday) ?? weeks[0])?.number ?? 1;
+}
+
+/** Where the Reports tab's reports go: the folder chosen there, else the lesson copies' Drive folder (or null). */
+export function reportFolder(year) {
+  const { folder } = reportSettings(year).manual;
+  const output = year?.output;
+  return folder ?? (output?.kind === 'drive' ? { folderId: output.folderId, name: output.name } : null);
+}
+
+/**
+ * What to remember about a report so it can be kept up to date: how it was made (`manual` = the form's choices,
+ * `file` = what manualReports made from them). The same choices always find the same Drive file again.
+ */
+export function watchedEntry(manual, file, folder) {
+  const entry = {
+    name: file.name, schoolId: file.schoolId, gradeIds: file.gradeIds, perGrade: manual.perGrade,
+    fromWeek: manual.fromWeek, toWeek: manual.toWeek, folder: { folderId: folder.folderId, name: folder.name },
+  };
+  return { id: fingerprint(JSON.stringify([entry.schoolId, entry.gradeIds, entry.perGrade, entry.folder.folderId])), ...entry };
+}
+
+/** The list with `entries` added (one already there, made the same way, is replaced). */
+export const withWatched = (list, entries) => [...list.filter((w) => !entries.some((e) => e.id === w.id)), ...entries];
+
+/** What a watched report says now (the one file it makes), or null when its school or grades are gone. */
+export function watchedReport(state, yearId, entry, { settings, copyOf, defaultWeek }) {
+  const manual = {
+    fromWeek: entry.fromWeek, toWeek: entry.toWeek, schoolIds: [entry.schoolId], gradeIds: entry.gradeIds,
+    perGrade: entry.perGrade, folder: entry.folder, keepUpToDate: false,
+  };
+  return manualReports(state, yearId, { ...settings, manual, copyOf, defaultWeek })[0] ?? null;
+}
+
 /** The school weeks a manual report covers (from/to are week numbers; missing = the given default week). */
 export function manualWeeks(year, manual, defaultWeek = 1) {
   const weeks = schoolWeeks(year);
@@ -312,7 +356,7 @@ export function manualWeeks(year, manual, defaultWeek = 1) {
 /**
  * The files a manual report makes: one per school (a tab per grade), or with `perGrade` one per school
  * and grade. Schools and grades not chosen = every one. Returns [{ key, name, schoolId, gradeIds, tabs, hash }]
- * (the key finds the same file again, so making the report again updates it).
+ * (the key finds the same file again — whatever the weeks — so making the report again updates it).
  */
 export function manualReports(state, yearId, { manual, copyOf, defaultWeek, ...look }) {
   const year = find(state, 'years', yearId);
@@ -327,7 +371,7 @@ export function manualReports(state, yearId, { manual, copyOf, defaultWeek, ...l
     const tabs = group.map((g) => reportTab(state, { yearId, schoolId: school.id, gradeId: g.id }, weeks, { ...look, copyOf, numbers }));
     const who = manual.perGrade ? `${school.name} – ${group[0].name}` : school.name;
     const file = {
-      key: fingerprint(JSON.stringify([school.id, group.map((g) => g.id), weeks[0].number, weeks.at(-1).number])),
+      key: fingerprint(JSON.stringify([school.id, group.map((g) => g.id)])), place: '',
       name: safeName(`${who} – ${weeksTitle(weeks)} report`), schoolId: school.id, gradeIds: group.map((g) => g.id), tabs,
     };
     return { ...file, hash: reportHash(file) };
