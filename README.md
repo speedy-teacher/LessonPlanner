@@ -55,7 +55,7 @@ means there's a tutorial you haven't seen yet.
 **🤝 Sharing with a department** — a plan can be three files, shared separately: the **School Year** (calendars, schools,
 grades, instruments, events, outcomes & evals — share it with your department), your **Lesson Schedule** (weekly lessons,
 lesson order, reports, your colors) and your **Teacher Resources** (lesson templates and pictures, kept across years).
-"Share with your department…" in the plan menu moves an older plan over (the old file is kept). On the teacher pages,
+New plans (first plan, new school year, opening a file) start out shareable; "Share with your department…" moves an older plan over (the old file is kept). On the teacher pages,
 **👀 Looking at** shows a teammate's schedule, templates and pictures; anything shared with you as Viewer is shown
 view only, and anything not shared with you is greyed out with the reason.
 

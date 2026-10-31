@@ -66,6 +66,14 @@ A browser app for a (non-technical) elementary music teacher to plan a school ye
   the app still works on one combined state; a missing piece is empty and **links into it are never tidied** (heals when
   it's back). `keepViewOnly` = store guard (`setGuard`) that takes changes to view-only pieces back out.
   A new year keeps carried-over ids (`keepIds`), so a long-lived Resources still matches.
+- **New plans are born as pieces** (Welcome, "Start a new school year", file import, older-planner move): `startNewYear` /
+  `importPlannerData` → `createPiecePlan`. One Teacher Resources per teacher: `ownResources()` (the open plan's, else find
+  the teacher's, else make one; imports reuse the record just made). `pieceFiles.js` (browser-only) makes piece files and
+  finds/merges the Resources. Joining a colleague's School Year: `joinSchoolYear(shared, map, { mine, folderId })` — from an
+  older plan, from a plan in pieces (old Lesson Schedule kept, renamed "(old – before joining)") or from a new year
+  (`mine` = data rolled over from their year); UI `joinFlow` in `views/shareSetup.js`. `joinYear.js` matches by id
+  (or `copiedFromId`) first, then by name. `planList.js` (pure) says which cached records are listed, counted as brought
+  in, and removed with a plan. Only older one-file plans get the "share with your department" notice.
 - `pieceEngine.js` `PiecePlan` (tested against a fake Drive): per-piece cache record (`piece`, `data`, `rev`, `base`…),
   save only changed pieces, per-piece sync/`mergePiece` (planMerge.js; tidies only links inside the piece), `missing` /
   `stale` / `access(name)` ('edit' | 'view' | 'none'), `view(theirSchedule)`/`viewMine()`/`myState()` for teammates,

@@ -1,5 +1,7 @@
 # Handoff: create new plans as pieces (School Year + Lesson Schedule + Teacher Resources)
 
+**DONE** — implemented as specified in `docs/plans/new-plans-as-pieces.md` (kept below for background).
+
 For another agent. Read `CLAUDE.md` first (esp. "Plans in pieces"), then `docs/plans/data-split.md`.
 
 ## Where things stand
