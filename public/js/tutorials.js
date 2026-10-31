@@ -528,7 +528,7 @@ const plans = {
     },
     {
       target: 'plans-actions',
-      text: 'When next school year comes, click “🌱 Start a new school year”. It copies your schools, grades, instruments, lessons and outcomes — the calendars start empty, and this year stays just as it is.',
+      text: 'When next school year comes, click “🌱 Start a new school year”. It makes a new School Year (copied from this one) and a new Lesson Schedule; your templates and pictures carry on. If a colleague already made next year’s School Year, choose “Use one a colleague already made”.',
       backIf: (ctx) => !ctx.modal,
     },
   ],
@@ -561,6 +561,26 @@ const sharing = {
       skipIf: (ctx) => ctx.inPieces,
       until: (ctx) => ctx.inPieces,
       backIf: (ctx) => !ctx.modal && !ctx.inPieces,
+    },
+    {
+      target: 'plan-button',
+      text: 'Click your plan’s name.',
+      skipIf: (ctx) => !ctx.inPieces || ctx.modal === 'Your plans',
+      until: (ctx) => ctx.modal === 'Your plans',
+    },
+    {
+      target: 'share-school-year',
+      title: 'Share the School Year',
+      text: 'Share the School Year in Drive: colleagues who change calendars need Editor; Viewer lets them look.',
+      skipIf: (ctx) => !ctx.inPieces,
+      backIf: (ctx) => !ctx.modal,
+    },
+    {
+      target: 'use-colleague-year',
+      title: 'Use a colleague’s School Year',
+      text: 'Already have a colleague’s School Year? Use it here; your lessons, templates and pictures stay yours.',
+      skipIf: (ctx) => !ctx.inPieces,
+      backIf: (ctx) => !ctx.modal,
     },
     ...goTo('lessonSchedule'),
     {

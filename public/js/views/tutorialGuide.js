@@ -44,6 +44,7 @@ export function tutorialContext() {
     state: state ?? { criteria: [] },
     year,
     google: google.status,
+    driveConnected: google.status === 'connected',
     driveAvailable: driveAvailable(),
     count: (collection) => countOf(state, year, collection),
     isOpen: (name) => [...document.querySelectorAll(byTour(name))].some((el) => el.open),

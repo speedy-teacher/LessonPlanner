@@ -2,21 +2,21 @@
 // computer only). The plan button in the top bar opens this menu: switch plans,
 // start a new year, open one shared with you, bring in a file, download a copy.
 
-import { h, openModal, toast } from '../dom.js';
+import { h, openModal, toast, tour } from '../dom.js';
 import { suggestNextYear } from '../model.js';
-import { store } from '../store.js';
 import { apiKey, clientId, driveAvailable } from '../deviceSettings.js';
 import { connectDrive, google } from '../google.js';
 import { pickPlanFromDrive } from '../drive.js';
 import { listPlanFiles } from '../driveFiles.js';
+import { broughtInYearIds } from '../planList.js';
 import { fromWorkspaceFile, newYearPlan } from '../workspaceFile.js';
 import {
-  allCachedPlans, computerPlans, createPlan, current, downloadCopy, importPlannerData, moveToDrive, oldPlannerData,
-  openDrivePlan, openSavedPlan, removeComputerPlan,
+  allCachedPlans, computerPlans, current, downloadCopy, importPlannerData, moveToDrive, myPlanState, oldPlannerData,
+  openDrivePlan, openSavedPlan, pieces, removeComputerPlan, saveOpenPlan, startNewYear,
 } from '../workspace.js';
 import { showNotice } from '../notices.js';
 import { askFolderThen, currentFolderRow, folderChooser } from './planFolders.js';
-import { canMoveToPieces, openShareSetup } from './shareSetup.js';
+import { canMoveToPieces, joinFlow, openShareSetup } from './shareSetup.js';
 
 const PROBLEMS = {
   signed_out: 'Google signed you out. Click anywhere to reconnect, then try again.',
@@ -106,10 +106,36 @@ function thisPlan(done) {
       !current.fileId && driveConnected()
         ? h('button', { class: 'btn small', onclick: done(saveToDrive) }, '☁ Save to Google Drive')
         : null,
-      current.fileId ? h('a', { class: 'btn small light', href: `https://drive.google.com/file/d/${encodeURIComponent(current.fileId)}/view`, target: '_blank', rel: 'noopener', title: 'Open the file in Google Drive (to share it, or see past versions)' }, 'Share or see past versions in Drive ↗') : null,
-      canMoveToPieces()
-        ? h('button', { class: 'btn small', 'data-tour': 'share-department', onclick: openShareSetup, title: 'Share the School Year with colleagues; your lessons and templates stay yours' }, '🤝 Share with your department…')
-        : null));
+      pieces ? piecesButtons() : oneFileButtons()));
+}
+
+/** The buttons of an older one-file plan. */
+function oneFileButtons() {
+  return [
+    current.fileId ? driveLink(current.fileId, 'Share or see past versions in Drive ↗', 'Open the file in Google Drive (to share it, or see past versions)') : null,
+    canMoveToPieces()
+      ? h('button', { class: 'btn small', 'data-tour': 'share-department', onclick: openShareSetup, title: 'Share the School Year with colleagues; your lessons and templates stay yours' }, '🤝 Share with your department…')
+      : null,
+  ];
+}
+
+/** The buttons of a plan in pieces: share the School Year, or use a colleague's. */
+function piecesButtons() {
+  const year = pieces.recs.schoolYear;
+  const own = Boolean(year?.fileId) && year.canEdit !== false;
+  return [
+    own ? tour('share-school-year', driveLink(year.fileId, 'Share the School Year in Drive ↗', 'Open the School Year in Google Drive to share it with your department')) : null,
+    current.fileId && driveConnected()
+      ? h('button', {
+        class: 'btn small light', 'data-tour': 'use-colleague-year', onclick: () => { liveMenu?.close(); joinFlow({ title: 'Use a colleague’s School Year' }); },
+        title: 'Use the School Year a colleague already made; your lessons, templates and pictures stay yours',
+      }, '🤝 Use a colleague’s School Year…')
+      : null,
+  ];
+}
+
+function driveLink(fileId, label, title) {
+  return h('a', { class: 'btn small light', href: `https://drive.google.com/file/d/${encodeURIComponent(fileId)}/view`, target: '_blank', rel: 'noopener', title }, label);
 }
 
 function saveToDrive() {
@@ -203,7 +229,7 @@ function fileButton(close) {
 function oldPlannerOffer(close) {
   const box = h('div', {});
   Promise.all([oldPlannerData(), allCachedPlans()]).then(([state, plans]) => {
-    const copied = new Set(plans.flatMap((p) => p.state.years.map((y) => y.id)));
+    const copied = broughtInYearIds(plans);
     if (!state || state.years.every((y) => copied.has(y.id))) return;
     box.replaceChildren(h('div', { class: 'plans-section old-planner' },
       h('h3', {}, '📦 Your plans from the planner on this computer'),
@@ -233,37 +259,74 @@ function copyOldPlans(state) {
 // ---------- new school year ----------
 
 export function openNewYear() {
-  const from = store.state?.years.find((y) => y.id === store.state.activeYearId);
+  const own = current ? myPlanState() : null;
+  const from = own?.years.find((y) => y.id === own.activeYearId);
   const next = from ? suggestNextYear(from) : { name: '', startDate: '', endDate: '' };
   openModal('Start a new school year', (close) => {
-    const name = h('input', { value: next.name });
-    const start = h('input', { type: 'date', value: next.startDate });
-    const end = h('input', { type: 'date', value: next.endDate });
+    const fields = { name: h('input', { value: next.name }), start: h('input', { type: 'date', value: next.startDate }), end: h('input', { type: 'date', value: next.endDate }) };
     const copy = h('input', { type: 'checkbox', checked: Boolean(from) });
+    const bring = h('input', { type: 'checkbox', checked: true });
     const folder = driveConnected() ? folderChooser() : null;
-    const create = async () => {
-      if (!name.value.trim() || !start.value || !end.value || end.value < start.value) {
-        toast('Please give the year a name, and a last day after the first day.');
-        return;
-      }
-      close();
-      const plan = newYearPlan(store.state, { name: name.value.trim(), startDate: start.value, endDate: end.value }, { copy: copy.checked });
-      const made = await attempt(() => createPlan(plan, { folderId: folder?.folderId() ?? null }));
-      if (made) toast(`Welcome to ${name.value.trim()}! Switch back to past years with the plan button at the top.`);
-    };
+    const ownBox = h('div', {}, ownYearFields({ ...fields, copy, from }));
+    const bringBox = h('div', { hidden: true }, from ? h('label', { class: 'check big' }, bring, `Bring my lesson order, templates and pictures from ${from.name}`) : null);
+    const kind = schoolYearChoice((joining) => { ownBox.hidden = joining; bringBox.hidden = !joining; });
+    const create = () => (kind.joining()
+      ? joinColleague(close, { copy: bring.checked, folderId: folder?.folderId() ?? null })
+      : makeYear(close, { ...fields, copy: copy.checked, folderId: folder?.folderId() ?? null }));
     return h('div', { class: 'modal-body' },
-      h('label', { class: 'field' }, h('span', {}, 'Name'), name),
-      h('div', { class: 'two-col' },
-        h('label', { class: 'field' }, h('span', {}, 'First day'), start),
-        h('label', { class: 'field' }, h('span', {}, 'Last day'), end)),
-      from ? h('label', { class: 'check big' }, copy,
-        `Copy schools, grades, instruments, lesson decks and essential outcomes (with eval criteria and lesson order) from ${from.name}`) : null,
-      folder?.el,
+      kind.el, ownBox, bringBox, folder?.el,
       h('p', { class: 'hint' }, driveConnected()
-        ? 'It’s saved as a new plan in your Google Drive. Calendars start empty; past years stay just as they are.'
+        ? 'It’s saved in your Google Drive as a new School Year (to share with your department) and your Lesson Schedule. Calendars start empty; past years stay just as they are.'
         : 'Google Drive isn’t connected, so it’s kept on this computer for now (you can save it to Drive later). Calendars start empty.'),
       h('div', { class: 'button-row end' },
         h('button', { class: 'btn light', onclick: close }, 'Cancel'),
         h('button', { class: 'btn', onclick: create }, 'Create year')));
   });
+}
+
+/** Name, dates and what to copy, for making a School Year of one's own. */
+function ownYearFields({ name, start, end, copy, from }) {
+  return [
+    h('label', { class: 'field' }, h('span', {}, 'Name'), name),
+    h('div', { class: 'two-col' },
+      h('label', { class: 'field' }, h('span', {}, 'First day'), start),
+      h('label', { class: 'field' }, h('span', {}, 'Last day'), end)),
+    from ? h('label', { class: 'check big' }, copy,
+      `Copy schools, grades, instruments, events and essential outcomes (with evals and your lesson order) from ${from.name}. Your templates and pictures always come along.`) : null,
+  ];
+}
+
+/**
+ * Make a new School Year, or use one a colleague already made (shown when Drive is connected only).
+ * `onChange(joining)` is told when the choice changes; `joining()` says which is picked.
+ */
+function schoolYearChoice(onChange) {
+  let joining = false;
+  const radio = (value, text) => h('label', { class: 'check big' },
+    h('input', { type: 'radio', name: 'new-year-school-year', checked: value === 'make', onchange: () => { joining = value === 'join'; onChange(joining); } }), text);
+  const el = driveConnected()
+    ? h('div', { class: 'field', 'data-tour': 'new-year-school-year' }, radio('make', '🌱 Make a new School Year'), radio('join', '🤝 Use one a colleague already made'))
+    : null;
+  return { el, joining: () => joining };
+}
+
+async function makeYear(close, { name, start, end, copy, folderId }) {
+  if (!name.value.trim() || !start.value || !end.value || end.value < start.value) {
+    toast('Please give the year a name, and a last day after the first day.');
+    return;
+  }
+  close();
+  const made = await attempt(() => startNewYear({ name: name.value.trim(), startDate: start.value, endDate: end.value }, { copy, folderId }));
+  if (made) toast(`Welcome to ${name.value.trim()}! Switch back to past years with the plan button at the top.`);
+}
+
+/** Pick the colleague's School Year; this year's name and dates come from it. */
+async function joinColleague(close, { copy, folderId }) {
+  close();
+  await saveOpenPlan();
+  const mine = (shared) => {
+    const year = shared.years[0];
+    return newYearPlan(current ? myPlanState() : null, { name: year.name, startDate: year.startDate, endDate: year.endDate }, { copy }).state;
+  };
+  joinFlow({ title: 'Use a colleague’s School Year', mine, folderId });
 }
