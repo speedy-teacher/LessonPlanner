@@ -51,6 +51,12 @@ const STYLES = {
   note: { textFormat: text({ italic: true, fontSize: 9, foregroundColor: INK_SOFT }) },
 };
 
+/** A style with the cell's own background (`color`) and text (`ink`) colors, when it has them. */
+function withColors(style, { color, ink }) {
+  if (!color) return style;
+  return { ...style, backgroundColor: rgb(color), textFormat: { ...style.textFormat, foregroundColor: rgb(ink ?? '#3f3127') } };
+}
+
 const linkFormat = (format, uri) => ({ ...format, underline: true, foregroundColor: ROYAL, link: { uri } });
 
 /**
@@ -58,7 +64,7 @@ const linkFormat = (format, uri) => ({ ...format, underline: true, foregroundCol
  * with `linkText` only that part of the text does.
  */
 export function sheetCell(cell) {
-  const style = STYLES[cell.style] ?? {};
+  const style = withColors(STYLES[cell.style] ?? {}, cell);
   const text = cell.text ?? '';
   const linkAt = cell.url && cell.linkText ? text.indexOf(cell.linkText) : -1;
   const textFormat = cell.url && linkAt < 0 ? linkFormat(style.textFormat, cell.url) : style.textFormat;

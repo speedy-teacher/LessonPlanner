@@ -25,6 +25,7 @@ import { AUTO_FIELD_PLACEHOLDERS, AUTO_FIELDS, find, inYear, TEXT_FIELDS, toRang
 import { entryValues, fingerprint, lessonNumbers, safeName } from './exportPlan.js';
 import { instrumentsInWeek, schoolWeeks, weekLessonsFor } from './weekPlan.js';
 import { driveOpenUrl } from './locations.js';
+import { readableText } from './evalGrade.js';
 
 export const DEFAULT_LABEL = '{{copy_name}}';
 
@@ -93,6 +94,19 @@ export function instrumentText(name, { days, allWeek }) {
   if (allWeek) return `${name} (all week)`;
   const ranges = toRanges(days).map(([a, b]) => (a === b ? formatShort(a) : `${formatShort(a)} - ${formatShort(b)}`));
   return `${name} (available ${ranges.join(', ')})`;
+}
+
+/** A color mixed with white (`amount` 0–1 of the color), e.g. a soft tint of a grade's color. */
+export function tint(hex, amount) {
+  const mixed = [1, 3, 5].map((i) => Math.round(255 - (255 - parseInt(hex.slice(i, i + 2), 16)) * amount));
+  return `#${mixed.map((c) => c.toString(16).padStart(2, '0')).join('')}`;
+}
+
+/** The grade's colors for a tab's title and dates: { color, ink } and a soft tint { color, ink } (null = no grade color). */
+function gradeLook(hex) {
+  if (!/^#[0-9a-f]{6}$/i.test(hex ?? '')) return null;
+  const soft = tint(hex, 0.18);
+  return { title: { color: hex, ink: readableText(hex) }, soft: { color: soft, ink: readableText(soft) } };
 }
 
 /**
@@ -168,6 +182,7 @@ export function reportTab(state, cls, weeks, options) {
   return {
     title: safeName(grade).slice(0, 90),
     heading: `${school} · ${grade}`,
+    look: gradeLook(find(state, 'grades', cls.gradeId)?.color),
     subheading: days.length ? `${weeksTitle(weeks)} · ${formatRange(days[0], days.at(-1))}` : weeksTitle(weeks),
     columns: {
       left: (options.left ?? []).map((c) => asColumn(c).name), right: (options.right ?? []).map((c) => asColumn(c).name),
@@ -196,7 +211,7 @@ export function reportWidth(tab) {
 }
 
 /**
- * A tab as rows of cells: [{ text, url?, linkText?, style, span? }] (span = how many columns the cell covers, default 1;
+ * A tab as rows of cells: [{ text, url?, linkText?, style, span?, color?, ink? }] (color/ink = this cell's background and text colors) (span = how many columns the cell covers, default 1;
  * linkText = only that part of the text links to url).
  * Styles: heading, subheading, columnHead, week, label, instruments, lesson, column (an extra column),
  * extra (a lesson's rows above/below it), number, empty, note. Column A holds labels and lesson numbers.
@@ -205,7 +220,12 @@ export function reportRows(tab) {
   const width = reportWidth(tab);
   const wide = (text, style) => ({ text, style, span: width });
   const rest = (text, style) => ({ text, style, span: width - 1 });
-  const rows = [[wide(tab.heading, 'heading')], [wide(tab.subheading, 'subheading')], columnHeads(tab)];
+  const { title, soft } = tab.look ?? {};
+  const rows = [
+    [{ ...wide(tab.heading, 'heading'), ...title }], // the grade's color behind the title, with text that reads on it
+    [{ ...wide(tab.subheading, 'subheading'), ...soft }],
+    columnHeads(tab),
+  ];
   for (const week of tab.weeks) {
     rows.push([{ text: `Week ${week.number}`, style: 'week' }, rest(week.dates, 'week')]);
     rows.push([{ text: 'Instruments', style: 'label' }, rest(instrumentsLine(week.instruments), 'instruments')]);

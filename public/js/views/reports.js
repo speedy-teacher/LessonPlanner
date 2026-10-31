@@ -333,7 +333,9 @@ function sheetTable(tab) {
   const width = reportWidth(tab);
   return h('table', { class: 'sheet-table' }, reportRows(tab).map((row) => h('tr', {},
     row.length
-      ? row.map((cell) => h('td', { colspan: cell.span ?? 1, class: `cell-${cell.style}` }, cellText(cell)))
+      ? row.map((cell) => h('td', {
+        colspan: cell.span ?? 1, class: `cell-${cell.style}`, style: cell.color ? { background: cell.color, color: cell.ink } : null,
+      }, cellText(cell)))
       : h('td', { colspan: width, class: 'cell-blank' }))));
 }
 

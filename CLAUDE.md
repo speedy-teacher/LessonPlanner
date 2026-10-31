@@ -128,6 +128,7 @@ A browser app for a (non-technical) elementary music teacher to plan a school ye
   Extra rows above/below every lesson (`year.reports.above`/`below`, same words; a row whose words are all empty is left out)
   and extra columns before/after it (`left`/`right` = [{ name, value }], `asColumn` turns older plain text into one;
   `columnNames: false` hides the names row; cells carry `span` → Sheet merges + preview colspan).
+  The title bar wears the grade's color (`tab.look`, `readableText` for the ink; the dates bar is a soft `tint`).
   Row buttons are hidden on the tab for now (settings + `setReportOptions` still work). Instruments line = `instrumentsLine`:
   "Required: <lessons' instruments> / Also available: <others at the school>". Footer "Automatically maintained by Lesson Planner"
   (`linkText` links only those words to `SITE_URL`, Sheets `textFormatRuns`); `footer: false` leaves it out.

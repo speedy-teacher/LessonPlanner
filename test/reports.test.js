@@ -8,7 +8,7 @@ import { addWeekLesson, moveWeekLesson, removeWeekLesson } from '../public/js/we
 import { canFillIn, driveFileId, driveLocation } from '../public/js/locations.js';
 import { wantedCopies } from '../public/js/exportPlan.js';
 import {
-  copyFinder, instrumentsLine, instrumentText, lessonLabel, manualReports, REPORT_NOTE, reportRows, reportSettings, reportSteps, SITE_URL,
+  copyFinder, instrumentsLine, tint, instrumentText, lessonLabel, manualReports, REPORT_NOTE, reportRows, reportSettings, reportSteps, SITE_URL,
   weeklyReports,
 } from '../public/js/reportPlan.js';
 import { driveReports, REPORT_LABEL, sheetCell, SHEETS, sheetRequests } from '../public/js/reportSheets.js';
@@ -331,4 +331,24 @@ test('columns can be added before and after the lesson, with titles at the top',
   assert.deepEqual(runCommand(t.s, 'previewReport')[0].tabs[0].rows[2], ['', 'Outcome', 'Lesson']);
   runCommand(t.s, 'setReportOptions', { columnNames: false });
   assert.deepEqual(runCommand(t.s, 'previewReport')[0].tabs[0].rows[2], []);
+});
+
+test('the title bar wears the grade’s color, with text that reads on it', () => {
+  const t = setup();
+  lessonAt(t, t.beat);
+  const rowsFor = (color) => {
+    update(t.s, 'grades', t.k.id, { color });
+    const [file] = manualReports(t.s, t.year.id, { manual: { ...reportSettings(t.year).manual, fromWeek: 3, schoolIds: [t.schoolA.id], gradeIds: [t.k.id] }, copyOf: () => null });
+    return reportRows(file.tabs[0]);
+  };
+  const [dark] = rowsFor('#3f6e8c');
+  assert.equal(dark[0].color, '#3f6e8c');
+  assert.equal(dark[0].ink, '#ffffff', 'a dark grade color gets white text');
+  const [light, softLight] = rowsFor('#f2d98a');
+  assert.equal(light[0].ink, '#3f3127', 'a light grade color gets dark text');
+  assert.notEqual(softLight[0].color, '#f2d98a', 'the dates bar is a softer tint of the same color');
+  const bar = sheetCell(light[0]).userEnteredFormat;
+  assert.ok(Math.abs(bar.backgroundColor.red - 0xf2 / 255) < 0.001);
+  assert.ok(bar.textFormat.foregroundColor.red < 0.3, 'dark text on a light bar');
+  assert.equal(tint('#000000', 0.5), '#808080');
 });
