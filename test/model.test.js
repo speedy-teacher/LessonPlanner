@@ -201,7 +201,10 @@ test('removing an eval criterion removes it from the calendar', () => {
 test('lesson decks fill in school, grade, dates and instrument from the calendar', () => {
   const ctx = smallYear();
   const one = Object.fromEntries(autoFill(ctx.s, ctx.step, place(ctx, '2026-10-13')).map((f) => [f.key, f.value]));
-  assert.deepEqual(one, { school: 'Test School', grade: 'Grade 3', date: '2026-10-13', instrument: 'Ukulele' });
+  assert.equal(one.school, 'Test School');
+  assert.equal(one.grade, 'Grade 3');
+  assert.equal(one.date, '2026-10-13');
+  assert.equal(one.instrument, 'Ukulele');
   const many = Object.fromEntries(autoFill(ctx.s, ctx.step, place(ctx, '2026-10-13', '2026-10-15')).map((f) => [f.key, f.value]));
   assert.equal(many.date, '2026-10-13/2026-10-15');
 });

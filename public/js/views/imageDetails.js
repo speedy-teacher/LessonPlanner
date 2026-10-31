@@ -185,8 +185,8 @@ function lessonSearch(image) {
 }
 
 function addLesson(image, lesson) {
-  const ticked = commit((s) => chooseImageLesson(s, image.id, lesson.id));
-  toast(ticked ? `“${lesson.name}” always gets this picture. “Picture” is now ticked for it — put an IMAGE_ANCHOR spot in its template.` : `“${lesson.name}” always gets this picture.`, { label: 'Undo', run: undo });
+  commit((s) => chooseImageLesson(s, image.id, lesson.id));
+  toast(`“${lesson.name}” always gets this picture.`, { label: 'Undo', run: undo });
 }
 
 function removeImage(image) {

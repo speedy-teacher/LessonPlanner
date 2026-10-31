@@ -267,7 +267,8 @@ test('decks fill in the week number and the class’s running lesson number', ()
   place(critA, '2026-09-08');
   const p = place(critB, '2026-09-21', '2026-09-29');
   const values = Object.fromEntries(autoFill(s, b1, p).map((f) => [f.key, f.value]));
-  assert.deepEqual(values, { week: '5–6', lessonNumber: '3' }, 'after the two lessons of the earlier eval');
+  assert.equal(values.week, '5–6');
+  assert.equal(values.lessonNumber, '3', 'after the two lessons of the earlier eval');
 });
 
 test('lesson numbers follow the calendar order, not the order evals were placed in', () => {

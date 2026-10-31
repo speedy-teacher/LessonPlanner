@@ -15,7 +15,7 @@
 // A copy that exists: { id, entryId, lessonId, hash, place, name, … } (more fields per kind of folder).
 
 import { formatRange } from './dates.js';
-import { AUTO_FIELD_PLACEHOLDERS, find, lessonInstruments, outcomeLabel, PICTURE_FIELDS } from './model.js';
+import { AUTO_FIELD_PLACEHOLDERS, find, lessonInstruments, outcomeLabel, TEXT_FIELDS } from './model.js';
 import { entryCriterion, placementsInWeek, schoolWeeks } from './weekPlan.js';
 import { pictureForEntry, wantsPicture } from './imagePick.js';
 import { driveFileId } from './locations.js';
@@ -68,11 +68,9 @@ export function entryValues(state, entry, week, numbers = lessonNumbers(state.we
   };
 }
 
-/** Only the details the lesson asks for, as placeholder → text (sorted, so fingerprints are steady). */
-function fillValues(lesson, all) {
-  return Object.fromEntries([...lesson.autoFields].sort()
-    .filter((key) => AUTO_FIELD_PLACEHOLDERS[key] && !PICTURE_FIELDS.includes(key))
-    .map((key) => [AUTO_FIELD_PLACEHOLDERS[key], all[key] ?? '']));
+/** Every text detail, as placeholder → text (sorted, so fingerprints are steady). A placeholder the file lacks is simply not found. */
+function fillValues(all) {
+  return Object.fromEntries([...TEXT_FIELDS].sort().map((key) => [AUTO_FIELD_PLACEHOLDERS[key], all[key] ?? '']));
 }
 
 /**
@@ -98,7 +96,7 @@ function wantedCopy(state, entry, { week, numbers }, target) {
   const template = lesson ? templateOf(lesson) : null;
   if (!template) return null;
   const all = entryValues(state, entry, week, numbers);
-  const values = canFill(lesson) ? fillValues(lesson, all) : {};
+  const values = canFill(lesson) ? fillValues(all) : {};
   const chosen = pictureFor(state, entry, lesson, target);
   const held = Boolean(chosen) && Boolean(target.pictureOnHold?.(chosen));
   const picture = held ? '' : chosen;

@@ -103,6 +103,9 @@ export const AUTO_FIELD_PLACEHOLDERS = {
  */
 export const PICTURE_FIELDS = ['image'];
 
+/** Text details: every one is filled in wherever its placeholder is found (nothing happens when it isn't). */
+export const TEXT_FIELDS = Object.keys(AUTO_FIELDS).filter((key) => !PICTURE_FIELDS.includes(key));
+
 // What happens to related records when a record is removed:
 // delete them, clear the link (null), or pull the id out of a list.
 export const RELATIONS = {
@@ -674,7 +677,7 @@ export function autoFill(state, step, placement) {
     outcome: outcomeLabel(find(state, 'outcomes', criterion?.outcomeId)),
     criterion: criterion?.title,
   };
-  return lesson.autoFields.map((key) => ({ key, label: AUTO_FIELDS[key], value: values[key] ?? '' }));
+  return TEXT_FIELDS.map((key) => ({ key, label: AUTO_FIELDS[key], value: values[key] ?? '' }));
 }
 
 function scheduleValues(state, placement) {

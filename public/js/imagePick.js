@@ -213,9 +213,9 @@ export function pictureForEntry(state, entry, sharing = () => null) {
   return { image: best ? find(state, 'images', best.id) : null, week };
 }
 
-/** Whether a lesson has a spot for a picture (its "Picture" detail is ticked). */
+/** Every lesson is offered a picture; a copy whose file has no IMAGE_ANCHOR spot simply gets none. */
 export function wantsPicture(lesson) {
-  return Boolean(lesson?.autoFields.includes('image'));
+  return Boolean(lesson);
 }
 
 /** Each time a lesson is on the schedule, the picture it gets: [{ entry, week, image }] in schedule order. */

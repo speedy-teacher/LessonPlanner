@@ -3,7 +3,7 @@
 
 import { editable, h, toast } from '../dom.js';
 import {
-  addStep, AUTO_FIELD_PLACEHOLDERS, AUTO_FIELDS, criteriaFor, PICTURE_FIELDS, duplicateLesson, editLesson, find, lessonEvals, lessonUsageByGrade, outcomeLabel, remove,
+  addStep, AUTO_FIELD_PLACEHOLDERS, AUTO_FIELDS, criteriaFor, PICTURE_FIELDS, TEXT_FIELDS, duplicateLesson, editLesson, find, lessonEvals, lessonUsageByGrade, outcomeLabel, remove,
 } from '../model.js';
 import { addDeck, foldersIn, moveDeck } from '../library.js';
 import { canFillIn, driveOpenLabel, driveOpenUrl, fillInProblem } from '../locations.js';
@@ -59,7 +59,7 @@ function instrumentFilterChip() {
 function lessonEditor(l) {
   const categories = [...new Set(current('lessons').filter((x) => x.category).map((x) => x.category))].sort();
   const fillable = canFillIn(l);
-  const fields = fillable ? l.autoFields.map((key) => ({ key, label: AUTO_FIELDS[key], value: '' })) : [];
+  const fields = fillable ? TEXT_FIELDS.map((key) => ({ key, label: AUTO_FIELDS[key], value: '' })) : [];
   return h('div', { class: 'template-editor' },
     h('div', { class: 'editor-head' },
       h('label', { class: 'field grow' }, h('span', {}, 'Lesson name'),
@@ -81,7 +81,7 @@ function lessonEditor(l) {
         h('h3', {}, 'Instruments this lesson uses'),
         h('p', { class: 'hint' }, 'The Outcome & Eval Calendar warns you if one isn’t at the school that week.'),
         instrumentToggles(l),
-        fillable ? autoFieldsSection(l) : h('p', { class: 'hint fill-note' }, `Filled in automatically: ${fillInProblem(l)}`))),
+        fillable ? autoFieldsSection() : h('p', { class: 'hint fill-note' }, `Filled in automatically: ${fillInProblem(l)}`))),
     usedIn(l),
   );
 }
@@ -147,32 +147,28 @@ function instrumentToggles(l) {
 }
 
 /** Only for files that open in Google Docs, Sheets or Slides (and lessons with no file yet). */
-function autoFieldsSection(l) {
+function autoFieldsSection() {
   return [
     h('h3', {}, 'Filled in automatically'),
-    h('p', { class: 'hint' }, 'When this lesson is on the Lesson Schedule, its copy gets these details filled in (see Setup › School Year › Lesson copies). In the file, type the text on the right (e.g. {{school}}) where each detail goes — click it to copy.'),
-    h('div', { class: 'auto-fields big' }, Object.entries(AUTO_FIELDS).map(([key, label]) => autoFieldToggle(l, key, label))),
+    h('p', { class: 'hint' }, 'When this lesson is on the Lesson Schedule, its copy gets these details filled in (see Setup › School Year › Lesson copies). In the file, type the text on the right (e.g. {{school}}) wherever a detail goes — click it to copy. Any that aren’t in the file are simply skipped.'),
+    h('div', { class: 'auto-fields big' }, Object.entries(AUTO_FIELDS).map(([key, label]) => autoFieldCode(key, label))),
   ];
 }
 
 const PICTURE_TIP = 'Where the picture goes: draw a rectangle with no fill and no border, then set its alt text (Advanced options) Title and Description to IMAGE_ANCHOR. The picture for each week is chosen from the Images tab. Click to copy.';
 
-function autoFieldToggle(l, key, label) {
+function placeholderButton(key, label) {
   const placeholder = AUTO_FIELD_PLACEHOLDERS[key];
   const tip = PICTURE_FIELDS.includes(key) ? PICTURE_TIP : `Type ${placeholder} in the slides where the ${label.toLowerCase()} goes. Click to copy.`;
-  return h('div', { class: 'auto-field-row' },
-    h('label', { class: 'check' },
-      h('input', {
-        type: 'checkbox',
-        checked: l.autoFields.includes(key),
-        onchange: (e) => commit((s) => editLesson(s, l.id, {
-          autoFields: e.target.checked ? [...l.autoFields, key] : l.autoFields.filter((k) => k !== key),
-        })),
-      }), label),
-    h('button', {
-      type: 'button', class: 'placeholder-code', 'data-tip': tip,
-      onclick: () => copyText(placeholder),
-    }, placeholder));
+  return h('button', {
+    type: 'button', class: 'placeholder-code', 'data-tip': tip,
+    onclick: () => copyText(placeholder),
+  }, placeholder);
+}
+
+/** Every detail is filled in wherever it's found, so just its name and the code to copy. */
+function autoFieldCode(key, label) {
+  return h('div', { class: 'auto-field-row' }, h('span', { class: 'check' }, label), placeholderButton(key, label));
 }
 
 function copyText(text) {

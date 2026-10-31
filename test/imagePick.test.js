@@ -141,11 +141,12 @@ test('a lesson on the schedule gets the picture that fits its week', () => {
   assert.deepEqual(imageUses(s, welcome.id).map((u) => u.entry.id), [first.id]);
 });
 
-test('only lessons with a picture spot (the “Picture” detail ticked) use pictures', () => {
+test('every lesson on the schedule is offered a picture, with nothing to tick', () => {
   const { s, plain, welcome, weeks, cls } = planner();
-  addWeekLesson(s, { ...cls, weekStart: weeks[0].weekStart, lessonId: plain.id });
-  assert.deepEqual(lessonPictures(s, plain.id), []);
-  assert.deepEqual(imageUses(s, welcome.id), []);
+  plain.autoFields = [];
+  const entry = addWeekLesson(s, { ...cls, weekStart: weeks[0].weekStart, lessonId: plain.id });
+  assert.equal(lessonPictures(s, plain.id)[0].image.id, welcome.id);
+  assert.deepEqual(imageUses(s, welcome.id).map((u) => u.entry.id), [entry.id]);
 });
 
 test('the weeks a picture fits are listed for checking its rules', () => {

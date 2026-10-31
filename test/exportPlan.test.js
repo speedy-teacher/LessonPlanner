@@ -76,10 +76,14 @@ test('the grade folder uses the grade name from Setup', () => {
   assert.equal(wants(s, year.id)[0].path[2], 'Grade 1');
 });
 
-test('only the details a lesson asks for are filled in, as the placeholders typed in its file', () => {
+test('every text detail is filled in, as the placeholders typed in its file', () => {
   const { s, year, weekly, cls, weeks } = setup();
   addWeekLesson(s, { ...cls, weekStart: weeks[2].weekStart, lessonId: weekly.id });
-  assert.deepEqual(wants(s, year.id)[0].values, { '{{school}}': 'School A', '{{week_number}}': '3' });
+  const { values } = wants(s, year.id)[0];
+  assert.equal(values['{{school}}'], 'School A');
+  assert.equal(values['{{week_number}}'], '3');
+  assert.equal(values['{{lesson_number}}'], '1');
+  assert.equal(values['{{grade}}'], 'Kindergarten');
 });
 
 test('files that can’t be filled in (e.g. PDFs) are still copied, just without details', () => {
@@ -136,10 +140,10 @@ test('moving a lesson to another week moves its copy — and remakes it when its
   const song = addWeekLesson(s, { ...cls, weekStart: weeks[0].weekStart, lessonId: plain.id });
   const beat = addWeekLesson(s, { ...cls, weekStart: weeks[0].weekStart, lessonId: weekly.id });
   syncFolder(s, year.id, haves);
-  moveWeekLesson(s, song.id, weeks[3].weekStart, 0); // fills in only {{school}}: same contents
-  assert.deepEqual(syncFolder(s, year.id, haves), ['move', 'move'], 'Song moves; Beat is renamed "1 - Beat" in its week');
+  moveWeekLesson(s, song.id, weeks[3].weekStart, 0); // week number changes, so its contents do too
+  assert.deepEqual(syncFolder(s, year.id, haves).sort(), ['refill', 'refill'], 'Song is remade for week 4; Beat is remade as "1 - Beat" (its lesson number changed)');
   assert.deepEqual(haves.find((h) => h.entryId === song.id).path.at(-1), 'Week 4');
-  moveWeekLesson(s, beat.id, weeks[2].weekStart, 0); // fills in {{week_number}}: it changes
+  moveWeekLesson(s, beat.id, weeks[2].weekStart, 0);
   assert.deepEqual(syncFolder(s, year.id, haves), ['refill']);
   assert.equal(haves.length, 2);
 });
@@ -154,14 +158,16 @@ test('removing a lesson from the schedule removes its copy', () => {
   assert.equal(haves.length, 0);
 });
 
-test('copies whose details don’t change are left alone (only lesson-number copies follow an earlier insert)', () => {
+test('copies whose details don’t change are left alone; later ones follow an earlier insert', () => {
   const { s, year, plain, numbered, cls, weeks } = setup();
   const haves = [];
   addWeekLesson(s, { ...cls, weekStart: weeks[2].weekStart, lessonId: plain.id });
   addWeekLesson(s, { ...cls, weekStart: weeks[3].weekStart, lessonId: numbered.id });
   syncFolder(s, year.id, haves);
+  addWeekLesson(s, { ...cls, weekStart: weeks[4].weekStart, lessonId: plain.id });
+  assert.deepEqual(syncFolder(s, year.id, haves), ['create'], 'a later lesson changes nothing before it');
   addWeekLesson(s, { ...cls, weekStart: weeks[0].weekStart, lessonId: plain.id });
-  assert.deepEqual(syncFolder(s, year.id, haves).sort(), ['create', 'refill'], 'Song in week 3 untouched; Count becomes lesson 3');
+  assert.deepEqual(syncFolder(s, year.id, haves).sort(), ['create', 'refill', 'refill', 'refill'], 'every later lesson number moves up');
 });
 
 test('a spare copy of the same entry (e.g. made twice) is removed', () => {
@@ -190,7 +196,7 @@ test('the picture spot (IMAGE_ANCHOR) is never replaced as text in lesson copies
   const { s, year, plain, cls, weeks } = setup();
   plain.autoFields.push('image');
   addWeekLesson(s, { ...cls, weekStart: weeks[0].weekStart, lessonId: plain.id });
-  assert.deepEqual(Object.keys(wants(s, year.id)[0].values), ['{{school}}']);
+  assert.equal(Object.keys(wants(s, year.id)[0].values).includes('IMAGE_ANCHOR'), false);
 });
 
 test('taking a lesson off the schedule and putting it in another week reuses its copy (nothing to the trash)', () => {
@@ -250,4 +256,16 @@ test('copies wait a minute after the last change before updating; a change near 
   assert.equal(updateTime({ now: 10_000, lastEdit: 10_000, delay: 1500 }), 70_000, 'a minute after the change');
   assert.equal(updateTime({ now: 69_000, lastEdit: 68_000, delay: 1500 }), 128_000, 'another change just before: a minute after that one');
   assert.equal(updateTime({ now: 200_000, lastEdit: 10_000, delay: 1500 }), 201_500, 'long settled');
+});
+
+test('every detail is filled in without ticking anything; the lesson need not list it', () => {
+  const { s, year, numbered, plain, cls, weeks } = setup();
+  plain.autoFields = [];
+  addWeekLesson(s, { ...cls, weekStart: weeks[1].weekStart, lessonId: plain.id });
+  addWeekLesson(s, { ...cls, weekStart: weeks[1].weekStart, lessonId: numbered.id });
+  const [a] = wants(s, year.id);
+  assert.equal(a.values['{{week_number}}'], '2');
+  assert.equal(a.values['{{lesson_number}}'], '1');
+  assert.equal(a.values['{{school}}'], 'School A');
+  assert.equal(a.values.IMAGE_ANCHOR, undefined, 'the picture stays a choice, not a text fill');
 });
