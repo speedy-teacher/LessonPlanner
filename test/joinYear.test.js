@@ -6,6 +6,7 @@ import { add, normalize } from '../public/js/model.js';
 import { seedState } from '../public/js/seed.js';
 import { composeState, splitState } from '../public/js/pieces.js';
 import { joinedPieces, matchToSchoolYear } from '../public/js/joinYear.js';
+import { newYearPlan } from '../public/js/workspaceFile.js';
 
 function myPlan() {
   const s = normalize(seedState());
@@ -83,3 +84,58 @@ test('something left unmatched keeps pointing at my old one (shown as not availa
   const joined = joinedPieces(mine, theirs, map);
   assert.equal(joined.schedule.weekLessons[0].schoolId, mine.schools[0].id);
 });
+
+// ---------- matching by id first ----------
+
+test('a renamed school (same id, different name) still matches by id', () => {
+  const mine = myPlan();
+  const theirs = structuredClone(mine);
+  theirs.schools[0].name = 'Somewhere Else Elementary';
+  const { map, unmatched } = matchToSchoolYear(mine, theirs);
+  assert.deepEqual(unmatched, []);
+  assert.equal(map[mine.schools[0].id], theirs.schools[0].id);
+});
+
+test('a shared record with my record\'s name but another id does not steal a record that matches by id', () => {
+  const mine = myPlan();
+  const theirs = structuredClone(mine);
+  // Their first two schools swap names: names say A->B and B->A, ids say A->A and B->B.
+  const [a, b] = theirs.schools;
+  [a.name, b.name] = [b.name, a.name];
+  const { map, unmatched } = matchToSchoolYear(mine, theirs);
+  assert.deepEqual(unmatched, []);
+  assert.equal(map[mine.schools[0].id], a.id);
+  assert.equal(map[mine.schools[1].id], b.id);
+});
+
+test('records carried over (copiedFromId) match in either direction', () => {
+  const mine = myPlan();
+  const theirs = departmentYear();
+  theirs.schools[0].name = 'Somewhere Else Elementary';
+  theirs.schools[0].copiedFromId = mine.schools[0].id;
+  const viaTheirs = matchToSchoolYear(mine, theirs);
+  assert.equal(viaTheirs.map[mine.schools[0].id], theirs.schools[0].id);
+  const flipped = departmentYear();
+  flipped.grades[1].name = 'Another name';
+  mine.grades[1].copiedFromId = flipped.grades[1].id;
+  const viaMine = matchToSchoolYear(mine, flipped);
+  assert.equal(viaMine.map[mine.grades[1].id], flipped.grades[1].id);
+});
+
+test('next year\'s School Year made by a colleague from the shared year matches my rolled-over data completely', () => {
+  const shared = normalize(seedState());
+  const fields = { name: '2027-28', startDate: '2027-08-20', endDate: '2028-06-01' };
+  const theirNext = splitState(newYearPlan(shared, fields, { copy: true }).state).schoolYear;
+  const myNext = newYearPlan(myPlanFrom(shared), fields, { copy: true }).state;
+  const { map, unmatched } = matchToSchoolYear(myNext, theirNext);
+  assert.deepEqual(unmatched, []);
+  for (const collection of ['schools', 'grades', 'instruments', 'outcomes', 'criteria']) {
+    myNext[collection].forEach((r) => assert.equal(map[r.id], r.id, collection));
+  }
+});
+
+function myPlanFrom(shared) {
+  const s = structuredClone(shared);
+  s.schools[0].name = 'My own name for it';
+  return s;
+}

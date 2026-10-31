@@ -28,7 +28,8 @@ function namesOf(collection, r) {
 }
 
 /**
- * Match `mine` (one year's planner data) to the shared School Year piece `theirs`.
+ * Match `mine` (one year's planner data) to the shared School Year piece `theirs`: first by id (the same
+ * record, or one carried over from the other), then by name for whatever is left.
  * Returns { map: { myId: theirId }, unmatched: [{ collection, id, label, choices: [{ id, label }] }] }.
  */
 export function matchToSchoolYear(mine, theirs) {
@@ -37,18 +38,28 @@ export function matchToSchoolYear(mine, theirs) {
   if (mine.years[0] && theirs.years[0]) map[mine.years[0].id] = theirs.years[0].id;
   for (const collection of MATCHED) {
     const taken = new Set();
-    for (const r of mine[collection]) {
+    const left = mine[collection].filter((r) => !matchOne(collection, r, theirs, map, taken, sameRecord));
+    for (const r of left) {
+      if (matchOne(collection, r, theirs, map, taken, sameName)) continue;
       const choices = choicesFor(collection, r, theirs, map);
-      const found = choices.find((c) => !taken.has(c.id) && sameName(collection, r, c));
-      if (found) {
-        map[r.id] = found.id;
-        taken.add(found.id);
-      } else {
-        unmatched.push({ collection, id: r.id, label: matchLabel(collection, r), choices: choices.map((c) => ({ id: c.id, label: matchLabel(collection, c) })) });
-      }
+      unmatched.push({ collection, id: r.id, label: matchLabel(collection, r), choices: choices.map((c) => ({ id: c.id, label: matchLabel(collection, c) })) });
     }
   }
   return { map, unmatched };
+}
+
+/** Match one record with the first shared record `same` accepts that isn't taken yet. */
+function matchOne(collection, r, theirs, map, taken, same) {
+  const found = choicesFor(collection, r, theirs, map).find((c) => !taken.has(c.id) && same(collection, r, c));
+  if (!found) return false;
+  map[r.id] = found.id;
+  taken.add(found.id);
+  return true;
+}
+
+/** The same record, or one carried over from the other (a new year keeps `copiedFromId`). */
+function sameRecord(_collection, a, b) {
+  return a.id === b.id || a.copiedFromId === b.id || b.copiedFromId === a.id;
 }
 
 /** The shared records a record could be matched to (evals only within the matching outcome). */
