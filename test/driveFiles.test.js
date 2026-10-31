@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  createPlanFile, folderName, keepRevision, listPlanFiles, movePlanFile, planFileInfo, readPlanFile, savePlanFile,
+  createPlanFile, folderName, keepRevision, listPlanFiles, listSharedResources, listMyResources, movePlanFile, planFileInfo, readPlanFile, savePlanFile,
 } from '../public/js/driveFiles.js';
 
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status });
@@ -95,4 +95,15 @@ test('a plan can be saved in a folder you pick, and moved to another folder late
   assert.equal(await movePlanFile('tok', plan.fileId, other.id, drive), other.id);
   assert.deepEqual(drive.files.get(plan.fileId).parents, [other.id], 'it leaves the old folder');
   assert.equal((await planFileInfo('tok', plan.fileId, drive)).folderId, other.id);
+});
+
+test('Teacher Resources shared with you are asked for by label, leaving out your own', async () => {
+  const drive = fakeDrive();
+  await listSharedResources('tok', drive);
+  const q = drive.calls.at(-1).url.searchParams.get('q');
+  assert.match(q, /key='lessonPlanner' and value='resources'/);
+  assert.match(q, /not 'me' in owners/);
+  assert.match(q, /trashed = false/);
+  await listMyResources('tok', drive);
+  assert.doesNotMatch(drive.calls.at(-1).url.searchParams.get('q'), /not 'me' in owners/);
 });

@@ -46,6 +46,11 @@ export async function listMyResources(token, { fetchFn = fetch } = {}) {
   return findFiles(token, `${has(PIECE_PROPERTY('resources'))} and 'me' in owners`, { fetchFn });
 }
 
+/** Teacher Resources files other people shared with you (not yours), newest first. */
+export async function listSharedResources(token, { fetchFn = fetch } = {}) {
+  return findFiles(token, `${has(PIECE_PROPERTY('resources'))} and not 'me' in owners`, { fetchFn });
+}
+
 async function findFiles(token, query, { fetchFn }) {
   const params = new URLSearchParams({
     q: `${query} and trashed = false`,

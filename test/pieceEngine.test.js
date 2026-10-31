@@ -194,9 +194,18 @@ function addTeammate(drive, pieces, { shareResources = true, viewOnly = true } =
   if (viewOnly) ['t-sched', 't-res'].forEach((id) => drive.viewOnly.add(id));
 }
 
+async function recOf(drive, fileId, piece = 'schedule') {
+  const file = await drive.read(fileId);
+  return { key: driveKey(fileId), piece, name: file.name, fileId, rev: file.rev, base: file.text, canEdit: file.canEdit, changed: false, data: JSON.parse(file.text) };
+}
+
 async function viewTeammate(plan, drive) {
-  const file = await drive.read('t-sched');
-  await plan.view({ key: driveKey('t-sched'), piece: 'schedule', name: file.name, fileId: 't-sched', rev: file.rev, base: file.text, canEdit: file.canEdit, changed: false, data: JSON.parse(file.text) }, { name: 'Teammate' });
+  await plan.view({ schedule: await recOf(drive, 't-sched') }, { schedule: { name: 'Teammate', fileId: 't-sched' } });
+  await plan.syncAll();
+}
+
+async function viewTheirResources(plan, drive) {
+  await plan.view({ resources: await recOf(drive, 't-res', 'resources') }, { resources: { name: 'Teammate', fileId: 't-res' } });
   await plan.syncAll();
 }
 
@@ -222,8 +231,9 @@ test('a teammate whose templates aren’t shared with me: their schedule shows, 
   const plan = await openFromDrive(drive);
   await viewTeammate(plan, drive);
   assert.equal(plan.missing.resources, 'no_access');
-  assert.equal(plan.state().lessons.length, 0);
+  assert.equal(plan.state().lessons.length, 0, 'never my own templates');
   assert.equal(plan.state().weekLessons.length, 1);
+  assert.equal(whyUnavailable(plan.state(), 'lessons', plan.myState().lessons[0].id, plan.missing), 'Teacher Resources: Not shared with you.');
   plan.viewMine();
   assert.deepEqual(plan.missing, {});
 });
@@ -253,4 +263,121 @@ test('a link to something in a missing piece says why it can’t be followed; it
   drive.deny.delete('f-res');
   await plan.syncAll();
   assert.equal(whyUnavailable(plan.state(), 'lessons', lessonId, plan.missing), null);
+});
+
+// ---------- looking at one part at a time ----------
+
+test('looking at only a teammate’s templates: my schedule stays, theirs are the templates; mine come back after', async () => {
+  const { drive, pieces, state } = inDrive();
+  addTeammate(drive, pieces);
+  const plan = await openFromDrive(drive);
+  await viewTheirResources(plan, drive);
+  const shown = plan.state();
+  assert.ok(shown.lessons.every((l) => l.name.startsWith('Their ')));
+  assert.deepEqual(shown.weekLessons, state.weekLessons, 'my own lesson schedule');
+  assert.deepEqual(plan.myState(), state);
+  assert.deepEqual(plan.viewing, { schedule: null, resources: { name: 'Teammate', fileId: 't-res' } });
+  assert.deepEqual(plan.readOnly(), ['resources']);
+  plan.viewMine();
+  assert.deepEqual(plan.state(), state);
+  assert.equal(plan.viewing, null);
+});
+
+test('my own schedule edited while looking at their templates is still there (and saved) when I come back', async () => {
+  const { drive, pieces } = inDrive();
+  addTeammate(drive, pieces);
+  const plan = await openFromDrive(drive);
+  await viewTheirResources(plan, drive);
+  const s = plan.state();
+  s.weekLessons[0].position = 7;
+  assert.deepEqual(await plan.save(s), ['schedule']);
+  await plan.syncAll();
+  assert.equal(JSON.parse(drive.files.get('f-sched').text).weekLessons[0].position, 7);
+  plan.viewMine();
+  assert.equal(plan.state().weekLessons[0].position, 7);
+  assert.deepEqual(plan.unsaved(), []);
+  assert.equal(plan.recs.schedule.rev, drive.files.get('f-sched').rev);
+  const results = await plan.syncAll();
+  assert.ok(results.every((r) => r.action === 'none'), 'nothing left to upload or combine');
+});
+
+test('a teammate’s templates shared as Editor: my change and theirs in Drive are both kept', async () => {
+  const { drive, pieces } = inDrive();
+  addTeammate(drive, pieces, { viewOnly: false });
+  const plan = await openFromDrive(drive);
+  await viewTheirResources(plan, drive);
+  assert.equal(plan.access('resources'), 'edit');
+  const s = plan.state();
+  s.lessons[0].name = 'Renamed by me';
+  assert.deepEqual(await plan.save(s), ['resources']);
+  const theirs = JSON.parse(drive.files.get('t-res').text);
+  theirs.lessons[1].name = 'Renamed by them';
+  drive.put('t-res', 'Teacher Resources', JSON.stringify(theirs));
+  const results = await plan.syncAll();
+  assert.equal(results.find((r) => r.name === 'resources').action, 'conflict');
+  const merged = JSON.parse(drive.files.get('t-res').text);
+  assert.deepEqual(merged.lessons.slice(0, 2).map((l) => l.name), ['Renamed by me', 'Renamed by them']);
+  assert.deepEqual(plan.unsaved(), []);
+});
+
+test('a teammate’s templates shared as Viewer: my change to them is refused', async () => {
+  const { drive, pieces } = inDrive();
+  addTeammate(drive, pieces);
+  const plan = await openFromDrive(drive);
+  await viewTheirResources(plan, drive);
+  const before = plan.state();
+  const after = structuredClone(before);
+  after.lessons[0].name = 'Renamed by me';
+  assert.deepEqual(plan.guard(before, after).blocked, ['resources']);
+});
+
+test('a teammate’s lesson schedule shared as Editor: my change and theirs in Drive are both kept', async () => {
+  const { drive, pieces } = inDrive();
+  addTeammate(drive, pieces, { viewOnly: false });
+  const plan = await openFromDrive(drive);
+  await viewTeammate(plan, drive);
+  const s = plan.state();
+  s.weekLessons[0].weekStart = '2026-11-02';
+  assert.deepEqual(await plan.save(s), ['schedule']);
+  const theirs = JSON.parse(drive.files.get('t-sched').text);
+  theirs.weekLessons.push({ ...theirs.weekLessons[0], id: 'wl_added_there' });
+  drive.put('t-sched', 'Lesson Schedule', JSON.stringify(theirs));
+  const results = await plan.syncAll();
+  assert.equal(results.find((r) => r.name === 'schedule').action, 'conflict');
+  const merged = JSON.parse(drive.files.get('t-sched').text);
+  assert.equal(merged.weekLessons.length, 2);
+  assert.equal(merged.weekLessons.find((w) => w.id !== 'wl_added_there').weekStart, '2026-11-02');
+  plan.viewMine();
+  assert.equal(plan.state().weekLessons[0].position, pieces.schedule.weekLessons[0].position, 'my own schedule untouched');
+});
+
+test('syncing while looking fetches a chosen Teacher Resources not on this computer yet, and keeps it current', async () => {
+  const { drive, pieces } = inDrive();
+  addTeammate(drive, pieces);
+  const plan = await openFromDrive(drive);
+  await plan.view({ resources: { key: driveKey('t-res'), fileId: 't-res' } }, { resources: { name: 'Teammate', fileId: 't-res' } });
+  assert.equal(plan.missing.resources, 'not_loaded');
+  assert.equal(plan.link('resources').fileId, 't-res');
+  await plan.syncAll();
+  assert.deepEqual(plan.missing, {});
+  assert.ok(plan.state().lessons.every((l) => l.name.startsWith('Their ')));
+  const theirs = JSON.parse(drive.files.get('t-res').text);
+  theirs.lessons[0].name = 'Changed in Drive';
+  drive.put('t-res', 'Teacher Resources', JSON.stringify(theirs));
+  await plan.syncAll();
+  assert.equal(plan.state().lessons[0].name, 'Changed in Drive');
+  plan.viewMine();
+  assert.equal(plan.link('resources').fileId, 'f-res');
+});
+
+test('switching from one person to another keeps my own pieces aside, unchanged', async () => {
+  const { drive, pieces, state } = inDrive();
+  addTeammate(drive, pieces);
+  const plan = await openFromDrive(drive);
+  await viewTeammate(plan, drive);
+  await viewTheirResources(plan, drive);
+  assert.deepEqual(plan.myState(), state);
+  assert.deepEqual(plan.state().weekLessons, state.weekLessons, 'now my own schedule again');
+  plan.viewMine();
+  assert.deepEqual(plan.state(), state);
 });

@@ -41,7 +41,8 @@ export class PiecePlan {
     this.missing = {};
     this.stale = {}; // pieces whose newest version couldn't be loaded (shown from this computer's copy)
     this.own = null; // your own schedule + resources, kept aside while looking at a teammate's
-    this.viewing = null; // { name, fileId } of the teammate being looked at
+    this.viewing = null; // { schedule, resources }: { name, fileId } of whose piece is shown (null = yours)
+    this.chosen = {}; // { resources: { key, fileId } } when a Teacher Resources was picked on its own
   }
 
   /** Open from the Teacher Schedule's record; the other pieces come from this computer's copies. */
@@ -56,25 +57,53 @@ export class PiecePlan {
   }
 
   link(name) {
-    // Looking at a teammate's plan keeps your own School Year (you share it).
+    // Looking at someone else keeps your own School Year (you share it); the Teacher Resources shown follow
+    // the shown Teacher Schedule's link, unless one was chosen on its own.
+    if (name === 'resources' && this.chosen.resources) return this.chosen.resources;
     const schedule = name === 'schoolYear' && this.own ? this.own.schedule : this.recs.schedule;
     return schedule?.data.meta.links?.[name] ?? null;
   }
 
-  // ---------- looking at a teammate's plan ----------
+  /** Every write of a piece's record goes through here, so your own pieces set aside stay current too. */
+  put(name, rec) {
+    this.recs[name] = rec;
+    if (this.own?.[name]?.key === rec.key) this.own[name] = rec;
+    return rec;
+  }
+
+  // ---------- looking at someone else's pieces ----------
 
   /**
-   * Show a teammate's Teacher Schedule (and the Teacher Resources it points at) with your shared School
-   * Year. Your own pieces are kept aside, unchanged, until `viewMine()`. `who` = { name } for the page.
+   * Show other people's Teacher Schedule and/or Teacher Resources with your shared School Year. Your own
+   * pieces are kept aside (and kept current) until `viewMine()`.
+   *   schedule: a teammate's Teacher Schedule record, or null = your own.
+   *   resources: 'linked' = the Resources the shown schedule links to · a record (or { key, fileId } not
+   *     on this computer yet) = that one · null = your own.
+   *   who = { schedule?, resources? }, each { name, fileId } of the person whose piece is shown.
    */
-  async view(theirScheduleRec, who = {}) {
+  async view({ schedule = null, resources = 'linked' }, who = {}) {
+    const wanted = resources === 'linked' && !schedule ? null : resources;
+    if (!schedule && !wanted) return this.viewMine();
     this.own ??= { schedule: this.recs.schedule, resources: this.recs.resources, missing: this.missing.resources };
-    this.viewing = { ...who, fileId: theirScheduleRec.fileId ?? null };
-    this.recs.schedule = theirScheduleRec;
-    const link = this.link('resources');
-    this.recs.resources = link ? await this.cache.get(link.key).catch(() => null) ?? null : null;
-    this.setMissing('resources', link ? (this.recs.resources ? null : 'not_loaded') : 'not_linked');
+    this.recs.schedule = schedule ?? this.own.schedule;
+    await this.showResources(wanted);
+    const theirResources = wanted === 'linked' ? who.resources ?? who.schedule : who.resources;
+    this.viewing = { schedule: schedule ? who.schedule ?? null : null, resources: wanted ? theirResources ?? null : null };
     return this;
+  }
+
+  async showResources(wanted) {
+    this.chosen = {};
+    if (wanted === null) {
+      this.recs.resources = this.own.resources;
+      this.setMissing('resources', this.own.missing ?? null);
+      return;
+    }
+    if (wanted !== 'linked') this.chosen.resources = { key: wanted.key, fileId: wanted.fileId };
+    const link = this.link('resources');
+    const loaded = wanted.data ? wanted : link ? await this.cache.get(link.key).catch(() => null) ?? null : null;
+    this.recs.resources = loaded;
+    this.setMissing('resources', link ? (loaded ? null : 'not_loaded') : 'not_linked');
   }
 
   /** Back to your own Teacher Schedule and Teacher Resources. */
@@ -85,10 +114,11 @@ export class PiecePlan {
     this.setMissing('resources', this.own.missing ?? null);
     this.own = null;
     this.viewing = null;
+    this.chosen = {};
     return this;
   }
 
-  /** Your own pieces' data (also while looking at a teammate's): what your lesson copies and reports come from. */
+  /** Your own pieces' data (also while looking at someone else's): what your lesson copies and reports come from. */
   myDatas() {
     const datas = this.datas();
     return this.own ? { ...datas, schedule: this.own.schedule.data, resources: this.own.resources?.data ?? null } : datas;
@@ -136,8 +166,8 @@ export class PiecePlan {
     const after = splitState(state, before);
     const changed = changedPieces(before, after).filter((name) => this.access(name) === 'edit');
     for (const name of changed) {
-      this.recs[name] = { ...this.recs[name], data: after[name], changed: Boolean(this.recs[name].fileId), savedAt: now };
-      await this.cache.put(this.recs[name]);
+      const rec = this.put(name, { ...this.recs[name], data: after[name], changed: Boolean(this.recs[name].fileId), savedAt: now });
+      await this.cache.put(rec);
     }
     return changed;
   }
@@ -169,7 +199,7 @@ export class PiecePlan {
     const rec = this.recs[name];
     if (!rec) return this.fetch(name);
     const info = await this.drive.info(rec.fileId);
-    this.recs[name] = { ...rec, canEdit: info.canEdit, name: info.name, folderId: info.folderId };
+    this.put(name, { ...rec, canEdit: info.canEdit, name: info.name, folderId: info.folderId });
     delete this.stale[name];
     const action = syncAction({ localChanges: rec.changed && info.canEdit, knownRev: rec.rev, remoteRev: info.rev });
     if (action === 'upload') await this.upload(name);
@@ -182,10 +212,10 @@ export class PiecePlan {
   async fetch(name) {
     const link = this.link(name);
     const file = await this.drive.read(link.fileId);
-    this.recs[name] = {
+    this.put(name, {
       key: driveKey(file.fileId), piece: name, name: file.name, fileId: file.fileId, folderId: file.folderId, rev: file.rev,
       base: file.text, canEdit: file.canEdit, changed: false, keptDay: null, savedAt: 0, data: fromPieceFile(file.text, name),
-    };
+    });
     this.setMissing(name, null);
     await this.cache.put(this.recs[name]);
     return { name, action: 'download' };
@@ -197,17 +227,17 @@ export class PiecePlan {
     const rev = await this.drive.save(rec.fileId, text);
     // Changes made while sending stay marked as not yet in Drive.
     const latest = this.recs[name];
-    this.recs[name] = { ...latest, rev, base: text, changed: latest.data !== rec.data };
+    const next = this.put(name, { ...latest, rev, base: text, changed: latest.data !== rec.data });
     if (rev && shouldKeepRevision(rec.keptDay, this.today())) {
-      await this.drive.keep(rec.fileId, rev).then(() => { this.recs[name].keptDay = this.today(); }, () => {});
+      await this.drive.keep(rec.fileId, rev).then(() => { next.keptDay = this.today(); }, () => {});
     }
-    await this.cache.put(this.recs[name]);
+    await this.cache.put(next);
   }
 
   async download(name) {
     const file = await this.drive.read(this.recs[name].fileId);
-    this.recs[name] = { ...this.recs[name], name: file.name, rev: file.rev, base: file.text, canEdit: file.canEdit, changed: false, data: fromPieceFile(file.text, name) };
-    await this.cache.put(this.recs[name]);
+    const rec = this.put(name, { ...this.recs[name], name: file.name, rev: file.rev, base: file.text, canEdit: file.canEdit, changed: false, data: fromPieceFile(file.text, name) });
+    await this.cache.put(rec);
   }
 
   /**
@@ -221,7 +251,7 @@ export class PiecePlan {
     // Without a known starting point, nothing counts as deleted: both sides' records are kept.
     const base = rec.base ? fromPieceFile(rec.base, name) : emptyPiece(name);
     const { state, conflicts } = mergePiece(PIECES[name].collections, base, rec.data, other);
-    this.recs[name] = { ...rec, name: file.name, rev: file.rev, base: file.text, canEdit: file.canEdit, changed: true, data: state };
+    this.put(name, { ...rec, name: file.name, rev: file.rev, base: file.text, canEdit: file.canEdit, changed: true, data: state });
     await this.cache.put(this.recs[name]);
     await this.upload(name);
     return { conflicts, theirs: composeState({ ...this.datas(), [name]: other }) };
@@ -232,7 +262,7 @@ export class PiecePlan {
     const why = err?.message || 'offline';
     if (this.recs[name]) {
       this.stale[name] = why;
-      if (why === 'no_access' || why === 'not_found') this.recs[name] = { ...this.recs[name], canEdit: false };
+      if (why === 'no_access' || why === 'not_found') this.put(name, { ...this.recs[name], canEdit: false });
     } else {
       this.setMissing(name, why);
     }
