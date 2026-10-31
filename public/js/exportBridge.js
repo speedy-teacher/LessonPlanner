@@ -507,12 +507,12 @@ function warn(status, message) {
 function warnBehind(status) {
   if (status.behind === 0) return warn(status, null);
   const count = status.behind ? `${status.behind} lesson ${status.behind === 1 ? 'copy is' : 'copies are'} out of date. ` : '';
-  return warn(status, `${count}${status.keeperName} keeps this plan’s lesson copies, so only they can update them. Ask ${status.keeperName} to open the Lesson Planner (and connect Google Drive) — the copies catch up by themselves then.`);
+  return warn(status, `${count}${status.keeperName} keeps this plan’s lesson copies, so only they can update them. They catch up once ${status.keeperName} opens the planner.`);
 }
 
 function warnOtherComputer(status) {
   const who = status.keeperName ? ` (chosen by ${status.keeperName})` : '';
-  return warn(status, `This plan’s lesson copies are saved in a folder on another computer${who}, so changes made here reach them the next time the planner is opened on that computer. To make copies from this computer instead, choose a folder under Setup › School Year › Lesson copies.`);
+  return warn(status, `Lesson copies are saved on another computer${who}. They update when the planner is opened there. To make them here instead, choose a folder under Setup › School Year › Lesson copies.`);
 }
 
 /** How many copies your recent changes will update (only known when this computer keeps the copies). */
@@ -556,9 +556,9 @@ function drawOtherWorker(el) {
   el.classList.add('show');
   return el.replaceChildren(
     h('div', { class: 'copy-queue-head' }, h('span', { 'aria-hidden': 'true' }, '💻'),
-      h('strong', {}, 'Your other computer is updating the lesson copies')),
+      h('strong', {}, 'Another computer is updating lesson copies')),
     h('div', { class: 'copy-queue-now wait-row' },
-      h('span', {}, 'The planner is open on another computer (or in another tab), so this one waits instead of making the same copies twice.')));
+      h('span', {}, 'You can safely exit this tab, if desired.')));
 }
 
 function drawWaiting(el, count) {
