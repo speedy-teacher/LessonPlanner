@@ -8,9 +8,10 @@ import { addWeekLesson, moveWeekLesson, removeWeekLesson } from '../public/js/we
 import { canFillIn, driveFileId, driveLocation } from '../public/js/locations.js';
 import { wantedCopies } from '../public/js/exportPlan.js';
 import {
-  copyFinder, instrumentText, lessonLabel, manualReports, REPORT_NOTE, reportRows, reportSettings, reportSteps, weeklyReports,
+  copyFinder, instrumentsLine, instrumentText, lessonLabel, manualReports, REPORT_NOTE, reportRows, reportSettings, reportSteps, SITE_URL,
+  weeklyReports,
 } from '../public/js/reportPlan.js';
-import { driveReports, REPORT_LABEL, SHEETS, sheetRequests } from '../public/js/reportSheets.js';
+import { driveReports, REPORT_LABEL, sheetCell, SHEETS, sheetRequests } from '../public/js/reportSheets.js';
 import { runCommand } from '../public/js/agentCommands.js';
 
 const SLIDES = 'application/vnd.google-apps.presentation';
@@ -66,14 +67,24 @@ test('every week folder of the lesson copies gets a report: lessons in order, li
   assert.equal(reports[1].tabs[0].heading, 'School A · Grade 1');
 });
 
-test('weekly reports show the instruments at the school that week', () => {
+test('each week says which instruments its lessons need, then the others at the school that week', () => {
   const t = setup();
+  const ukulele = add(t.s, 'instruments', { yearId: t.year.id, name: 'Ukulele', color: '#6a4c93' });
+  t.beat.instrumentIds = [t.drum.id];
+  t.song.instrumentIds = [ukulele.id, t.drum.id];
   lessonAt(t, t.beat);
+  lessonAt(t, t.song);
   paintInstrument(t.s, { yearId: t.year.id, schoolId: t.schoolA.id, instrumentId: t.drum.id, dates: ['2026-09-07', '2026-09-08', '2026-09-09', '2026-09-10', '2026-09-11'], on: true });
   paintInstrument(t.s, { yearId: t.year.id, schoolId: t.schoolA.id, instrumentId: t.bells.id, dates: ['2026-09-08', '2026-09-09'], on: true });
   paintInstrument(t.s, { yearId: t.year.id, schoolId: t.schoolB.id, instrumentId: t.bells.id, dates: ['2026-09-07'], on: true });
   const [report] = weekly(t);
-  assert.deepEqual(report.tabs[0].weeks[0].instruments, ['Bells (available Sep 8 - Sep 9)', 'Drum (all week)']);
+  const { instruments } = report.tabs[0].weeks[0];
+  assert.deepEqual(instruments, {
+    required: ['Drum (all week)', 'Ukulele (not at the school this week)'],
+    also: ['Bells (available Sep 8 - Sep 9)'],
+  });
+  assert.equal(instrumentsLine(instruments), 'Required: Drum (all week), Ukulele (not at the school this week) / Also available: Bells (available Sep 8 - Sep 9)');
+  assert.equal(instrumentsLine({ required: [], also: [] }), 'Required: none / Also available: none');
   assert.equal(instrumentText('Drum', { days: ['2026-09-07', '2026-09-09', '2026-09-10'], allWeek: false }), 'Drum (available Sep 7, Sep 9 - Sep 10)');
 });
 
@@ -137,9 +148,29 @@ test('a tab shows the school and grade at the top, then each week, its instrumen
   const rows = reportRows(file.tabs[0]).map((r) => r.map((c) => c.text));
   assert.deepEqual(rows, [
     ['School A · Kindergarten'], ['Week 3 · Sep 7 – Sep 11'], [],
-    ['Week 3', 'Sep 7 – Sep 11'], ['Instruments', 'None scheduled'], ['1', 'Copy'], [],
-    [REPORT_NOTE],
+    ['Week 3', 'Sep 7 – Sep 11'], ['Instruments', 'Required: none / Also available: none'], ['1', 'Copy'], [],
+    ['Automatically maintained by Lesson Planner'],
   ]);
+});
+
+test('the footer says the report is kept by Lesson Planner (linked to the site), and can be turned off', () => {
+  const t = setup();
+  lessonAt(t, t.beat);
+  const manual = { ...reportSettings(t.year).manual, fromWeek: 3, schoolIds: [t.schoolA.id], gradeIds: [t.k.id] };
+  const [file] = manualReports(t.s, t.year.id, { manual, copyOf: () => null });
+  const footer = reportRows(file.tabs[0]).at(-1)[0];
+  assert.equal(footer.text, REPORT_NOTE);
+  assert.equal(footer.url, SITE_URL);
+  const cell = sheetCell(footer);
+  assert.deepEqual(cell.textFormatRuns.map((r) => [r.startIndex, r.format.link?.uri ?? null]), [[0, null], [28, SITE_URL]]);
+  assert.equal(REPORT_NOTE.slice(28), 'Lesson Planner');
+  assert.equal(cell.userEnteredFormat.textFormat.link, undefined, 'only the words "Lesson Planner" link');
+
+  const [plain] = manualReports(t.s, t.year.id, { manual, footer: false, copyOf: () => null });
+  assert.notEqual(reportRows(plain.tabs[0]).at(-1)[0]?.text, REPORT_NOTE);
+  runCommand(t.s, 'setReportOptions', { footer: false });
+  assert.equal(reportSettings(t.s.years[0]).footer, false);
+  assert.equal(runCommand(t.s, 'previewReport')[0].tabs[0].rows.at(-1).length, 0, 'last row is the blank after the week');
 });
 
 test('the Google Sheet gets a new tab per grade (old tabs out), linked lessons and a big title', () => {
@@ -214,7 +245,7 @@ test('an assistant can set up the report and its options, and preview it', () =>
   runCommand(t.s, 'setReportOptions', { lessonText: '{{template_name}}', weeklyReports: false });
   const settings = runCommand(t.s, 'reportSettings');
   assert.deepEqual(settings, {
-    lessonText: '{{template_name}}', rowsAbove: [], rowsBelow: [], columnsBefore: [], columnsAfter: [], weeklyReports: false, fromWeek: 3, toWeek: 4,
+    lessonText: '{{template_name}}', rowsAbove: [], rowsBelow: [], columnsBefore: [], columnsAfter: [], footer: true, weeklyReports: false, fromWeek: 3, toWeek: 4,
     schools: ['School A'], grades: ['Kindergarten'], oneFilePer: 'grade', folder: null,
   });
   const [preview] = runCommand(t.s, 'previewReport');

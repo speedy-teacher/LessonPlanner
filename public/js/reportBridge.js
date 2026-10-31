@@ -20,7 +20,7 @@ export function weeklyReportKeeper(adapter, yearId) {
   keeper.steps = (state, { wants, copies, rootKey }) => {
     const settings = reportSettings(find(state, 'years', yearId));
     const reports = settings.weekly
-      ? weeklyReports(state, yearId, { wants, copyOf: copyFinder(copies), label: settings.label, above: settings.above, below: settings.below, left: settings.left, right: settings.right, rootKey })
+      ? weeklyReports(state, yearId, { ...settings, wants, copyOf: copyFinder(copies), rootKey })
       : [];
     return reportSteps(reports, keeper.haves).filter((s) => !s.want || keeper.failed.get(s.want.key) !== s.want.hash);
   };

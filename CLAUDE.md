@@ -127,6 +127,9 @@ A browser app for a (non-technical) elementary music teacher to plan a school ye
   default `{{copy_name}}`; also `{{template_name}}` + every auto-field placeholder), `copyFinder(copies)`.
   Extra rows above/below every lesson (`year.reports.above`/`below`, same words; a row whose words are all empty is left out)
   and extra columns before/after it (`left`/`right`, titled by `columnTitle`; cells carry `span` → Sheet merges + preview colspan).
+  Row buttons are hidden on the tab for now (settings + `setReportOptions` still work). Instruments line = `instrumentsLine`:
+  "Required: <lessons' instruments> / Also available: <others at the school>". Footer "Automatically maintained by Lesson Planner"
+  (`linkText` links only those words to `SITE_URL`, Sheets `textFormatRuns`); `footer: false` leaves it out.
 - Settings on the year record: `year.reports = { label, above[], below[], left[], right[], weekly (false = off), manual: { fromWeek, toWeek, schoolIds[], gradeIds[]
   (empty = all), perGrade, folder } }` (`reportSettings` fills defaults). Command area `agentReports.js`.
 - Sheets: `reportSheets.js` `driveReports` (labels `lessonPlannerReport`=yearId, `reportKind` weekly|manual, `reportKey`, `hash`,

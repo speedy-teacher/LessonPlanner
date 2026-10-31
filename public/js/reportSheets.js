@@ -51,16 +51,32 @@ const STYLES = {
   note: { textFormat: text({ italic: true, fontSize: 9, foregroundColor: INK_SOFT }) },
 };
 
-/** One cell for Google Sheets: its text, look, and link (the whole cell links to the copy). */
+const linkFormat = (format, uri) => ({ ...format, underline: true, foregroundColor: ROYAL, link: { uri } });
+
+/**
+ * One cell for Google Sheets: its text, look, and link — the whole cell links (e.g. to the copy), or
+ * with `linkText` only that part of the text does.
+ */
 export function sheetCell(cell) {
   const style = STYLES[cell.style] ?? {};
-  const textFormat = cell.url
-    ? { ...style.textFormat, underline: true, foregroundColor: ROYAL, link: { uri: cell.url } }
-    : style.textFormat;
+  const text = cell.text ?? '';
+  const linkAt = cell.url && cell.linkText ? text.indexOf(cell.linkText) : -1;
+  const textFormat = cell.url && linkAt < 0 ? linkFormat(style.textFormat, cell.url) : style.textFormat;
   return {
-    userEnteredValue: { stringValue: cell.text ?? '' },
+    userEnteredValue: { stringValue: text },
     userEnteredFormat: { verticalAlignment: 'MIDDLE', wrapStrategy: 'WRAP', ...style, ...(textFormat ? { textFormat } : {}) },
+    ...(linkAt >= 0 ? { textFormatRuns: linkRuns(text, linkAt, cell, style.textFormat ?? {}) } : {}),
   };
+}
+
+/** Text runs where only `cell.linkText` (starting at `at`) is a link. */
+function linkRuns(text, at, cell, format) {
+  const end = at + cell.linkText.length;
+  return [
+    { startIndex: 0, format },
+    { startIndex: at, format: linkFormat(format, cell.url) },
+    ...(end < text.length ? [{ startIndex: end, format }] : []),
+  ];
 }
 
 /** Tab names must differ: a second "Grade 1" becomes "Grade 1 (2)". */
@@ -90,7 +106,7 @@ function merges(sheetId, rows) {
 function tabRequests(sheetId, title, { tab, rows }) {
   return [
     { updateSheetProperties: { properties: { sheetId, title }, fields: 'title' } },
-    { updateCells: { start: { sheetId, rowIndex: 0, columnIndex: 0 }, rows: rows.map((r) => ({ values: r.map(sheetCell) })), fields: 'userEnteredValue,userEnteredFormat' } },
+    { updateCells: { start: { sheetId, rowIndex: 0, columnIndex: 0 }, rows: rows.map((r) => ({ values: r.map(sheetCell) })), fields: 'userEnteredValue,userEnteredFormat,textFormatRuns' } },
     ...merges(sheetId, rows),
     ...columnWidths(tab).map((pixelSize, i) => ({
       updateDimensionProperties: { range: { sheetId, dimension: 'COLUMNS', startIndex: i, endIndex: i + 1 }, properties: { pixelSize }, fields: 'pixelSize' },

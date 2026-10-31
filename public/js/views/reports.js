@@ -221,10 +221,8 @@ function addRow(list) {
 
 // The extra rows and columns around the lesson: setting → [icon, where it goes, add-button text].
 const EXTRAS = {
-  above: ['⬆️', 'A row above the lesson', '+ Row above'],
   left: ['⬅️', 'A column before the lesson', '+ Column before'],
   right: ['➡️', 'A column after the lesson', '+ Column after'],
-  below: ['⬇️', 'A row below the lesson', '+ Row below'],
 };
 
 function extraRowsList(list) {
@@ -255,19 +253,20 @@ function labelCard() {
   const s = settings();
   return h('section', { class: 'card reports-card' },
     h('h3', {}, '✏️ What each lesson shows'),
-    h('p', { class: 'hint' }, 'Used in every report. Add rows or columns around each lesson, e.g. its essential outcome. Click a word to add it to the box you last typed in. A row whose words are all empty for a lesson is left out.'),
+    // Rows above/below each lesson (settings `above`/`below`) still work in reports; their buttons are hidden for now.
+    h('p', { class: 'hint' }, 'Used in every report. Add columns before or after each lesson, e.g. its essential outcome. Click a word to add it to the box you last typed in.'),
     h('div', { class: 'report-lesson-rows' },
-      addButtons('above'),
-      extraRowsList('above'),
       extraRowsList('left'),
       h('label', { class: 'field report-lesson-line' }, '🔗 The lesson (linked to its copy)',
         rowInput(s.label, { list: 'label', placeholder: DEFAULT_LABEL }, (label) => saveSettings({ label }))),
       extraRowsList('right'),
-      extraRowsList('below'),
-      addButtons('left', 'right', 'below')),
+      addButtons('left', 'right')),
     h('div', { class: 'label-words' }, Object.entries(WORDS).map(([word, about]) => h('button', {
       class: 'pill small', 'data-tip': about, onclick: () => addWord(word),
-    }, word))));
+    }, word))),
+    h('label', { class: 'check big' },
+      h('input', { type: 'checkbox', checked: s.footer, onchange: (e) => saveSettings({ footer: e.target.checked }) }),
+      h('span', {}, 'Show “Automatically maintained by Lesson Planner” at the bottom of each report')));
 }
 
 // ---------- weekly reports ----------
@@ -320,6 +319,11 @@ function sheetTable(tab) {
 }
 
 function cellText(cell) {
+  const linkAt = cell.url && cell.linkText ? cell.text.indexOf(cell.linkText) : -1;
+  if (linkAt >= 0) {
+    const end = linkAt + cell.linkText.length;
+    return [cell.text.slice(0, linkAt), h('a', { href: cell.url, target: '_blank', rel: 'noopener' }, cell.linkText), cell.text.slice(end)];
+  }
   if (cell.url) return h('a', { href: cell.url, target: '_blank', rel: 'noopener' }, cell.text);
   if (cell.style === 'lesson') return h('span', { 'data-tip': 'No copy of this lesson yet, so no link (yet)' }, cell.text);
   return cell.text.split('\n').flatMap((line, i) => (i ? [h('br'), line] : [line]));

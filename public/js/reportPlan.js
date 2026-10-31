@@ -14,6 +14,7 @@
 //   above, below = extra rows shown above / below every lesson, e.g. ["{{essential_outcome}}"]
 //            (same words as the label; a row that comes out empty for a lesson is left out)
 //   left, right = extra columns left / right of the lesson, e.g. ["{{essential_outcome}}"] (titled by columnTitle)
+//   footer = false leaves out the "Automatically maintained by Lesson Planner" line at the bottom
 //   weekly = false turns the weekly reports off (on when missing)
 //   manual = { fromWeek, toWeek, schoolIds[], gradeIds[], perGrade, folder: { folderId, name } | null }
 
@@ -31,7 +32,7 @@ export const LABEL_WORDS = {
   '{{template_name}}': 'The template’s name',
 };
 
-const REPORT_DEFAULTS = { label: '', above: [], below: [], left: [], right: [], weekly: true };
+const REPORT_DEFAULTS = { label: '', above: [], below: [], left: [], right: [], footer: true, weekly: true };
 const MANUAL_DEFAULTS = { fromWeek: null, toWeek: null, schoolIds: [], gradeIds: [], perGrade: false, folder: null };
 
 /** Saved values over defaults (a missing or null value gets the default). */
@@ -85,17 +86,29 @@ export function instrumentText(name, { days, allWeek }) {
   return `${name} (available ${ranges.join(', ')})`;
 }
 
-/** The instruments a class's school has during a week, as report lines (sorted by name). */
-export function weekInstruments(state, cls, week) {
-  return instrumentsInWeek(state, cls, week)
-    .map((i) => ({ name: find(state, 'instruments', i.instrumentId)?.name ?? '', ...i }))
-    .filter((i) => i.name)
-    .sort((a, b) => a.name.localeCompare(b.name))
-    .map((i) => instrumentText(i.name, i));
+/**
+ * The instruments for a class's week: `required` = the ones its lessons use, `also` = the others at the
+ * school that week (each "Drum (all week)" or "Drum (available …)"; a required one that isn't there says so).
+ */
+export function weekInstruments(state, cls, week, lessonIds = []) {
+  const there = new Map(instrumentsInWeek(state, cls, week).map((i) => [i.instrumentId, i]));
+  const needed = new Set(lessonIds.flatMap((id) => find(state, 'lessons', id)?.instrumentIds ?? []));
+  const named = (ids) => ids.map((id) => ({ id, name: find(state, 'instruments', id)?.name ?? '' }))
+    .filter((i) => i.name).sort((a, b) => a.name.localeCompare(b.name));
+  const text = ({ id, name }) => (there.has(id) ? instrumentText(name, there.get(id)) : `${name} (not at the school this week)`);
+  return {
+    required: named([...needed]).map(text),
+    also: named([...there.keys()].filter((id) => !needed.has(id))).map(text),
+  };
+}
+
+/** "Required: Drum (all week) / Also available: Bells (available Sep 8 - Sep 9)". */
+export function instrumentsLine({ required, also }) {
+  return `Required: ${required.join(', ') || 'none'} / Also available: ${also.join(', ') || 'none'}`;
 }
 
 /**
- * One week of a class: { number, dates, instruments: [text], lessons: [{ entryId, text, url, above, below, left, right }] }
+ * One week of a class: { number, dates, instruments: { required, also }, lessons: [{ entryId, text, url, above, below, left, right }] }
  * (above/below = the lesson's extra rows, left/right = its extra columns, see reportSettings).
  * `copyOf(entryId)` → { name, url } of its lesson copy, or null (not made yet, or no template).
  */
@@ -109,12 +122,12 @@ export function reportWeek(state, cls, week, { label, above, below, left = [], r
     words['{{copy_name}}'] = copy?.name || `${entry.position + 1} - ${lesson?.name ?? 'Lesson'}`;
     words['{{template_name}}'] = lesson?.name ?? '';
     return {
-      entryId: entry.id, text: lessonLabel(label, words), url: copy?.url ?? null,
+      entryId: entry.id, lessonId: entry.lessonId, text: lessonLabel(label, words), url: copy?.url ?? null,
       above: extraRows(above, words), below: extraRows(below, words),
       left: left.map((t) => fillWords(t, words)), right: right.map((t) => fillWords(t, words)),
     };
   });
-  return { number: week.number, dates: formatRange(days[0], days.at(-1)), instruments: weekInstruments(state, cls, week), lessons };
+  return { number: week.number, dates: formatRange(days[0], days.at(-1)), instruments: weekInstruments(state, cls, week, lessons.map((l) => l.lessonId)), lessons };
 }
 
 /** Lesson copies (Drive ones) → `copyOf` for reports: entry id → { name, url } of its copy, or null. */
@@ -145,6 +158,7 @@ export function reportTab(state, cls, weeks, options) {
     heading: `${school} · ${grade}`,
     subheading: days.length ? `${weeksTitle(weeks)} · ${formatRange(days[0], days.at(-1))}` : weeksTitle(weeks),
     columns: { left: (options.left ?? []).map(columnTitle), right: (options.right ?? []).map(columnTitle) },
+    footer: options.footer !== false,
     weeks: weeks.map((w) => reportWeek(state, cls, w, options)),
   };
 }
@@ -154,7 +168,9 @@ export const reportHash = (file) => fingerprint(JSON.stringify([file.name, file.
 
 // ---------- the rows a tab shows ----------
 
-export const REPORT_NOTE = 'Made by the Lesson Planner. It’s rewritten when the Lesson Schedule changes, so changes typed here don’t stay.';
+export const REPORT_NOTE = 'Automatically maintained by Lesson Planner';
+/** The live Lesson Planner site (the footer links "Lesson Planner" here). */
+export const SITE_URL = 'https://speedy-teacher.github.io/LessonPlanner/';
 
 /** How many columns a tab has: the lesson number, extra columns left, the lesson, extra columns right. */
 export function reportWidth(tab) {
@@ -162,7 +178,8 @@ export function reportWidth(tab) {
 }
 
 /**
- * A tab as rows of cells: [{ text, url?, style, span? }] (span = how many columns the cell covers, default 1).
+ * A tab as rows of cells: [{ text, url?, linkText?, style, span? }] (span = how many columns the cell covers, default 1;
+ * linkText = only that part of the text links to url).
  * Styles: heading, subheading, columnHead, week, label, instruments, lesson, column (an extra column),
  * extra (a lesson's rows above/below it), number, empty, note. Column A holds labels and lesson numbers.
  */
@@ -173,12 +190,12 @@ export function reportRows(tab) {
   const rows = [[wide(tab.heading, 'heading')], [wide(tab.subheading, 'subheading')], columnHeads(tab)];
   for (const week of tab.weeks) {
     rows.push([{ text: `Week ${week.number}`, style: 'week' }, rest(week.dates, 'week')]);
-    rows.push([{ text: 'Instruments', style: 'label' }, rest(week.instruments.join('\n') ||'None scheduled', 'instruments')]);
+    rows.push([{ text: 'Instruments', style: 'label' }, rest(instrumentsLine(week.instruments), 'instruments')]);
     if (!week.lessons.length) rows.push([{ text: '', style: 'number' }, rest('No lessons on the schedule', 'empty')]);
     week.lessons.forEach((l, i) => rows.push(...lessonRows(tab, l, i)));
     rows.push([]);
   }
-  rows.push([wide(REPORT_NOTE, 'note')]);
+  if (tab.footer !== false) rows.push([{ ...wide(REPORT_NOTE, 'note'), url: SITE_URL, linkText: 'Lesson Planner' }]);
   return rows;
 }
 
@@ -210,7 +227,7 @@ function lessonRows(tab, lesson, i) {
  * wanted copy), placed in that folder. `wants` = wantedCopies(); `copyOf(entryId)` → { name, url } | null.
  * Returns [{ key, path, name, place, hash, tabs }].
  */
-export function weeklyReports(state, yearId, { wants, copyOf, label, above, below, left, right, rootKey }) {
+export function weeklyReports(state, yearId, { wants, copyOf, rootKey, ...look }) {
   const weeks = new Map(schoolWeeks(find(state, 'years', yearId)).map((w) => [w.weekStart, w]));
   const numbers = lessonNumbers(state.weekLessons.filter((e) => e.yearId === yearId && weeks.has(e.weekStart)));
   const files = new Map();
@@ -219,7 +236,7 @@ export function weeklyReports(state, yearId, { wants, copyOf, label, above, belo
     const key = entry && `${entry.schoolId}|${entry.gradeId}|${entry.weekStart}`;
     if (!entry || files.has(key)) continue;
     const week = weeks.get(entry.weekStart);
-    const tab = reportTab(state, entry, [week], { label, above, below, left, right, copyOf, numbers });
+    const tab = reportTab(state, entry, [week], { ...look, copyOf, numbers });
     const file = { key, path: want.path, name: safeName(`Week ${week.number} report`), tabs: [tab] };
     files.set(key, { ...file, place: fingerprint(JSON.stringify([rootKey, want.path])), hash: reportHash(file) });
   }
@@ -259,7 +276,7 @@ export function manualWeeks(year, manual, defaultWeek = 1) {
  * and grade. Schools and grades not chosen = every one. Returns [{ key, name, schoolId, gradeIds, tabs, hash }]
  * (the key finds the same file again, so making the report again updates it).
  */
-export function manualReports(state, yearId, { manual, label, above, below, left, right, copyOf, defaultWeek }) {
+export function manualReports(state, yearId, { manual, copyOf, defaultWeek, ...look }) {
   const year = find(state, 'years', yearId);
   const weeks = manualWeeks(year, manual, defaultWeek);
   const chosen = (collection, ids) => inYear(state, collection, yearId).filter((r) => !ids.length || ids.includes(r.id));
@@ -269,7 +286,7 @@ export function manualReports(state, yearId, { manual, label, above, below, left
   const numbers = lessonNumbers(state.weekLessons.filter((e) => e.yearId === yearId));
   const groups = manual.perGrade ? grades.map((g) => [g]) : [grades];
   return schools.flatMap((school) => groups.map((group) => {
-    const tabs = group.map((g) => reportTab(state, { yearId, schoolId: school.id, gradeId: g.id }, weeks, { label, above, below, left, right, copyOf, numbers }));
+    const tabs = group.map((g) => reportTab(state, { yearId, schoolId: school.id, gradeId: g.id }, weeks, { ...look, copyOf, numbers }));
     const who = manual.perGrade ? `${school.name} – ${group[0].name}` : school.name;
     const file = {
       key: fingerprint(JSON.stringify([school.id, group.map((g) => g.id), weeks[0].number, weeks.at(-1).number])),
