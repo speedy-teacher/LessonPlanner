@@ -81,14 +81,13 @@ export class PiecePlan {
    *     on this computer yet) = that one · null = your own.
    *   who = { schedule?, resources? }, each { name, fileId } of the person whose piece is shown.
    */
-  async view({ schedule = null, resources = 'linked' }, who = {}) {
-    const wanted = resources === 'linked' && !schedule ? null : resources;
-    if (!schedule && !wanted) return this.viewMine();
+  async view(options, who = {}) {
+    const { schedule, resources } = wantedPieces(options);
+    if (!schedule && !resources) return this.viewMine();
     this.own ??= { schedule: this.recs.schedule, resources: this.recs.resources, missing: this.missing.resources };
     this.recs.schedule = schedule ?? this.own.schedule;
-    await this.showResources(wanted);
-    const theirResources = wanted === 'linked' ? who.resources ?? who.schedule : who.resources;
-    this.viewing = { schedule: schedule ? who.schedule ?? null : null, resources: wanted ? theirResources ?? null : null };
+    await this.showResources(resources);
+    this.viewing = viewingOf({ schedule, resources }, who);
     return this;
   }
 
@@ -268,6 +267,17 @@ export class PiecePlan {
     }
     return { name, action: 'none', error: why };
   }
+}
+
+/** `view`'s options with the defaults filled in: no schedule = yours; Resources default to the shown schedule's own. */
+function wantedPieces({ schedule = null, resources = 'linked' }) {
+  return { schedule, resources: resources === 'linked' && !schedule ? null : resources };
+}
+
+/** Whose pieces are shown: { schedule, resources } = { name, fileId } of the person, or null for yours. */
+function viewingOf({ schedule, resources }, who) {
+  const theirResources = resources === 'linked' ? who.resources ?? who.schedule : who.resources;
+  return { schedule: schedule ? who.schedule ?? null : null, resources: resources ? theirResources ?? null : null };
 }
 
 /**

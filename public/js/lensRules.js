@@ -36,17 +36,17 @@ export function sameView(a, b) {
   return (a.schedule?.fileId ?? null) === (b.schedule?.fileId ?? null) && resourcesId(a.resources) === resourcesId(b.resources);
 }
 
+const isNewer = (f, seen) => !seen || String(f.modifiedTime ?? '') > String(seen.modifiedTime ?? '');
+
 /**
  * The people behind a list of Drive files: one row per owner (their newest file), without your own
  * file or any file you own, by name: [{ fileId, name, ownerId }].
  */
 export function peopleFrom(files, { mineFileId = null } = {}) {
   const newest = new Map();
-  for (const f of files) {
-    if (f.fileId === mineFileId || f.ownedByMe === true) continue;
+  for (const f of files.filter((file) => file.fileId !== mineFileId && file.ownedByMe !== true)) {
     const who = f.ownerId ?? f.fileId;
-    const seen = newest.get(who);
-    if (!seen || String(f.modifiedTime ?? '') > String(seen.modifiedTime ?? '')) newest.set(who, f);
+    if (isNewer(f, newest.get(who))) newest.set(who, f);
   }
   return [...newest.values()]
     .map((f) => ({ fileId: f.fileId, name: f.owner || f.name, ownerId: f.ownerId ?? null }))

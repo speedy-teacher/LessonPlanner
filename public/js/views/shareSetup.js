@@ -153,6 +153,7 @@ function done(close, joined = null) {
       : '🎉 All set! Your plan is now in three parts, kept on this computer. Save it to Google Drive (plan menu) to share the School Year.'),
     link ? h('p', {}, 'To share with your department, open the School Year in Google Drive and click ', h('strong', {}, 'Share'),
       '. Colleagues who should change the calendars need ', h('strong', {}, 'Editor'), '; ', h('strong', {}, 'Viewer'), ' lets them look only.') : null,
+    link ? h('p', { class: 'hint' }, 'Your Lesson Schedule and your Teacher Resources can each be shared on their own in Drive too — a colleague then sees just that part when they pick you in “Looking at”.') : null,
     h('div', { class: 'button-row' },
       link ? h('a', { class: 'btn', href: link, target: '_blank', rel: 'noopener' }, 'Open the School Year in Drive ↗') : null,
       h('button', { class: 'btn light', onclick: close }, 'Close')),

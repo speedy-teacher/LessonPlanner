@@ -4,7 +4,8 @@ import { h, installTooltips } from './dom.js';
 import { redo, refresh, setUi, store, subscribe, undo } from './store.js';
 import { google, prepareDrive, setGoogleHandlers } from './google.js';
 import { clientId } from './deviceSettings.js';
-import { openLastPlan, syncNow } from './workspace.js';
+import { openLastPlan, pieces, syncNow } from './workspace.js';
+import { follow, needsSwap } from './lookingAt.js';
 import { drivePill, showSignInNotice, warnIfGoogleNotSetUp } from './views/googleCard.js';
 import { planButton, refreshPlansMenu, welcome } from './views/plans.js';
 import { offerSharing } from './views/shareSetup.js';
@@ -84,7 +85,7 @@ function render() {
   renderHeader();
   document.getElementById('tooltip').classList.remove('show');
   document.getElementById('piece-bar').replaceChildren(...[pieceBar(tab.id)].filter(Boolean));
-  main.replaceChildren(hasYear ? tab.render() : h('p', { class: 'empty-note' }, 'No years yet.'));
+  main.replaceChildren(pageContent(tab, hasYear));
   markViewOnly(main, tab.id);
   main.dataset.view = `${tab.id}/${store.state.activeYearId}`;
   main.scrollTop = scroll;
@@ -92,6 +93,19 @@ function render() {
   if (!sameView && hasYear && tab.onShow) tab.onShow();
   restoreFocus(focusKey);
   return undefined;
+}
+
+/**
+ * The page, or a short "Loading…" while a tab that shows someone else's pieces (or yours again) waits for
+ * them, so another person's data is never flashed on the wrong tab.
+ */
+function pageContent(tab, hasYear) {
+  if (!hasYear) return h('p', { class: 'empty-note' }, 'No years yet.');
+  if (pieces && needsSwap(tab.id)) {
+    follow(tab.id).then(refresh);
+    return h('p', { class: 'hint' }, 'Loading…');
+  }
+  return tab.render();
 }
 
 /** No plan open yet on this computer: just the welcome (open or start a plan). */

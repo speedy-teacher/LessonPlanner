@@ -1,14 +1,18 @@
 // The bar above a page of a plan made of pieces (see pieces.js):
-//   - "👀 Looking at: Me ▾" on the teacher pages (Lesson Schedule, Reports, Lesson Templates, Images,
-//     and Outcomes for its lesson order): a searchable list of teammates whose Lesson Schedules use the
-//     same School Year and are shared with you. One choice for all of those pages.
+//   - "👀 Looking at: Me ▾" on the pages that have a lens (lensRules.js): a searchable list of only the
+//     people who shared that page's part with you. Lesson Schedule, Reports and Outcomes list people
+//     whose Lesson Schedule uses the School Year you have open; Lesson Templates and Images list people
+//     whose Teacher Resources are shared with you. Each page remembers its own choice (lookingAt.js).
 //   - a soft banner when the page shows something you can only look at, or something that's missing.
 
 import { h } from '../dom.js';
 import { google } from '../google.js';
 import { MISSING_WORDS } from '../pieceEngine.js';
 import { PIECES } from '../pieces.js';
-import { listTeammates, pieces, viewMine, viewTeammate } from '../workspace.js';
+import { pieces } from '../workspace.js';
+import { LENS } from '../lensRules.js';
+import { peopleFor, pick, pickedOn } from '../lookingAt.js';
+import { refresh } from '../store.js';
 
 /** Which pieces each page shows (the first = what the page is mostly about). */
 export const PAGE_PIECES = {
@@ -22,14 +26,14 @@ export const PAGE_PIECES = {
   images: ['resources'],
 };
 
-/** Pages that follow "Looking at" (everything not only about the shared School Year). */
-export const TEACHER_PAGES = Object.keys(PAGE_PIECES).filter((id) => PAGE_PIECES[id].some((p) => p !== 'schoolYear'));
+/** A Lesson Schedule list needs the School Year file you have open; a Teacher Resources list doesn't. */
+const canListPeople = (pageId) => LENS[pageId] === 'resources' || Boolean(pieces.link('schoolYear')?.fileId);
 
 /** The bar for a page, or null when there's nothing to show. */
 export function pieceBar(pageId) {
   if (!pieces) return null;
   const parts = [
-    TEACHER_PAGES.includes(pageId) && pieces.link('schoolYear')?.fileId ? peoplePicker(pageId) : null,
+    LENS[pageId] && canListPeople(pageId) ? peoplePicker(pageId) : null,
     ...pieceNotes(pageId),
   ].filter(Boolean);
   return parts.length ? h('div', { class: 'piece-bar', 'data-tour': 'piece-bar' }, parts) : null;
@@ -37,10 +41,10 @@ export function pieceBar(pageId) {
 
 // ---------- notes about view-only and missing pieces ----------
 
-/** "Teacher Resources", or "Pat’s Teacher Resources" while looking at a teammate's. */
+/** "Teacher Resources", or "Pat’s Teacher Resources" while looking at someone's. */
 function pieceName(name) {
-  if (name === 'schoolYear' || !pieces.viewing) return PIECES[name].label;
-  return `${pieces.viewing.name}’s ${PIECES[name].label}`;
+  const who = pieces.viewing?.[name];
+  return who ? `${who.name}’s ${PIECES[name].label}` : PIECES[name].label;
 }
 
 function pieceNotes(pageId) {
@@ -74,36 +78,43 @@ function note(icon, title, text, kind) {
 
 /** What "Looking at" changes on each page (each part is its own file, so only say what the page shows). */
 const PICKER_TIPS = {
-  lessonSchedule: 'Whose lesson schedule and templates to look at',
-  reports: 'Whose lesson schedule and reports to look at',
-  lessons: 'Whose lesson templates to look at',
-  images: 'Whose pictures to look at',
-  outcomes: 'Whose lesson order to look at',
+  lessonSchedule: 'Colleagues who shared their lesson schedule with you',
+  reports: 'Colleagues who shared their lesson schedule with you',
+  lessons: 'Colleagues who shared their lesson templates with you',
+  images: 'Colleagues who shared their pictures (Teacher Resources) with you',
+  outcomes: 'Colleagues who shared their lesson schedule (lesson order) with you',
+};
+
+/** What to say when nobody has shared that part with you yet. */
+const NOBODY = {
+  schedule: 'Nobody has shared their Lesson Schedule for this School Year with you yet.',
+  resources: 'Nobody has shared their Teacher Resources with you yet.',
 };
 
 function peoplePicker(pageId) {
-  const who = pieces.viewing?.name ?? 'Me';
+  const chosen = pickedOn(pageId);
   const list = h('ul', { class: 'people-list', role: 'listbox' });
   const search = h('input', { type: 'search', placeholder: 'Search names…', 'aria-label': 'Search names', class: 'people-search' });
   const picker = h('details', { class: 'people-picker', 'data-tour': 'people-picker' },
-    h('summary', { class: 'btn small light', 'data-tip': PICKER_TIPS[pageId] ?? 'Whose plans to look at' }, '👀 Looking at: ', h('strong', {}, who), ' ▾'),
+    h('summary', { class: 'btn small light', 'data-tip': PICKER_TIPS[pageId] ?? 'Whose plans to look at' }, '👀 Looking at: ', h('strong', {}, chosen?.name ?? 'Me'), ' ▾'),
     h('div', { class: 'people-panel' }, search, list));
   let people = [];
   const draw = () => {
     const words = search.value.trim().toLowerCase();
     const shown = people.filter((p) => p.name.toLowerCase().includes(words));
-    const none = h('li', { class: 'hint' }, google.token ? 'No teammates found. A teammate shows here once their Lesson Schedule is shared with you.' : 'Connect Google Drive to see teammates.');
+    const none = h('li', { class: 'hint' }, google.token ? NOBODY[LENS[pageId]] : 'Connect Google Drive to see colleagues.');
     list.replaceChildren(
-      personRow('Me', !pieces.viewing, () => viewMine()),
-      ...shown.map((p) => personRow(p.name, pieces.viewing?.fileId === p.fileId, () => viewTeammate(p))),
+      personRow('Me', !chosen, () => choose(null)),
+      ...shown.map((p) => personRow(p.name, chosen?.fileId === p.fileId, () => choose(p))),
       ...(shown.length ? [] : [none]));
   };
+  const choose = (person) => { picker.open = false; pick(pageId, person).finally(refresh); };
   search.addEventListener('input', draw);
   picker.addEventListener('toggle', async () => {
     if (!picker.open) return;
     draw();
     search.focus();
-    people = await listTeammates().catch(() => people);
+    people = await peopleFor(pageId).catch(() => people);
     draw();
   });
   return picker;

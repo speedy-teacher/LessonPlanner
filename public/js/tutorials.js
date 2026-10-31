@@ -586,7 +586,7 @@ const sharing = {
     {
       target: 'people-picker',
       title: 'Look at a teammate’s plans',
-      text: 'Click “👀 Looking at” and pick a name to see that teammate’s Lesson Schedule, lesson order, templates and pictures. Pick “Me” to come back. (Teammates show up once they’ve shared their Lesson Schedule with you.)',
+      text: 'Click “👀 Looking at” and pick a name. Each tab lists only colleagues who shared that part with you: their Lesson Schedule (on Lesson Schedule, Reports and Outcomes, for the same School Year) or their Teacher Resources (on Lesson Templates and Images). Every tab remembers its own choice. Pick “Me” to come back.',
       skipIf: (ctx) => !ctx.exists('people-picker'),
     },
     {

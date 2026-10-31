@@ -76,11 +76,17 @@ A browser app for a (non-technical) elementary music teacher to plan a school ye
   in, and removed with a plan. Only older one-file plans get the "share with your department" notice.
 - `pieceEngine.js` `PiecePlan` (tested against a fake Drive): per-piece cache record (`piece`, `data`, `rev`, `base`…),
   save only changed pieces, per-piece sync/`mergePiece` (planMerge.js; tidies only links inside the piece), `missing` /
-  `stale` / `access(name)` ('edit' | 'view' | 'none'), `view(theirSchedule)`/`viewMine()`/`myState()` for teammates,
+  `stale` / `access(name)` ('edit' | 'view' | 'none'), `view({ schedule, resources }, who)`/`viewMine()`/`myState()` for looking at others (`own` = your set-aside schedule + resources, kept current by `put`),
   `rebaseState` for edits made during a sync, `whyUnavailable` for greyed links. Drive labels: `lessonPlanner` =
-  schoolYear|schedule|resources, `lpSchoolYear` on a Schedule (teammates found with `listSchedulesFor`, never stored).
+  schoolYear|schedule|resources, `lpSchoolYear` on a Schedule (people found with `listSchedulesFor` / `listSharedResources`, never stored).
+- **"Looking at" is per tab** (`lensRules.js`, pure + tested): `LENS` = lessonSchedule/reports/outcomes → `schedule` (people whose Lesson Schedule
+  uses the open School Year and is shared with you; shows their schedule + the Resources it links to, else missing — never yours),
+  lessons/images → `resources` (people whose Teacher Resources are shared with you, any year; your own schedule stays); other tabs show
+  your own. `lookingAt.js` keeps each tab's pick (this visit, cleared when another plan opens), `follow(pageId)` swaps pieces
+  (`flushSave` + `pieces.save` first, fresh undo history; `app.js` shows "Loading…" meanwhile). Whatever is shown merges as usual
+  (Editor = both ways, Viewer = guard); your own pieces set aside stay current because every record write goes through `put`.
 - `workspace.js`: `pieces` (null = older one-file plan, still fully supported), `createPiecePlan`, `splitCurrentPlan`,
-  `joinSchoolYear` (`joinYear.js` matches by name, tested), `viewTeammate`/`viewMine`, `myPlanState()` (exports and
+  `joinSchoolYear` (`joinYear.js` matches by name, tested), `myPlanState()` (exports and
   reports read only this), `copiesWaitFor()` (copies pause while looking, and wait — never trash — while a piece is missing).
 - UI: `views/shareSetup.js` (guided move), `views/people.js` (bar under the tabs: "Looking at" + view-only/missing notes;
   `PAGE_PIECES`), `views/viewOnly.js` (`markViewOnly` after each render: `data-piece` zones, edit controls hidden via

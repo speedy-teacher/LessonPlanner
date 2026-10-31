@@ -13,7 +13,9 @@
 
 import { commit, hasPendingSave, store, undo } from './store.js';
 import { google } from './google.js';
-import { current, listTeammates, pieces, viewMine, viewTeammate } from './workspace.js';
+import { current, pieces } from './workspace.js';
+import { LENS } from './lensRules.js';
+import { allPicks, peopleFor, pick } from './lookingAt.js';
 import { PIECE_NAMES, PIECES } from './pieces.js';
 import { showNotice } from './notices.js';
 import { copyStatus } from './exportBridge.js';
@@ -26,7 +28,9 @@ const GUIDE = 'Lesson Planner commands. First call lessonPlanner.status() to see
   + 'Read before you change things, and do a whole request in one run([...]) so it is one Undo. '
   + 'If a command is missing for something, say so rather than editing data another way. '
   + 'A plan is three parts (status().parts): the School Year (shared by a department), the teacher’s Lesson Schedule and their Teacher Resources. '
-  + 'A part shown as "view" or "none" cannot be changed. lessonPlanner.people() lists teammates; lessonPlanner.lookAt(name or "me") shows their schedule, templates and pictures.';
+  + 'A part shown as "view" or "none" cannot be changed. Each tab can look at colleagues who shared that part with the teacher: '
+  + 'lessonPlanner.people({ tab }) lists them (tab = lessonSchedule, reports or outcomes for Lesson Schedules; lessons or images for Teacher Resources; default the open tab); '
+  + 'lessonPlanner.lookAt({ name or "me", tab }) shows their pieces on that tab. Each tab remembers its own choice.';
 
 function announce(steps, results) {
   const done = results.map((r) => r?.done).filter(Boolean);
@@ -66,23 +70,37 @@ function viewOnlyParts(next) {
 /** Each part of a plan in pieces: 'edit', 'view' (look only) or 'none' (not available); plus whose plans are shown. */
 function partsStatus() {
   if (!pieces) return null;
-  return { ...Object.fromEntries(PIECE_NAMES.map((name) => [name, pieces.access(name)])), lookingAt: pieces.viewing?.name ?? 'me' };
+  return { ...Object.fromEntries(PIECE_NAMES.map((name) => [name, pieces.access(name)])), lookingAt: { [store.ui.tab]: 'me', ...allPicks() } };
 }
 
-/** Teammates whose Lesson Schedules use this School Year and are shared with the teacher. */
-async function people() {
-  return pieces ? (await listTeammates()).map((p) => p.name) : [];
+/** The tab an assistant means ("tab" or the open one); an error with the choices when that tab has no picker. */
+function tabFor(tab) {
+  const id = tab || store.ui.tab;
+  return LENS[id] ? { id } : { error: `The ${id} tab has no “Looking at”. Tabs that do: ${Object.keys(LENS).join(', ')}.` };
 }
 
-/** Show a teammate's schedule, templates and pictures (by name), or "me" for the teacher's own. */
-async function lookAt(name = 'me') {
+/** Old calls passed just a name; new ones pass { name, tab }. */
+const optionsOf = (input) => (typeof input === 'object' && input ? input : { name: input });
+
+/** People who shared that tab's part with the teacher: Lesson Schedules (for this School Year) or Teacher Resources. */
+async function people(input = {}) {
+  const { id, error } = tabFor(optionsOf(input).tab);
+  if (error) return { error };
+  return pieces ? (await peopleFor(id)).map((p) => p.name) : [];
+}
+
+/** Show someone's pieces on a tab (by name), or "me" for the teacher's own. */
+async function lookAt(input = 'me') {
+  const { name = 'me', tab } = optionsOf(input);
+  const { id, error } = tabFor(tab);
+  if (error) return { error };
   if (!pieces) return { error: 'This plan isn’t shared in parts yet (see “Share with your department” in the plan menu).' };
-  if (String(name).trim().toLowerCase() === 'me') { await viewMine(); return { lookingAt: 'me' }; }
-  const all = await listTeammates();
+  if (String(name).trim().toLowerCase() === 'me') { await pick(id, null); return { tab: id, lookingAt: 'me' }; }
+  const all = await peopleFor(id);
   const person = all.find((p) => p.name.toLowerCase() === String(name).trim().toLowerCase());
-  if (!person) return { error: `No teammate called “${name}”. Teammates: ${all.map((p) => p.name).join(', ') || 'none shared yet'}.` };
-  await viewTeammate(person);
-  return { lookingAt: person.name, parts: partsStatus() };
+  if (!person) return { error: `Nobody called “${name}” has shared that with the teacher for the ${id} tab. Available: ${all.map((p) => p.name).join(', ') || 'none shared yet'}.` };
+  await pick(id, person);
+  return { tab: id, lookingAt: person.name, parts: partsStatus() };
 }
 
 /** What the assistant needs to know before and after changing things: which plan, signed in, saved. */

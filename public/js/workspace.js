@@ -13,7 +13,7 @@ import { device, setDevice } from './deviceSettings.js';
 import { google } from './google.js';
 import { allPlans, deletePlan, getPlan, putPlan, rescue } from './localCache.js';
 import {
-  createPlanFile, folderName, keepRevision, listSchedulesFor, movePlanFile, planFileInfo, readPlanFile, renamePlanFile, savePlanFile,
+  createPlanFile, folderName, keepRevision, movePlanFile, planFileInfo, readPlanFile, renamePlanFile, savePlanFile,
 } from './driveFiles.js';
 import { joinedPieces } from './joinYear.js';
 import { linkTo, newPieceRecord, resourcesFor } from './pieceFiles.js';
@@ -632,57 +632,11 @@ async function movePiecesToDrive(folderId) {
   await openPieces(schedule, { sameDocument: true });
 }
 
-// ---------- looking at a teammate's plan ----------
-
-/**
- * People whose Teacher Schedules use this plan's School Year and are shared with you (found through
- * Google Drive, so nothing about people is kept in the shared file): [{ fileId, name, ownerId }].
- * Remembered on this computer, so the list shows at once next time.
- */
-export async function listTeammates() {
-  const yearFileId = pieces?.link('schoolYear')?.fileId;
-  if (!yearFileId) return [];
-  const mine = (pieces.own ?? pieces.recs).schedule.fileId;
-  if (driveReady()) {
-    const files = await listSchedulesFor(google.token, yearFileId);
-    const people = files.filter((f) => f.fileId !== mine).map((f) => ({ fileId: f.fileId, name: f.owner || f.name, ownerId: f.ownerId }));
-    setDevice({ teammates: { ...(device.teammates ?? {}), [yearFileId]: people } });
-  }
-  return device.teammates?.[yearFileId] ?? [];
-}
-
-/** Show a teammate's Lesson Schedule, lesson order, templates and pictures (your own are kept aside). */
-export async function viewTeammate({ fileId, name }) {
-  await pieces.save(store.state);
-  const scheduleRec = await getPlan(driveKey(fileId)).catch(() => null) ?? await readTeammateSchedule(fileId);
-  await pieces.view(scheduleRec, { name });
-  useState(pieces.state());
-  showWhereSaved();
-  return syncNow();
-}
-
-async function readTeammateSchedule(fileId) {
-  const file = await readPlanFile(google.token, fileId);
-  const rec = {
-    key: driveKey(fileId), piece: 'schedule', name: file.name, fileId, folderId: file.folderId, rev: file.rev, base: file.text,
-    canEdit: file.canEdit, changed: false, keptDay: null, savedAt: 0, data: fromPieceFile(file.text, 'schedule'),
-  };
-  await putPlan(rec);
-  return rec;
-}
-
-/** Back to your own plan. */
-export async function viewMine() {
-  await pieces.save(store.state);
-  pieces.viewMine();
-  useState(pieces.state());
-  showWhereSaved();
-  return syncNow();
-}
+// ---------- your own plan while looking at someone else's (lookingAt.js) ----------
 
 let mine = { key: [], state: null };
 
-/** Your own plan's data, also while looking at a teammate's (lesson copies and reports come from it). */
+/** Your own plan's data, also while looking at someone else's (lesson copies and reports come from it). */
 export function myPlanState() {
   if (!pieces?.own) return store.state;
   const key = [pieces.recs.schoolYear, pieces.own.schedule, pieces.own.resources];
@@ -692,7 +646,7 @@ export function myPlanState() {
 
 /**
  * Why your lesson copies can't be updated right now because of the plan's pieces (null = they can):
- * you're looking at a teammate's plan ('looking'), or your School Year or Teacher Resources isn't loaded
+ * you're looking at someone else's pieces ('looking'), or your School Year or Teacher Resources isn't loaded
  * ('missing-piece') — copies are never removed just because their template can't be reached.
  */
 export function copiesWaitFor() {

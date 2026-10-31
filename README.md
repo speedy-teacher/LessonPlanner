@@ -55,9 +55,10 @@ means there's a tutorial you haven't seen yet.
 **🤝 Sharing with a department** — a plan can be three files, shared separately: the **School Year** (calendars, schools,
 grades, instruments, events, outcomes & evals — share it with your department), your **Lesson Schedule** (weekly lessons,
 lesson order, reports, your colors) and your **Teacher Resources** (lesson templates and pictures, kept across years).
-New plans (first plan, new school year, opening a file) start out shareable; "Share with your department…" moves an older plan over (the old file is kept). On the teacher pages,
-**👀 Looking at** shows a teammate's schedule, templates and pictures; anything shared with you as Viewer is shown
-view only, and anything not shared with you is greyed out with the reason.
+New plans (first plan, new school year, opening a file) start out shareable; "Share with your department…" moves an older plan over (the old file is kept). Each of the three files can be shared on its own.
+**👀 Looking at** is per tab and lists only people who shared that tab's part with you (Lesson Schedule, Reports and
+Outcomes: their Lesson Schedule; Lesson Templates and Images: their Teacher Resources); anything shared with you as
+Viewer is shown view only, as Editor it is merged both ways, and anything not shared with you is greyed out with the reason.
 
 The top bar shows a Drive status pill (click to sign in or open settings). Notices pop up in the bottom-left corner (`public/js/notices.js` — reusable: message, buttons, auto-hide).
 
