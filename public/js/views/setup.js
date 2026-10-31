@@ -40,7 +40,7 @@ function yearCard() {
       h('label', { class: 'field' }, h('span', {}, 'Last day'),
         h('input', { type: 'date', value: y.endDate, min: y.startDate, onchange: setDate('endDate') }))),
     h('div', { class: 'button-row' },
-      h('button', { class: 'btn', onclick: openNewYear }, '+ Start a new year')),
+      h('button', { class: 'btn', 'data-edit': 'hide', onclick: openNewYear }, '+ Start a new year')),
   );
 }
 
@@ -71,7 +71,8 @@ function newRecord(collection, name) {
 function extraBefore(collection, item) {
   if (collection === 'schools') return null;
   return h('input', {
-    type: 'color', class: 'color-pick', value: item.color, title: 'Change color',
+    // Grade and instrument colors are each teacher's own (kept in their Teacher Schedule, see pieces.js).
+    type: 'color', class: 'color-pick', value: item.color, title: 'Change color (just for you)', 'data-piece': 'schedule',
     onchange: (e) => commit((s) => update(s, collection, item.id, { color: e.target.value })),
   });
 }

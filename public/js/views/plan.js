@@ -101,14 +101,14 @@ function allGradesChip(criterion, placed) {
   return h('div', {
     class: `outcome-chip palette-chip all-grades-chip ${armed ? 'armed' : ''}`,
     style: { '--chip': evalColor(store.state, criterion) || NO_GRADE_COLOR },
-    draggable: 'true',
+    draggable: 'true', 'data-edit': '',
     title: gradeId ? `Drag onto the calendar for ${gradeName(gradeId)}, or click to place on several days` : 'Drag one of its grades onto the calendar',
     ondragstart: (e) => e.dataTransfer.setData('text/plain', JSON.stringify({ criterionId: criterion.id, gradeId })),
     onclick: () => armFor(criterion, gradeId, armed),
   },
   h('span', { class: 'chip-title' }, criterion.title),
   h('span', { class: 'chip-grades' }, store.state.grades.filter((g) => criterion.gradeIds.includes(g.id)).map((g) => h('span', {
-    class: `chip-grade ${armed && store.ui.armedGradeId === g.id ? 'armed' : ''}`, style: { '--grade': g.color }, draggable: 'true',
+    class: `chip-grade ${armed && store.ui.armedGradeId === g.id ? 'armed' : ''}`, style: { '--grade': g.color }, draggable: 'true', 'data-edit': '',
     title: `Drag onto the calendar for ${g.name}, or click to place on several days`,
     ondragstart: (e) => { e.stopPropagation(); e.dataTransfer.setData('text/plain', JSON.stringify({ criterionId: criterion.id, gradeId: g.id })); },
     onclick: (e) => { e.stopPropagation(); armFor(criterion, g.id, armed && store.ui.armedGradeId === g.id); },
@@ -148,7 +148,7 @@ function paletteChip(criterion, placed) {
   const armed = store.ui.armedCriterionId === criterion.id;
   return h('div', {
     class: `outcome-chip palette-chip ${armed ? 'armed' : ''}`,
-    draggable: 'true',
+    draggable: 'true', 'data-edit': '',
     title: armed ? 'Click again to stop placing' : 'Drag onto the calendar, or click to place on several days',
     ondragstart: (e) => e.dataTransfer.setData('text/plain', JSON.stringify({ criterionId: criterion.id })),
     onclick: () => setUi({ armedCriterionId: armed ? null : criterion.id }),
@@ -202,7 +202,7 @@ function detailPanel(p) {
         h('div', { class: 'detail-outcome' }, outcomeLabel(outcomeOf(store.state, p.criterionId))),
         h('h3', {}, criterion?.title),
         h('div', { class: 'eyebrow' }, find(store.state, 'grades', p.gradeId)?.name)),
-      iconButton('×', 'Close', () => setUi({ placementId: null }))),
+      iconButton('×', 'Close', () => setUi({ placementId: null }), 'look')),
     steps.length ? null : emptyNote('No lessons yet. Add them on the Outcomes, Evals & Lesson Order tab.'),
     h('div', { class: 'slide-row' }, steps.map((step, i) => lessonPreview(step.lessonId, {
       number: i + 1,

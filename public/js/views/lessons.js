@@ -68,7 +68,7 @@ function lessonEditor(l) {
         editable(l.category, (category) => commit((s) => editLesson(s, l.id, { category })), { list: 'lesson-categories', placeholder: 'e.g. Ukulele', allowEmpty: true }),
         h('datalist', { id: 'lesson-categories' }, categories.map((c) => h('option', { value: c })))),
       folderPicker(l),
-      h('button', { class: 'btn light', onclick: () => duplicate(l) }, 'Duplicate'),
+      h('button', { class: 'btn light', 'data-edit': 'hide', onclick: () => duplicate(l) }, 'Duplicate'),
       h('button', {
         class: 'btn light danger', onclick: () => deleteLesson(l),
         title: l.locations.length ? 'Only the planner’s deck goes. The slide file stays where it is.' : null,

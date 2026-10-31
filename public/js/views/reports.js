@@ -130,7 +130,7 @@ function folderChoice() {
     h('span', { class: 'mini-label' }, 'Save in:'),
     folder ? h('strong', {}, `☁️ ${folder.name}`) : h('span', { class: 'hint' }, 'no folder chosen yet'),
     h('button', {
-      class: 'btn small light', disabled: !connected || !apiKey(),
+      class: 'btn small light', 'data-edit': 'hide', disabled: !connected || !apiKey(),
       title: connected ? 'Opens Google’s folder picker' : 'Connect Google Drive first', onclick: chooseFolder,
     }, folder ? 'Change…' : 'Choose a Drive folder…'));
 }
@@ -151,7 +151,7 @@ function makeButton(files) {
   const what = files.length === 1 ? 'the report' : `${files.length} reports`;
   const label = making ? 'Making…' : `Make ${what}${settings().manual.keepUpToDate ? ' and keep up to date' : ''}`;
   return h('div', { class: 'report-row' },
-    h('button', { class: 'btn', 'data-tour': 'report-make', disabled: Boolean(why) || making || !files.length, onclick: () => make(folder) }, label),
+    h('button', { class: 'btn', 'data-edit': 'hide', 'data-tour': 'report-make', disabled: Boolean(why) || making || !files.length, onclick: () => make(folder) }, label),
     why ? h('span', { class: 'hint' }, why) : null);
 }
 

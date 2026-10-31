@@ -9,6 +9,7 @@ import { drivePill, showSignInNotice, warnIfGoogleNotSetUp } from './views/googl
 import { planButton, refreshPlansMenu, welcome } from './views/plans.js';
 import { offerSharing } from './views/shareSetup.js';
 import { pieceBar } from './views/people.js';
+import { installViewOnlyBlock, markViewOnly } from './views/viewOnly.js';
 import { renderPlan, planKeys } from './views/plan.js';
 import { renderSchedule, scheduleKeys } from './views/schedule.js';
 import { renderLessonSchedule, lessonScheduleKeys, showThisWeek } from './views/lessonSchedule.js';
@@ -84,6 +85,7 @@ function render() {
   document.getElementById('tooltip').classList.remove('show');
   document.getElementById('piece-bar').replaceChildren(...[pieceBar(tab.id)].filter(Boolean));
   main.replaceChildren(hasYear ? tab.render() : h('p', { class: 'empty-note' }, 'No years yet.'));
+  markViewOnly(main, tab.id);
   main.dataset.view = `${tab.id}/${store.state.activeYearId}`;
   main.scrollTop = scroll;
   restorePanelScrolls(main, panels);
@@ -150,6 +152,7 @@ function onKey(e) {
 
 async function start() {
   installTooltips();
+  installViewOnlyBlock();
   document.getElementById('app-version').textContent = `Version ${VERSION}`;
   installCalendarScrolling();
   document.getElementById('undo').addEventListener('click', undo);

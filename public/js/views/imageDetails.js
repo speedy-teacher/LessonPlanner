@@ -10,7 +10,7 @@ import { checkSharing, isShared, shareRefused } from '../imageSharing.js';
 import { allowPictures } from './images.js';
 import { imageUses } from '../imagePick.js';
 import { google } from '../google.js';
-import { current, emptyNote, menuItem, popMenu, year } from './common.js';
+import { current, emptyNote, goButton, menuItem, popMenu, year } from './common.js';
 import { askName } from './folderTree.js';
 import { whenEditor } from './imageWhen.js';
 
@@ -152,8 +152,8 @@ function usedBy(image) {
     uses.length ? null : emptyNote('None right now. (Only lessons with “Picture” ticked under “Filled in automatically” get one.)'),
     uses.length && shareRefused(image) ? h('p', { class: 'warn-box' }, '⚠ These lessons can’t show it until it’s shared with “Anyone with the link” in Google Drive.') : null,
     h('ul', { class: 'usage-copies' }, uses.map(({ entry, week }) => h('li', {},
-      h('button', { class: 'link-btn', onclick: () => setUi({ tab: 'lessons', lessonId: entry.lessonId }) },
-        `${nameOf('lessons', entry.lessonId)} — ${nameOf('schools', entry.schoolId)} › ${nameOf('grades', entry.gradeId)} › Week ${week?.number ?? '?'}`)))));
+      goButton(`${nameOf('lessons', entry.lessonId)} — ${nameOf('schools', entry.schoolId)} › ${nameOf('grades', entry.gradeId)} › Week ${week?.number ?? '?'}`,
+        { collection: 'lessons', id: entry.lessonId, onclick: () => setUi({ tab: 'lessons', lessonId: entry.lessonId }) })))));
 }
 
 // ---------- lessons chosen by hand ----------

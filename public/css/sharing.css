@@ -33,3 +33,10 @@
 .people-list { list-style: none; margin: 0; padding: 0; max-height: 260px; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; }
 .people-row { width: 100%; text-align: left; background: none; border: 0; border-radius: 8px; padding: 6px 8px; cursor: pointer; font: inherit; color: inherit; }
 .people-row:hover, .people-row.chosen { background: var(--royal-soft); }
+
+/* View-only parts of a page (views/viewOnly.js): shown as they are, without the ways to change them. */
+.view-only :is(.adder, .stretch, .drag-handle, .icon-btn:not(.look), .chip-x, .btn.danger, .ls-fill, .ls-week-fill, [data-edit="hide"]):not(.can-edit *) { display: none !important; }
+.view-only :is([data-edit], .grade-toggle, .tag-chip, .main-grade-btn):not(.can-edit *) { cursor: default; }
+.view-only .inline-edit:disabled:not(.can-edit *) { border-color: transparent; background: transparent; color: inherit; opacity: 1; }
+.view-only :is(input, select, textarea):disabled:not(.can-edit *) { cursor: default; }
+.view-only [draggable]:not(.can-edit *) { cursor: default; }

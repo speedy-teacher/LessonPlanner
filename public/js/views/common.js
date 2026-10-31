@@ -4,6 +4,8 @@
 import { h } from '../dom.js';
 import { activeYear, inYear } from '../model.js';
 import { setUi, store } from '../store.js';
+import { pieces } from '../workspace.js';
+import { whyUnavailable } from '../pieceEngine.js';
 
 export function year() {
   return activeYear(store.state);
@@ -82,7 +84,7 @@ export function contextMenu(e, items) {
   e.stopPropagation();
   closeContextMenu();
   openContext = h('div', { class: 'menu-card context-menu', role: 'menu' }, items.map((item) => h('button', {
-    class: 'menu-item', role: 'menuitem',
+    class: 'menu-item', role: 'menuitem', disabled: Boolean(item.disabled), 'data-tip': item.disabled || null,
     onclick: () => { closeContextMenu(); item.run(); },
   }, item.icon ? h('span', { class: 'menu-icon', 'aria-hidden': 'true' }, item.icon) : null, item.label)));
   document.body.append(openContext);
@@ -126,4 +128,20 @@ export function instrumentTag(instrument, { label = instrument?.name, tip = null
 
 export function emptyNote(text) {
   return h('p', { class: 'empty-note' }, text);
+}
+
+// ---------- links to other records ----------
+
+/**
+ * Why a link to a record can't be followed right now (its piece of the plan isn't shared with you,
+ * can't be reached, or it's gone), or null when it can.
+ */
+export function unavailableWhy(collection, id) {
+  return whyUnavailable(store.state, collection, id, pieces?.missing);
+}
+
+/** A link-style button to another record: greyed out, with the reason as its tip, when it can't be followed. */
+export function goButton(label, { collection, id, onclick, title = null }) {
+  const why = unavailableWhy(collection, id);
+  return h('button', { class: 'link-btn', disabled: Boolean(why), 'data-tip': why ?? title, onclick: why ? null : onclick }, label);
 }

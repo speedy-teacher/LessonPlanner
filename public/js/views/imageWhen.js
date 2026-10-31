@@ -108,7 +108,7 @@ function holidayForm(image, win, i) {
 function priorityPills(image) {
   return h('div', { class: 'priority-pills', role: 'radiogroup', 'aria-label': 'When it fits, it counts as' },
     h('span', { class: 'hint' }, 'When it fits, it’s a'),
-    PRIORITIES.map((p) => h('button', {
+    PRIORITIES.map((p) => h('button', { 'data-edit': '',
       class: `pill small ${image.when.priority === p.value ? 'active' : ''}`, role: 'radio',
       'aria-checked': image.when.priority === p.value ? 'true' : 'false', 'data-tip': `${p.hint}. Greetings beat holidays, holidays beat seasons.`,
       onclick: () => changeWhen(image, (w) => { w.priority = p.value; }),

@@ -6,7 +6,7 @@ import {
   add, addStep, autoFill, copyOrder, nextColor, criteriaFor, find, moveStep, remove, stepsFor, toggleGrade, update,
 } from '../model.js';
 import { commit, setUi, store, undo } from '../store.js';
-import { current, emptyNote, gradePills, pickId, year } from './common.js';
+import { current, emptyNote, goButton, gradePills, pickId, year } from './common.js';
 import { outcomeColor } from './plan.js';
 import { instrumentTags, lessonPreview } from './lessonPreview.js';
 import { newLesson } from './lessons.js';
@@ -137,7 +137,8 @@ function lessonList(crit) {
   const gradeId = shownGrade(crit);
   const steps = stepsFor(store.state, crit.id, gradeId);
   return h('details', {
-    class: 'crit-lessons', 'data-tour': 'crit-lessons', open: openLists.has(crit.id),
+    // The lesson order is the teacher's own (Teacher Schedule), not the shared School Year's.
+    class: 'crit-lessons', 'data-tour': 'crit-lessons', 'data-piece': 'schedule', open: openLists.has(crit.id),
     ontoggle: (e) => { if (e.target.open) openLists.add(crit.id); else openLists.delete(crit.id); },
   },
     h('summary', { class: 'mini-label' }, `Lessons, in teaching order (${steps.length})`),
@@ -158,7 +159,7 @@ function gradeSwitch(crit, gradeId) {
     h('span', { class: 'mini-label' }, 'Order for:'),
     gradePills(grades, gradeId, (id) => setUi({ gradeId: id }), { label: (g) => g.name, hint: () => null }),
     allSame ? h('span', { class: 'hint' }, '(the same for every grade)') : h('button', {
-      class: 'link-btn', title: `Every grade of this eval gets ${name}’s lessons in ${name}’s order`,
+      class: 'link-btn', 'data-edit': 'hide', title: `Every grade of this eval gets ${name}’s lessons in ${name}’s order`,
       onclick: () => {
         commit((s) => copyOrder(s, crit.id, gradeId, crit.gradeIds));
         toast(`Every grade now uses ${name}’s order for this eval.`, { label: 'Undo', run: undo });
@@ -181,7 +182,7 @@ function stepRow(step, index, total) {
       h('div', { class: 'step-meta' },
         lesson?.category ? h('span', { class: 'hint' }, lesson.category) : null,
         instrumentTags(lesson),
-        h('button', { class: 'link-btn', title: 'Edit this lesson deck', onclick: () => setUi({ tab: 'lessons', lessonId: step.lessonId }) }, 'Edit deck'))),
+        goButton('Edit deck', { collection: 'lessons', id: step.lessonId, title: 'Edit this lesson deck', onclick: () => setUi({ tab: 'lessons', lessonId: step.lessonId }) }))),
     h('div', { class: 'row-actions' },
       iconButton('↑', 'Move up', () => commit((s) => moveStep(s, step.id, index - 1)), index === 0 ? 'invisible' : ''),
       iconButton('↓', 'Move down', () => commit((s) => moveStep(s, step.id, index + 1)), index === total - 1 ? 'invisible' : ''),

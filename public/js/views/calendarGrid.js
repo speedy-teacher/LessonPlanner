@@ -30,9 +30,9 @@ export function calendarHeader(extra = null) {
   const key = viewMonth();
   return h('div', { class: 'cal-sticky' },
     h('div', { class: 'month-nav' },
-      h('button', { class: 'icon-btn', title: 'Previous month (←)', onclick: () => stepMonth(-1) }, '‹'),
+      h('button', { class: 'icon-btn look', title: 'Previous month (←)', onclick: () => stepMonth(-1) }, '‹'),
       h('h2', { class: 'month-title' }, formatMonth(key)),
-      h('button', { class: 'icon-btn', title: 'Next month (→)', onclick: () => stepMonth(1) }, '›'),
+      h('button', { class: 'icon-btn look', title: 'Next month (→)', onclick: () => stepMonth(1) }, '›'),
       h('div', { class: 'month-strip' }, monthsBetween(y.startDate, y.endDate).map((k) => h('button', {
         class: `month-chip ${k === key ? 'active' : ''}`,
         title: formatMonth(k),

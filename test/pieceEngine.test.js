@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { add, normalize } from '../public/js/model.js';
 import { seedState } from '../public/js/seed.js';
 import { emptyPiece, splitState, toPieceFile } from '../public/js/pieces.js';
-import { driveKey, PiecePlan, rebaseState } from '../public/js/pieceEngine.js';
+import { driveKey, PiecePlan, rebaseState, whyUnavailable } from '../public/js/pieceEngine.js';
 
 /** A pretend Google Drive: files by id; `deny` = ids you can't open; `viewOnly` = ids shared as Viewer. */
 function fakeDrive() {
@@ -241,4 +241,16 @@ test('while looking at a teammate, editing the shared School Year still saves to
   assert.deepEqual(await plan.save(state), ['schoolYear']);
   plan.viewMine();
   assert.equal(plan.state().schools[0].name, 'Renamed while looking');
+});
+
+test('a link to something in a missing piece says why it can’t be followed; it works again once healed', async () => {
+  const { drive, state } = inDrive();
+  drive.deny.add('f-res');
+  const plan = await openFromDrive(drive);
+  const lessonId = state.weekLessons[0].lessonId;
+  assert.equal(whyUnavailable(plan.state(), 'lessons', lessonId, plan.missing), 'Teacher Resources: Not shared with you.');
+  assert.equal(whyUnavailable(plan.state(), 'schools', 'sch_gone', plan.missing), 'Not in this plan any more.');
+  drive.deny.delete('f-res');
+  await plan.syncAll();
+  assert.equal(whyUnavailable(plan.state(), 'lessons', lessonId, plan.missing), null);
 });

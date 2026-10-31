@@ -13,7 +13,7 @@
 //   keptDay, canEdit, savedAt, data }. `data` = the piece (pieces.js), `base` = its file text at `rev`.
 
 import {
-  changedPieces, composeState, emptyPiece, fromPieceFile, keepViewOnly, PIECE_NAMES, PIECES, splitState, toPieceFile,
+  changedPieces, composeState, emptyPiece, fromPieceFile, keepViewOnly, PIECE_NAMES, PIECES, pieceOf, splitState, toPieceFile,
 } from './pieces.js';
 import { mergePiece } from './planMerge.js';
 import { shouldKeepRevision, syncAction } from './workspaceFile.js';
@@ -252,4 +252,16 @@ export function rebaseState(start, mine, pieces) {
     out[name] = pieces[name] ? mergePiece(PIECES[name].collections, was[name], now[name], pieces[name]).state : null;
   }
   return composeState(out);
+}
+
+/**
+ * Why a link to a record can't be followed (a button greyed out with this as its tip), or null when it
+ * can. `missing` = PiecePlan.missing (pieces that can't be had, and why).
+ */
+export function whyUnavailable(state, collection, id, missing = {}) {
+  if (id && state[collection]?.some((r) => r.id === id)) return null;
+  const piece = pieceOf(collection);
+  const why = missing[piece];
+  if (why && why !== 'not_linked') return `${PIECES[piece].label}: ${MISSING_WORDS[why] ?? 'not available'}`;
+  return 'Not in this plan any more.';
 }

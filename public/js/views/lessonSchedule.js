@@ -11,7 +11,8 @@ import {
 } from '../weekPlan.js';
 import { commit, setUi, store, undo } from '../store.js';
 import { formatRange, todayISO } from '../dates.js';
-import { contextMenu, current, emptyNote, gradePills, instrumentTag, pickId, pills, year } from './common.js';
+import { contextMenu, current, emptyNote, gradePills, instrumentTag, pickId, pills, unavailableWhy, year } from './common.js';
+import { canChange } from './viewOnly.js';
 import { driveOpenLabel, driveOpenUrl, findLocation } from '../locations.js';
 import { copiesOfLesson, copyFileOfEntry } from '../exportBridge.js';
 import { outcomeColor } from './plan.js';
@@ -183,15 +184,18 @@ function entryCard(entry, index, week, placements) {
 
 /** Clicking a lesson: go to its template, open it or this week's copy, or take it off the week. */
 function cardMenu(e, entry, lesson) {
-  if (!lesson) return;
-  const template = findLocation(lesson, 'drive');
-  const copy = copiesOfLesson(lesson.id).find((c) => c.copy.entryId === entry.id);
+  // A template that isn't available (not shared with you, or gone) still gets a menu: its link greyed out.
+  const template = lesson ? findLocation(lesson, 'drive') : null;
+  const copy = lesson ? copiesOfLesson(lesson.id).find((c) => c.copy.entryId === entry.id) : null;
   const open = (url) => window.open(url, '_blank', 'noopener');
   contextMenu(e, [
-    { icon: '🖼️', label: 'Go to the lesson template', run: () => setUi({ tab: 'lessons', lessonId: lesson.id, deckFolderId: lesson.folderId, lessonSearch: '' }) },
+    {
+      icon: '🖼️', label: 'Go to the lesson template', disabled: unavailableWhy('lessons', entry.lessonId),
+      run: () => setUi({ tab: 'lessons', lessonId: lesson.id, deckFolderId: lesson.folderId, lessonSearch: '' }),
+    },
     template ? { icon: '☁️', label: `${driveOpenLabel(template, 'Template')} ↗`, run: () => open(driveOpenUrl(template)) } : null,
     copy?.url ? { icon: '📄', label: 'Open this week’s copy ↗', run: () => open(copy.url) } : null,
-    { icon: '×', label: 'Take off this week', run: () => takeOff(entry) },
+    canChange('schedule') ? { icon: '×', label: 'Take off this week', run: () => takeOff(entry) } : null,
   ].filter(Boolean));
 }
 

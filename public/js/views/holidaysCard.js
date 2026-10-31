@@ -63,5 +63,5 @@ function holidayAdder() {
   };
   name.addEventListener('keydown', (e) => { if (e.key === 'Enter') save(); });
   return h('div', { class: 'adder holiday-adder' }, name, start, h('span', { class: 'hint' }, 'to'), end,
-    h('button', { class: 'btn small', onclick: save }, '+ Add'));
+    h('button', { class: 'btn small', 'data-edit': 'hide', onclick: save }, '+ Add'));
 }

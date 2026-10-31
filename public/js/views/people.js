@@ -44,18 +44,25 @@ function pieceName(name) {
 }
 
 function pieceNotes(pageId) {
-  return (PAGE_PIECES[pageId] ?? []).map((name) => {
-    const access = pieces.access(name);
-    if (access === 'edit') return null;
-    const label = pieceName(name);
-    if (access === 'view') {
-      const why = pieces.stale[name] ? MISSING_WORDS[pieces.stale[name]] ?? '' : 'Ask its owner for Editor access in Google Drive to make changes.';
-      return note('👀', `View only — ${label}.`, why, 'view');
-    }
-    const missing = pieces.missing[name];
-    if (missing === 'not_linked') return null;
-    return note('🌫️', `Can’t open ${label}.`, MISSING_WORDS[missing] ?? '', 'missing');
-  }).filter(Boolean);
+  const names = PAGE_PIECES[pageId] ?? [];
+  const viewOnly = names.filter((name) => pieces.access(name) === 'view');
+  const notes = [];
+  if (viewOnly.length) {
+    const stale = viewOnly.map((name) => pieces.stale[name]).find(Boolean);
+    const why = stale ? MISSING_WORDS[stale] ?? '' : 'Ask its owner for Editor access in Google Drive to make changes.';
+    notes.push(note('👀', `View only — ${joinNames(viewOnly)}.`, why, 'view'));
+  }
+  for (const name of names) {
+    const missing = pieces.access(name) === 'none' ? pieces.missing[name] : null;
+    if (missing && missing !== 'not_linked') notes.push(note('🌫️', `Can’t open ${pieceName(name)}.`, MISSING_WORDS[missing] ?? '', 'missing'));
+  }
+  return notes;
+}
+
+/** "Pat’s Teacher Schedule and Teacher Resources" */
+function joinNames(names) {
+  const [first, ...rest] = names;
+  return [pieceName(first), ...rest.map((name) => PIECES[name].label)].join(' and ');
 }
 
 function note(icon, title, text, kind) {

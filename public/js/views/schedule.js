@@ -92,7 +92,7 @@ function instrumentChip(school, instrument) {
   const data = { schoolId: school.id, instrumentId: instrument.id };
   return h('div', {
     class: `instrument-chip ${armed ? 'armed' : ''}`,
-    draggable: 'true',
+    draggable: 'true', 'data-edit': '',
     style: { '--chip': instrument.color },
     title: `${instrument.name}@${school.name} — drag onto the calendar, or click to place on several days`,
     ondragstart: (e) => e.dataTransfer.setData('text/plain', JSON.stringify(data)),
