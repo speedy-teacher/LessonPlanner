@@ -18,6 +18,8 @@ const PROBLEMS = {
   no_access: 'Google Drive didn’t allow opening that file. Ask your colleague to share it with you.',
   offline: 'Couldn’t reach Google. Check the internet connection and try again.',
   signed_out: 'Google signed you out. Click anywhere to reconnect, then try again.',
+  not_saved: 'Your latest changes haven’t reached Google Drive yet, so nothing was changed. Wait a moment and try again.',
+  cant_keep_backup: 'Google Drive wouldn’t lock in today’s version of your plan, so nothing was changed. Try again in a minute.',
 };
 
 /** The open plan is an older one-file plan (not yet moved to pieces). */
@@ -37,7 +39,10 @@ export function offerSharing() {
   });
 }
 
+let backedUp = false; // this visit's window: the backup file has been downloaded
+
 export function openShareSetup() {
+  backedUp = false;
   openModal('Share with your department', (close) => {
     const body = h('div', { class: 'share-setup', 'data-tour': 'share-setup' });
     const step = (...parts) => body.replaceChildren(...parts.filter(Boolean));
@@ -56,15 +61,23 @@ function intro(step, close) {
       h('li', {}, h('strong', {}, '📖 Lesson Schedule'), ' — your lessons each week, your lesson order, reports and colors. Yours.'),
       h('li', {}, h('strong', {}, '🖼️ Teacher Resources'), ' — your lesson templates and pictures, kept from year to year. Yours. ',
         'If you already moved another year’s plan, its templates and pictures go into the same one (nothing is doubled).')),
-    h('p', { class: 'hint' }, 'Nothing is lost: Google Drive keeps today’s version of your plan forever, and your old file stays, renamed “(old – before sharing)”. ',
-      h('button', { class: 'btn small light', onclick: downloadCopy }, '⬇ Also download a copy')),
+    backupStep(step, close),
     h('div', { class: 'share-choices' },
-      choice({ icon: '🌱', title: 'Start a new shared School Year', tour: 'share-start',
+      choice({ icon: '🌱', title: 'Start a new shared School Year', tour: 'share-start', disabledWhy: !backedUp && 'Save the backup first (step 1)',
         text: 'Recommended if you’re the first in your department. Your colleagues join it afterwards.' }, () => run(step, close, splitCurrentPlan)),
-      choice({ icon: '🤝', title: 'Join a School Year a colleague shared', tour: 'share-join', disabledWhy: !google.token && 'Connect Google Drive first',
+      choice({ icon: '🤝', title: 'Join a School Year a colleague shared', tour: 'share-join', disabledWhy: (!backedUp && 'Save the backup first (step 1)') || (!google.token && 'Connect Google Drive first'),
         text: 'Your schools, grades and evals are matched to theirs by name; you check any that don’t match.' }, () => pickYear(step, close))),
     h('div', { class: 'button-row' }, h('button', { class: 'btn light', onclick: close }, 'Not now')),
   ];
+}
+
+/** Step 1: a file of the plan on this computer. The choices below stay off until it's saved. */
+function backupStep(step, close) {
+  const saveBackup = () => { downloadCopy(); backedUp = true; step(...intro(step, close)); };
+  return h('div', { class: `share-backup ${backedUp ? 'done' : ''}`, 'data-tour': 'share-backup' },
+    h('strong', {}, backedUp ? '✓ Step 1: backup saved' : 'Step 1: save a backup'),
+    h('span', { class: 'hint' }, 'A file of your plan, kept on this computer. Your old plan also stays in Google Drive, renamed “(old – before sharing)”, and Drive keeps today’s version forever. If Drive can’t do that, nothing is changed.'),
+    backedUp ? null : h('button', { class: 'btn small', onclick: saveBackup }, '⬇ Download the backup'));
 }
 
 function choice({ icon, title, text, tour, disabledWhy = null }, onclick) {

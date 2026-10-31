@@ -40,3 +40,6 @@
 .view-only .inline-edit:disabled:not(.can-edit *) { border-color: transparent; background: transparent; color: inherit; opacity: 1; }
 .view-only :is(input, select, textarea):disabled:not(.can-edit *) { cursor: default; }
 .view-only [draggable]:not(.can-edit *) { cursor: default; }
+
+.share-backup { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; background: var(--gold-soft); border-radius: 12px; padding: 12px; }
+.share-backup.done { background: var(--royal-soft); }
