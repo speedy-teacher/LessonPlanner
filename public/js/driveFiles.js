@@ -41,6 +41,11 @@ export async function listSchedulesFor(token, schoolYearFileId, { fetchFn = fetc
   return findFiles(token, has({ key: SCHOOL_YEAR_PROPERTY, value: schoolYearFileId }), { fetchFn });
 }
 
+/** Your own Teacher Resources files (one per teacher, kept across years), newest first. */
+export async function listMyResources(token, { fetchFn = fetch } = {}) {
+  return findFiles(token, `${has(PIECE_PROPERTY('resources'))} and 'me' in owners`, { fetchFn });
+}
+
 async function findFiles(token, query, { fetchFn }) {
   const params = new URLSearchParams({
     q: `${query} and trashed = false`,

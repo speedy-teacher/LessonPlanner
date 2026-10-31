@@ -13,10 +13,11 @@ import { device, setDevice } from './deviceSettings.js';
 import { google } from './google.js';
 import { allPlans, deletePlan, getPlan, putPlan, rescue } from './localCache.js';
 import {
-  createPlanFile, folderName, keepRevision, listSchedulesFor, movePlanFile, PIECE_PROPERTY, planFileInfo, readPlanFile, renamePlanFile, savePlanFile,
+  createPlanFile, folderName, keepRevision, listMyResources, listSchedulesFor, movePlanFile, PIECE_PROPERTY, planFileInfo, readPlanFile, renamePlanFile, savePlanFile,
   SCHOOL_YEAR_PROPERTY,
 } from './driveFiles.js';
 import { joinedPieces } from './joinYear.js';
+import { mergeResources, relinkSchedule } from './resourceMerge.js';
 import { driveKey, MISSING_WORDS, PiecePlan, rebaseState } from './pieceEngine.js';
 import { fromPieceFile, PIECES, pieceFileName, pieceKind, splitState, toPieceFile } from './pieces.js';
 import {
@@ -475,14 +476,15 @@ const linkTo = (rec) => ({ key: rec.key, fileId: rec.fileId, name: rec.name });
  * data, in Drive when connected (in `folderId`, or the "Lesson Planner" folder), else on this computer.
  * Opens it unless `open` is false. Returns the Teacher Schedule's record.
  */
-export async function createPiecePlan(state, { open = true, folderId = null } = {}) {
+export async function createPiecePlan(state, { open = true, folderId = null, reuseResources = false } = {}) {
   const year = state.years.find((y) => y.id === state.activeYearId) ?? state.years[0];
   const split = splitState(state);
   const made = {};
-  for (const name of ['schoolYear', 'resources']) {
-    made[name] = await newPieceRecord(name, split[name], { fileName: pieceFileName(name, year), folderId });
-    await putPlan(made[name]);
-  }
+  made.schoolYear = await newPieceRecord('schoolYear', split.schoolYear, { fileName: pieceFileName('schoolYear', year), folderId });
+  await putPlan(made.schoolYear);
+  const resources = await resourcesFor(split, { year, folderId, reuse: reuseResources });
+  made.resources = resources.rec;
+  split.schedule = resources.schedule;
   split.schedule.meta = { ...split.schedule.meta, links: { schoolYear: linkTo(made.schoolYear), resources: linkTo(made.resources) }, ownerId: google.userId || null };
   const schedule = await newPieceRecord('schedule', split.schedule, {
     fileName: pieceFileName('schedule', year), folderId: made.schoolYear.folderId ?? folderId, schoolYearFileId: made.schoolYear.fileId,
@@ -504,7 +506,7 @@ export const OLD_PLAN_SUFFIX = ' (old – before sharing)';
  */
 export async function splitCurrentPlan() {
   const old = await settleOldPlan();
-  const schedule = await createPiecePlan(store.state, { open: false, folderId: old.folderId ?? null });
+  const schedule = await createPiecePlan(store.state, { open: false, folderId: old.folderId ?? null, reuseResources: true });
   await retireOldPlan(old);
   await openPieces(schedule);
   return pieces;
@@ -531,10 +533,11 @@ export async function joinSchoolYear({ file, piece }, map) {
   };
   await putPlan(yearRec);
   const year = piece.years[0];
-  const res = await newPieceRecord('resources', resources, { fileName: pieceFileName('resources', year), folderId: old.folderId ?? null });
-  await putPlan(res);
-  schedule.meta = { ...schedule.meta, links: { schoolYear: linkTo(yearRec), resources: linkTo(res) }, ownerId: google.userId || null };
-  const sched = await newPieceRecord('schedule', schedule, { fileName: pieceFileName('schedule', year), folderId: res.folderId, schoolYearFileId: file.fileId });
+  const found = await resourcesFor({ resources, schedule }, { year, folderId: old.folderId ?? null, reuse: true });
+  const res = found.rec;
+  const mine = found.schedule;
+  mine.meta = { ...mine.meta, links: { schoolYear: linkTo(yearRec), resources: linkTo(res) }, ownerId: google.userId || null };
+  const sched = await newPieceRecord('schedule', mine, { fileName: pieceFileName('schedule', year), folderId: old.folderId ?? res.folderId, schoolYearFileId: file.fileId });
   await putPlan(sched);
   await retireOldPlan(old);
   await openPieces(sched);
@@ -646,4 +649,40 @@ export function copiesWaitFor() {
   if (pieces.own) return { state: 'looking' };
   const piece = ['schoolYear', 'resources'].find((name) => pieces.access(name) === 'none' && pieces.missing[name] !== 'not_linked');
   return piece ? { state: 'missing-piece', piece: PIECES[piece].label } : null;
+}
+
+// ---------- one Teacher Resources per teacher ----------
+
+/**
+ * The Teacher Resources for a plan being moved to pieces: with `reuse`, the one you already have (from
+ * another year's plan) gets this plan's templates and pictures added (no doubles, see resourceMerge.js);
+ * otherwise a new one. Returns { rec, schedule } — the schedule pointed at the matched templates.
+ */
+async function resourcesFor({ resources, schedule }, { year, folderId, reuse }) {
+  const existing = reuse ? await myResources() : null;
+  if (!existing) {
+    const rec = await newPieceRecord('resources', resources, { fileName: pieceFileName('resources', year), folderId });
+    await putPlan(rec);
+    return { rec, schedule };
+  }
+  const { resources: combined, map } = mergeResources(existing.data, resources);
+  const rec = { ...existing, data: combined, changed: Boolean(existing.fileId), savedAt: Date.now() };
+  await putPlan(rec);
+  return { rec, schedule: relinkSchedule(schedule, map) };
+}
+
+/** Your own Teacher Resources, if you have one: in Google Drive (newest), or else on this computer. */
+async function myResources() {
+  if (driveReady()) {
+    const [file] = await listMyResources(google.token);
+    if (!file) return null;
+    const cached = await getPlan(driveKey(file.fileId)).catch(() => null);
+    if (cached) return cached;
+    const read = await readPlanFile(google.token, file.fileId);
+    return {
+      key: driveKey(file.fileId), piece: 'resources', name: read.name, fileId: file.fileId, folderId: read.folderId, rev: read.rev,
+      base: read.text, canEdit: read.canEdit, changed: false, keptDay: null, savedAt: 0, data: fromPieceFile(read.text, 'resources'),
+    };
+  }
+  return (await allCachedPlans()).find((p) => p.piece === 'resources' && !p.fileId) ?? null;
 }
