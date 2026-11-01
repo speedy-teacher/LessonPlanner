@@ -88,3 +88,11 @@ Create "Lesson Planner – TEST (safe to delete)" first and pass its folderId ev
 files in that folder; new year → one Teacher Resources file still; import two years → one Resources; new-year "Use one a
 colleague already made" with the first year's School Year rolled over (matched by id, no review step); plans-menu join;
 "Share the School Year in Drive ↗" link opens the School Year file. Then list the files for the teacher to delete.
+
+### Result (2026-11-01, real Drive, one account, test folder only)
+Passed: first plan → 3 labelled files (Schedule carries `lpSchoolYear`); new year → new School Year + Schedule, same
+Teacher Resources, ids/lesson order/grade color kept, schedule empty; import of a two-year file → 2 plans, one Resources,
+carried-over templates not doubled, no sharing notice; new-year join of a rolled-over School Year → matched fully by id;
+plans-menu join → new Schedule linked, old one renamed "(old – before joining)"; `listSchedulesFor` / `listSharedResources`
+accepted by Drive (own files correctly left out of "Looking at"); plans menu and new-year window show the new choices.
+Not tried: a second Google account sharing as Viewer/Editor (covered by the fake-Drive cases L1–L13), the Google picker.
