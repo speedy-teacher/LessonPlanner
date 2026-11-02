@@ -179,7 +179,8 @@ A browser app for a (non-technical) elementary music teacher to plan a school ye
 - Picture words `{{copy_thumbnail}}`/`{{template_thumbnail}}` (`PICTURE_WORDS`, `thumbnailUrl` = drive.google.com/thumbnail?id=):
   in the label, a column or a row the cell becomes `{ image, link }` (Sheet: `=HYPERLINK(link, IMAGE(url))`, rows 120 px); no Drive
   file = the words as usual. Google fetches IMAGE() without the teacher's sign-in, so private files may show blank in the Sheet
-  (preview works) — not yet tried against real Google.
+  (the Reports preview gets pictures through `thumbnails.js` `fileThumbnail(imageId)` = the planner's Drive sign-in, since the
+  thumbnail address needs the browser itself signed in to Google) — not yet tried against real Google.
 - Sheets: `reportSheets.js` `driveReports` (labels `lessonPlannerReport`=yearId, `reportKind` weekly|manual, `reportKey`, `hash`,
   `place`); a rewrite adds fresh tabs, deletes the old ones and fills the new in one batchUpdate (`sheetRequests`); only when `hash` changed.
 - Weekly: `reportBridge.js`, run by `exportBridge.js` after the copy queue is empty (same lock, Drive output only): one

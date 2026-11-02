@@ -198,9 +198,10 @@ export function reportWeek(state, cls, week, { label, above, below, left = [], r
     const words = lessonWords(entryValues(state, entry, week, numbers), entry, lesson, copy);
     const pictures = lessonPictures(lesson, copy);
     const column = (c) => fillCell(asColumn(c).value, words, pictures);
-    const image = pictureIn(label, pictures)?.image;
+    const picture = pictureIn(label, pictures);
     return {
-      entryId: entry.id, lessonId: entry.lessonId, text: lessonLabel(label, words), url: copy?.url ?? null, ...(image ? { image } : {}),
+      entryId: entry.id, lessonId: entry.lessonId, text: lessonLabel(label, words), url: copy?.url ?? null,
+      ...(picture ? { image: picture.image, imageId: picture.fileId } : {}),
       above: extraRows(above, words, pictures), below: extraRows(below, words, pictures), left: left.map(column), right: right.map(column),
     };
   });
@@ -220,10 +221,10 @@ function lessonWords(values, entry, lesson, copy) {
 function lessonPictures(lesson, copy) {
   const templateId = driveFileId(lesson);
   const pictures = {};
-  if (copy?.id) pictures['{{copy_thumbnail}}'] = { image: thumbnailUrl(copy.id), link: copy.url ?? null };
+  if (copy?.id) pictures['{{copy_thumbnail}}'] = { image: thumbnailUrl(copy.id), fileId: copy.id, link: copy.url ?? null };
   if (templateId) {
     const mimeType = lesson.locations.find((l) => l.fileId === templateId)?.mimeType ?? null;
-    pictures['{{template_thumbnail}}'] = { image: thumbnailUrl(templateId), link: driveOpenUrl({ fileId: templateId, mimeType }) };
+    pictures['{{template_thumbnail}}'] = { image: thumbnailUrl(templateId), fileId: templateId, link: driveOpenUrl({ fileId: templateId, mimeType }) };
   }
   return pictures;
 }
@@ -369,10 +370,10 @@ function columnHeads(tab) {
   return [head(''), ...tab.columns.left.map(head), head('Lesson'), ...tab.columns.right.map(head)];
 }
 
-/** A filled-in value as a cell: plain text, or a picture ({ image }, linked to its file). */
+/** A filled-in value as a cell: plain text, or a picture ({ image, imageId = its Drive file }, linked to its file). */
 function cellValue(value) {
   if (typeof value === 'string') return { text: value };
-  return { text: value.text ?? '', image: value.image, ...(value.link ? { url: value.link } : {}) };
+  return { text: value.text ?? '', image: value.image, imageId: value.fileId, ...(value.link ? { url: value.link } : {}) };
 }
 
 /** A lesson's rows: its extra rows above, the lesson itself (numbered, linked to its copy, with its columns), its rows below. */
@@ -382,7 +383,7 @@ function lessonRows(tab, lesson, i) {
   const extra = (text) => [{ text: '', style: 'number' }, ...blanks(left), { text, style: 'extra' }, ...blanks(right)];
   const column = (value) => ({ ...cellValue(value), style: 'column' });
   const extraOf = (value) => extra('').map((cell) => (cell.style === 'extra' ? { ...cellValue(value), style: 'extra' } : cell));
-  const image = lesson.image ? { image: lesson.image } : {};
+  const image = lesson.image ? { image: lesson.image, imageId: lesson.imageId } : {};
   return [
     ...(lesson.above ?? []).map(extraOf),
     [{ text: String(i + 1), style: 'number' }, ...(lesson.left ?? []).map(column),

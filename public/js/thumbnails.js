@@ -36,7 +36,11 @@ function isFresh(entry) {
  * { status: 'waiting' } (not asked for yet — see requestThumbnail) | { status: 'none', reason }.
  */
 export function deckThumbnail(lesson) {
-  const fileId = driveFileId(lesson);
+  return fileThumbnail(driveFileId(lesson));
+}
+
+/** The first-slide picture of any Drive file by its id (e.g. a lesson copy in a report), like deckThumbnail. */
+export function fileThumbnail(fileId) {
   if (!fileId) return NOT_IN_DRIVE;
   if (google.status !== 'connected') return NOT_CONNECTED;
   const entry = cache.get(fileId);
@@ -45,8 +49,12 @@ export function deckThumbnail(lesson) {
 
 /** Ask Drive for a deck's picture (when its card comes into view). `onThumbnail` hears when it's here. */
 export function requestThumbnail(lesson) {
-  if (deckThumbnail(lesson) !== WAITING) return;
-  const fileId = driveFileId(lesson);
+  requestFileThumbnail(driveFileId(lesson));
+}
+
+/** Ask Drive for a file's picture by its id. */
+export function requestFileThumbnail(fileId) {
+  if (fileThumbnail(fileId) !== WAITING) return;
   cache.set(fileId, { status: 'loading', retried: cache.get(fileId)?.retried ?? false });
   queue.push(fileId);
   pump();
@@ -63,7 +71,11 @@ function changed(fileId) {
 
 /** A picture didn't load (its address probably expired): ask Drive again once, then give up. */
 export function thumbnailFailed(lesson) {
-  const fileId = driveFileId(lesson);
+  fileThumbnailFailed(driveFileId(lesson));
+}
+
+/** A file's picture didn't load: ask again once, then give up. */
+export function fileThumbnailFailed(fileId) {
   const entry = cache.get(fileId);
   if (!entry || entry.status !== 'ready') return;
   if (entry.retried) cache.set(fileId, NO_PICTURE);

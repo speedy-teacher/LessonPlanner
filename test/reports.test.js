@@ -498,9 +498,11 @@ test('{{copy_thumbnail}} and {{template_thumbnail}} show a small picture of the 
   });
   const [beat, game] = file.tabs[0].weeks[0].lessons;
   assert.equal(beat.image, thumbnailUrl('copy1'));
+  assert.equal(beat.imageId, 'copy1', 'the preview asks Drive for the picture by its file');
   assert.equal(game.image, undefined, 'no copy: no picture …');
   assert.equal(game.text, '2 - Game', '… the copy name instead');
   assert.equal(beat.right[0].image, thumbnailUrl('tmpl-Beat'));
+  assert.equal(beat.right[0].fileId, 'tmpl-Beat');
   assert.match(beat.right[0].link, /tmpl-Beat/, 'the picture links to its file');
   assert.equal(game.right[0], '', 'a lesson without a Drive template gets an empty cell');
   assert.equal(game.below.length, 0, 'and no extra row');
