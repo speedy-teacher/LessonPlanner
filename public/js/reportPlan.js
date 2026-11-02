@@ -18,17 +18,22 @@
 //   columnNames = false leaves out the row of column names at the top
 //   footer = false leaves out the "Automatically maintained by Lesson Planner" line at the bottom
 //   weekly = false turns the weekly reports off (on when missing)
-//   manual = { fromWeek, toWeek, schoolIds[], gradeIds[], perGrade, folder: { folderId, name } | null, keepUpToDate }
+//   manual = { fromWeek, toWeek, schoolIds[], gradeIds[], layout, direction, perGrade, folder: { folderId, name } | null, keepUpToDate }
+//            layout = 'school' (a file per school, a tab per grade), 'grade' (a file per school and grade) or
+//            'together' (one file, a tab per school with every grade on it); missing = from the older `perGrade`
+//            (kept in step, so older versions of the planner still read it). direction = 'down' (grades one
+//            under another) or 'across' (side by side, weeks lined up) for 'together'.
 //            keepUpToDate = "Make" also adds the reports it makes to `watched`
 //   watched = the reports the export bridge keeps up to date (same file, same folder), each remembering how it was made:
 //            [{ id, name, schoolId, gradeIds[], perGrade, fromWeek, toWeek, folder: { folderId, name } }]
+//            ('together' ones also have layout, direction and schoolIds[] — empty = every school, like the form)
 //            Taking one off the list never touches the file in Drive.
 
 import { formatRange, formatShort } from './dates.js';
 import { AUTO_FIELD_PLACEHOLDERS, AUTO_FIELDS, find, inYear, TEXT_FIELDS, toRanges } from './model.js';
 import { entryValues, fingerprint, lessonNumbers, safeName } from './exportPlan.js';
 import { instrumentsInWeek, schoolWeeks, weekLessonsFor } from './weekPlan.js';
-import { driveOpenUrl } from './locations.js';
+import { driveFileId, driveOpenUrl } from './locations.js';
 import { readableText } from './evalGrade.js';
 
 export const DEFAULT_LABEL = '{{copy_name}}';
@@ -37,10 +42,33 @@ export const DEFAULT_LABEL = '{{copy_name}}';
 export const LABEL_WORDS = {
   '{{copy_name}}': 'The copy’s file name',
   '{{template_name}}': 'The template’s name',
+  '{{copy_thumbnail}}': 'A small picture of the copy’s first slide or page (its cell shows only the picture)',
+  '{{template_thumbnail}}': 'A small picture of the template’s first slide or page (its cell shows only the picture)',
 };
 
+/** Words that become a small picture of a Google file instead of text. */
+export const PICTURE_WORDS = ['{{copy_thumbnail}}', '{{template_thumbnail}}'];
+
+/** The address of a small picture of a Drive file's first slide or page. */
+export const thumbnailUrl = (fileId) => `https://drive.google.com/thumbnail?id=${encodeURIComponent(fileId)}&sz=w400`;
+
+/** Ways to lay out the files of a report made from the Reports tab. */
+export const LAYOUTS = ['school', 'grade', 'together'];
+export const DIRECTIONS = ['down', 'across'];
+
 const REPORT_DEFAULTS = { label: '', above: [], below: [], left: [], right: [], columnNames: true, footer: true, weekly: true, watched: [] };
-const MANUAL_DEFAULTS = { fromWeek: null, toWeek: null, schoolIds: [], gradeIds: [], perGrade: false, folder: null, keepUpToDate: false };
+const MANUAL_DEFAULTS = {
+  fromWeek: null, toWeek: null, schoolIds: [], gradeIds: [], layout: null, direction: 'down', perGrade: false, folder: null, keepUpToDate: false,
+};
+
+/**
+ * How a report's files are laid out (see the top of this file). Apart from 'together', `perGrade` decides,
+ * so a choice made on an older version of the planner (which only knows `perGrade`) still counts.
+ */
+export function fileLayout(manual) {
+  if (manual?.layout === 'together') return 'together';
+  return manual?.perGrade ? 'grade' : 'school';
+}
 
 /** Saved values over defaults (a missing or null value gets the default). */
 const withDefaults = (defaults, saved = {}) => Object.fromEntries(Object.entries(defaults).map(([k, v]) => [k, saved[k] ?? v]));
@@ -48,7 +76,10 @@ const withDefaults = (defaults, saved = {}) => Object.fromEntries(Object.entries
 /** The year's report settings, with everything missing filled in. */
 export function reportSettings(year) {
   const r = year?.reports ?? {};
-  const settings = { ...withDefaults(REPORT_DEFAULTS, r), manual: withDefaults(MANUAL_DEFAULTS, r.manual ?? {}) };
+  const manual = withDefaults(MANUAL_DEFAULTS, r.manual ?? {});
+  const layout = fileLayout(manual);
+  const direction = DIRECTIONS.includes(manual.direction) ? manual.direction : 'down';
+  const settings = { ...withDefaults(REPORT_DEFAULTS, r), manual: { ...manual, layout, direction, perGrade: layout === 'grade' } };
   return { ...settings, left: settings.left.map(asColumn), right: settings.right.map(asColumn) };
 }
 
@@ -61,7 +92,10 @@ export function asColumn(column) {
 /** The year's report settings with some changed (`patch` at the top, `manual` for the Reports tab form). */
 export function changedReports(year, patch = {}, manual = {}) {
   const { manual: before, ...top } = reportSettings(year);
-  return { ...top, ...patch, manual: { ...before, ...manual } };
+  const next = { ...before, ...manual };
+  if (manual.perGrade !== undefined && manual.layout === undefined) next.layout = manual.perGrade ? 'grade' : 'school';
+  if (LAYOUTS.includes(manual.layout)) next.perGrade = manual.layout === 'grade';
+  return { ...top, ...patch, manual: { ...next, perGrade: fileLayout(next) === 'grade' } };
 }
 
 /** The lesson label with its words swapped for the lesson's details (unknown words stay as typed). */
@@ -77,21 +111,38 @@ export function fillWords(text, words) {
 }
 
 /** An extra row for a lesson, or '' when all its words are empty for it (e.g. "Outcome: {{essential_outcome}}" without an eval). */
-function extraRow(text, words) {
+function extraRow(text, words, pictures = {}) {
+  const picture = pictureIn(text, pictures);
+  if (picture) return { text: fillWords(text, words), ...picture };
   const used = [...String(text ?? '').matchAll(WORD)].map((m) => words[`{{${m[1]}}}`]);
   return used.length && used.every((v) => v === '') ? '' : fillWords(text, words);
+}
+
+/** The first picture word in the text that has a picture for this lesson: { image, link } or null. */
+function pictureIn(text, pictures) {
+  const word = [...String(text ?? '').matchAll(WORD)].map((m) => `{{${m[1]}}}`).find((w) => pictures[w]);
+  return word ? pictures[word] : null;
+}
+
+/**
+ * A cell's value: its words filled in — plain text, or { text, image, link } when it names a picture
+ * (a Sheet cell holds a picture or text, so the text is only shown where the picture can't be).
+ */
+export function fillCell(text, words, pictures = {}) {
+  const picture = pictureIn(text, pictures);
+  return picture ? { text: fillWords(text, words), ...picture } : fillWords(text, words);
 }
 
 /** A column's title: its words named, e.g. "{{essential_outcome}}" → "Essential outcome". */
 export function columnTitle(text) {
   const names = {
-    '{{copy_name}}': 'Copy', '{{template_name}}': 'Template',
+    '{{copy_name}}': 'Copy', '{{template_name}}': 'Template', '{{copy_thumbnail}}': 'Copy picture', '{{template_thumbnail}}': 'Template picture',
     ...Object.fromEntries(TEXT_FIELDS.map((key) => [AUTO_FIELD_PLACEHOLDERS[key], AUTO_FIELDS[key]])),
   };
   return fillWords(text, names) || 'Notes';
 }
 
-const extraRows = (texts, words) => (texts ?? []).map((t) => extraRow(t, words)).filter(Boolean);
+const extraRows = (texts, words, pictures) => (texts ?? []).map((t) => extraRow(t, words, pictures)).filter(Boolean);
 
 /** "Drum (all week)" or "Drum (available Oct 6 - Oct 7)" (days apart: "Oct 6, Oct 8 - Oct 9"). */
 export function instrumentText(name, { days, allWeek }) {
@@ -144,25 +195,46 @@ export function reportWeek(state, cls, week, { label, above, below, left = [], r
   const lessons = weekLessonsFor(state, cls, week.weekStart).map((entry) => {
     const lesson = find(state, 'lessons', entry.lessonId);
     const copy = copyOf(entry.id);
-    const values = entryValues(state, entry, week, numbers);
-    const words = Object.fromEntries(TEXT_FIELDS.map((key) => [AUTO_FIELD_PLACEHOLDERS[key], values[key] ?? '']));
-    words['{{copy_name}}'] = copy?.name || `${entry.position + 1} - ${lesson?.name ?? 'Lesson'}`;
-    words['{{template_name}}'] = lesson?.name ?? '';
+    const words = lessonWords(entryValues(state, entry, week, numbers), entry, lesson, copy);
+    const pictures = lessonPictures(lesson, copy);
+    const column = (c) => fillCell(asColumn(c).value, words, pictures);
+    const picture = pictureIn(label, pictures);
     return {
       entryId: entry.id, lessonId: entry.lessonId, text: lessonLabel(label, words), url: copy?.url ?? null,
-      above: extraRows(above, words), below: extraRows(below, words),
-      left: left.map((c) => fillWords(asColumn(c).value, words)), right: right.map((c) => fillWords(asColumn(c).value, words)),
+      ...(picture ? { image: picture.image, imageId: picture.fileId } : {}),
+      above: extraRows(above, words, pictures), below: extraRows(below, words, pictures), left: left.map(column), right: right.map(column),
     };
   });
   return { number: week.number, dates: formatRange(days[0], days.at(-1)), instruments: weekInstruments(state, cls, week, lessons.map((l) => l.lessonId)), lessons };
 }
 
-/** Lesson copies (Drive ones) → `copyOf` for reports: entry id → { name, url } of its copy, or null. */
+/** What each word means for a lesson (picture words are '' here: pictures aren't words). */
+function lessonWords(values, entry, lesson, copy) {
+  const words = Object.fromEntries(TEXT_FIELDS.map((key) => [AUTO_FIELD_PLACEHOLDERS[key], values[key] ?? '']));
+  words['{{copy_name}}'] = copy?.name || `${entry.position + 1} - ${lesson?.name ?? 'Lesson'}`;
+  words['{{template_name}}'] = lesson?.name ?? '';
+  PICTURE_WORDS.forEach((w) => { words[w] = ''; });
+  return words;
+}
+
+/** The pictures a lesson's cells can show: picture word → { image, link } (left out when there's no Drive file). */
+function lessonPictures(lesson, copy) {
+  const templateId = driveFileId(lesson);
+  const pictures = {};
+  if (copy?.id) pictures['{{copy_thumbnail}}'] = { image: thumbnailUrl(copy.id), fileId: copy.id, link: copy.url ?? null };
+  if (templateId) {
+    const mimeType = lesson.locations.find((l) => l.fileId === templateId)?.mimeType ?? null;
+    pictures['{{template_thumbnail}}'] = { image: thumbnailUrl(templateId), fileId: templateId, link: driveOpenUrl({ fileId: templateId, mimeType }) };
+  }
+  return pictures;
+}
+
+/** Lesson copies (Drive ones) → `copyOf` for reports: entry id → { id, name, url } of its copy, or null. */
 export function copyFinder(copies) {
   const byEntry = new Map((copies ?? []).filter((c) => !c.fileName).map((c) => [c.entryId, c]));
   return (entryId) => {
     const c = byEntry.get(entryId);
-    return c ? { name: c.name, url: driveOpenUrl({ fileId: c.id, mimeType: c.mimeType }) } : null;
+    return c ? { id: c.id, name: c.name, url: driveOpenUrl({ fileId: c.id, mimeType: c.mimeType }) } : null;
   };
 }
 
@@ -209,12 +281,26 @@ export const REPORT_NOTE = 'Automatically maintained by Lesson Planner';
 /** The live Lesson Planner site (the footer links "Lesson Planner" here). */
 export const SITE_URL = 'https://speedy-teacher.github.io/LessonPlanner/';
 
-/** Whether a tab has a row of column names at the top. */
-export const showsColumnNames = (tab) => reportWidth(tab) > 2 && tab.columns?.names !== false;
+/** Whether a tab has a row of column names at the top (a tab of every grade: each grade has them). */
+export const showsColumnNames = (tab) => {
+  const one = tab.parts?.[0] ?? tab;
+  return classWidth(one) > 2 && one.columns?.names !== false;
+};
 
-/** How many columns a tab has: the lesson number, extra columns left, the lesson, extra columns right. */
+/** How many columns one class's part has: the lesson number, extra columns left, the lesson, extra columns right. */
+const classWidth = (tab) => 2 + (tab.columns?.left.length ?? 0) + (tab.columns?.right.length ?? 0);
+
+/** How many columns a tab has (grades side by side: each grade's columns with an empty one between). */
 export function reportWidth(tab) {
-  return 2 + (tab.columns?.left.length ?? 0) + (tab.columns?.right.length ?? 0);
+  if (!tab.parts) return classWidth(tab);
+  const one = classWidth(tab.parts[0] ?? {});
+  return tab.direction === 'across' ? tab.parts.length * (one + 1) - 1 : one;
+}
+
+/** How many rows at the top stay in view while scrolling (none when grades are one under another). */
+export function frozenRows(tab) {
+  if (tab.parts && tab.direction !== 'across') return 0;
+  return showsColumnNames(tab) ? 3 : 2;
 }
 
 /**
@@ -224,24 +310,57 @@ export function reportWidth(tab) {
  * extra (a lesson's rows above/below it), number, empty, note. Column A holds labels and lesson numbers.
  */
 export function reportRows(tab) {
-  const width = reportWidth(tab);
+  if (tab.parts) return combinedRows(tab);
+  const { head, weeks } = reportParts(tab);
+  return [...head, ...weeks.flat(), ...footerRows(tab)];
+}
+
+const footerRows = (tab) => (tab.footer !== false
+  ? [[{ text: REPORT_NOTE, style: 'note', span: reportWidth(tab), url: SITE_URL, linkText: 'Lesson Planner' }]] : []);
+
+/** One class's rows in pieces: the rows at the top (head), and each week's rows (ending in a blank row). */
+function reportParts(tab) {
+  const width = classWidth(tab);
   const wide = (text, style) => ({ text, style, span: width });
   const rest = (text, style) => ({ text, style, span: width - 1 });
   const { title, soft } = tab.look ?? {};
-  const rows = [
+  const head = [
     [{ ...wide(tab.heading, 'heading'), ...title }], // the grade's color behind the title, with text that reads on it
     [{ ...wide(tab.subheading, 'subheading'), ...soft }],
     columnHeads(tab),
   ];
-  for (const week of tab.weeks) {
-    rows.push([{ text: `Week ${week.number}`, style: 'week' }, rest(week.dates, 'week')]);
-    rows.push([{ text: 'Instruments', style: 'label' }, rest(instrumentsLine(week.instruments), 'instruments')]);
-    if (!week.lessons.length) rows.push([{ text: '', style: 'number' }, rest('No lessons on the schedule', 'empty')]);
-    week.lessons.forEach((l, i) => rows.push(...lessonRows(tab, l, i)));
-    rows.push([]);
-  }
-  if (tab.footer !== false) rows.push([{ ...wide(REPORT_NOTE, 'note'), url: SITE_URL, linkText: 'Lesson Planner' }]);
-  return rows;
+  const weeks = tab.weeks.map((week) => [
+    [{ text: `Week ${week.number}`, style: 'week' }, rest(week.dates, 'week')],
+    [{ text: 'Instruments', style: 'label' }, rest(instrumentsLine(week.instruments), 'instruments')],
+    ...(week.lessons.length ? [] : [[{ text: '', style: 'number' }, rest('No lessons on the schedule', 'empty')]]),
+    ...week.lessons.flatMap((l, i) => lessonRows(tab, l, i)),
+    [],
+  ]);
+  return { head, weeks };
+}
+
+/**
+ * A tab of every grade: each grade's rows one under another ('down'), or side by side ('across') with an
+ * empty column between and every week starting on the same row. One footer at the bottom.
+ */
+function combinedRows(tab) {
+  const parts = tab.parts.map(reportParts);
+  if (tab.direction !== 'across') return [...parts.flatMap((p) => [...p.head, ...p.weeks.flat()]), ...footerRows(tab)];
+  const width = classWidth(tab.parts[0] ?? {});
+  const sections = [parts.map((p) => p.head), ...(parts[0]?.weeks ?? []).map((_, w) => parts.map((p) => p.weeks[w] ?? []))];
+  return [...sections.flatMap((section) => sideBySide(section, width)), ...footerRows(tab)];
+}
+
+/** Rows of several grades side by side: each grade's row filled out to `width` columns, an empty column between. */
+function sideBySide(blocks, width) {
+  const height = Math.max(...blocks.map((rows) => rows.length));
+  const filled = (row = []) => {
+    const used = row.reduce((n, cell) => n + (cell.span ?? 1), 0);
+    return used < width ? [...row, { text: '', style: 'blank', span: width - used }] : row;
+  };
+  return Array.from({ length: height }, (_, r) => blocks.flatMap((rows, i) => [
+    ...(i ? [{ text: '', style: 'gap' }] : []), ...filled(rows[r]),
+  ]));
 }
 
 /** Column names at the top, when there are extra columns and their names are shown (otherwise an empty row). */
@@ -251,17 +370,25 @@ function columnHeads(tab) {
   return [head(''), ...tab.columns.left.map(head), head('Lesson'), ...tab.columns.right.map(head)];
 }
 
+/** A filled-in value as a cell: plain text, or a picture ({ image, imageId = its Drive file }, linked to its file). */
+function cellValue(value) {
+  if (typeof value === 'string') return { text: value };
+  return { text: value.text ?? '', image: value.image, imageId: value.fileId, ...(value.link ? { url: value.link } : {}) };
+}
+
 /** A lesson's rows: its extra rows above, the lesson itself (numbered, linked to its copy, with its columns), its rows below. */
 function lessonRows(tab, lesson, i) {
   const blanks = (titles) => titles.map(() => ({ text: '', style: 'column' }));
   const { left = [], right = [] } = tab.columns ?? {};
   const extra = (text) => [{ text: '', style: 'number' }, ...blanks(left), { text, style: 'extra' }, ...blanks(right)];
-  const column = (text) => ({ text, style: 'column' });
+  const column = (value) => ({ ...cellValue(value), style: 'column' });
+  const extraOf = (value) => extra('').map((cell) => (cell.style === 'extra' ? { ...cellValue(value), style: 'extra' } : cell));
+  const image = lesson.image ? { image: lesson.image, imageId: lesson.imageId } : {};
   return [
-    ...(lesson.above ?? []).map(extra),
+    ...(lesson.above ?? []).map(extraOf),
     [{ text: String(i + 1), style: 'number' }, ...(lesson.left ?? []).map(column),
-      { text: lesson.text, url: lesson.url, style: 'lesson' }, ...(lesson.right ?? []).map(column)],
-    ...(lesson.below ?? []).map(extra),
+      { text: lesson.text, url: lesson.url, style: 'lesson', ...image }, ...(lesson.right ?? []).map(column)],
+    ...(lesson.below ?? []).map(extraOf),
   ];
 }
 
@@ -326,11 +453,16 @@ export function reportFolder(year) {
  * `file` = what manualReports made from them). The same choices always find the same Drive file again.
  */
 export function watchedEntry(manual, file, folder) {
+  const layout = fileLayout(manual);
   const entry = {
-    name: file.name, schoolId: file.schoolId, gradeIds: file.gradeIds, perGrade: manual.perGrade,
+    name: file.name, schoolId: file.schoolId, gradeIds: file.gradeIds, perGrade: layout === 'grade',
     fromWeek: manual.fromWeek, toWeek: manual.toWeek, folder: { folderId: folder.folderId, name: folder.name },
   };
-  return { id: fingerprint(JSON.stringify([entry.schoolId, entry.gradeIds, entry.perGrade, entry.folder.folderId])), ...entry };
+  if (layout !== 'together') {
+    return { id: fingerprint(JSON.stringify([entry.schoolId, entry.gradeIds, entry.perGrade, entry.folder.folderId])), ...entry };
+  }
+  const together = { ...entry, layout, direction: manual.direction ?? 'down', schoolIds: file.schoolIds };
+  return { id: fingerprint(JSON.stringify([layout, together.schoolIds, together.gradeIds, together.folder.folderId])), ...together };
 }
 
 /** The list with `entries` added (one already there, made the same way, is replaced). */
@@ -339,8 +471,8 @@ export const withWatched = (list, entries) => [...list.filter((w) => !entries.so
 /** What a watched report says now (the one file it makes), or null when its school or grades are gone. */
 export function watchedReport(state, yearId, entry, { settings, copyOf, defaultWeek }) {
   const manual = {
-    fromWeek: entry.fromWeek, toWeek: entry.toWeek, schoolIds: [entry.schoolId], gradeIds: entry.gradeIds,
-    perGrade: entry.perGrade, folder: entry.folder, keepUpToDate: false,
+    fromWeek: entry.fromWeek, toWeek: entry.toWeek, schoolIds: entry.schoolIds ?? [entry.schoolId], gradeIds: entry.gradeIds,
+    layout: fileLayout(entry), direction: entry.direction ?? 'down', perGrade: entry.perGrade, folder: entry.folder, keepUpToDate: false,
   };
   return manualReports(state, yearId, { ...settings, manual, copyOf, defaultWeek })[0] ?? null;
 }
@@ -354,8 +486,9 @@ export function manualWeeks(year, manual, defaultWeek = 1) {
 }
 
 /**
- * The files a manual report makes: one per school (a tab per grade), or with `perGrade` one per school
- * and grade. Schools and grades not chosen = every one. Returns [{ key, name, schoolId, gradeIds, tabs, hash }]
+ * The files a manual report makes (see `layout` at the top): one per school (a tab per grade), one per
+ * school and grade, or one with a tab per school showing every grade. Schools and grades not chosen =
+ * every one. Returns [{ key, name, schoolId, schoolIds?, gradeIds, tabs, hash }]
  * (the key finds the same file again — whatever the weeks — so making the report again updates it).
  */
 export function manualReports(state, yearId, { manual, copyOf, defaultWeek, ...look }) {
@@ -364,16 +497,33 @@ export function manualReports(state, yearId, { manual, copyOf, defaultWeek, ...l
   const chosen = (collection, ids) => inYear(state, collection, yearId).filter((r) => !ids.length || ids.includes(r.id));
   const schools = chosen('schools', manual.schoolIds);
   const grades = chosen('grades', manual.gradeIds);
-  if (!weeks.length || !grades.length) return [];
+  if (!weeks.length || !grades.length || !schools.length) return [];
   const numbers = lessonNumbers(state.weekLessons.filter((e) => e.yearId === yearId));
-  const groups = manual.perGrade ? grades.map((g) => [g]) : [grades];
+  const tabOf = (school, g, extra = {}) => reportTab(state, { yearId, schoolId: school.id, gradeId: g.id }, weeks, { ...look, ...extra, copyOf, numbers });
+  const layout = fileLayout(manual);
+  if (layout === 'together') return [togetherFile({ manual, schools, grades, weeks, footer: look.footer }, tabOf)];
+  const groups = layout === 'grade' ? grades.map((g) => [g]) : [grades];
   return schools.flatMap((school) => groups.map((group) => {
-    const tabs = group.map((g) => reportTab(state, { yearId, schoolId: school.id, gradeId: g.id }, weeks, { ...look, copyOf, numbers }));
-    const who = manual.perGrade ? `${school.name} – ${group[0].name}` : school.name;
+    const tabs = group.map((g) => tabOf(school, g));
+    const who = layout === 'grade' ? `${school.name} – ${group[0].name}` : school.name;
     const file = {
       key: fingerprint(JSON.stringify([school.id, group.map((g) => g.id)])), place: '',
       name: safeName(`${who} – ${weeksTitle(weeks)} report`), schoolId: school.id, gradeIds: group.map((g) => g.id), tabs,
     };
     return { ...file, hash: reportHash(file) };
   }));
+}
+
+/** The one file of a report with every grade together: a tab per school, its grades down or across. */
+function togetherFile({ manual, schools, grades, weeks, footer }, tabOf) {
+  const tabs = schools.map((school) => ({
+    title: safeName(school.name).slice(0, 90), heading: school.name, direction: manual.direction === 'across' ? 'across' : 'down',
+    footer: footer !== false, parts: grades.map((g) => tabOf(school, g, { footer: false })),
+  }));
+  const who = manual.schoolIds.length ? schools.map((s) => s.name).join(' & ') : 'All schools';
+  const file = {
+    key: fingerprint(JSON.stringify(['together', manual.schoolIds, manual.gradeIds])), place: '',
+    name: safeName(`${who} – all grades – ${weeksTitle(weeks)} report`), schoolId: null, schoolIds: manual.schoolIds, gradeIds: manual.gradeIds, tabs,
+  };
+  return { ...file, hash: reportHash(file) };
 }

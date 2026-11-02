@@ -177,6 +177,9 @@ test('the Reports tutorial shows how to add an Instrument column', () => {
   runner.check();
   assert.equal(runner.view().step.target, 'report-label');
   runner.next();
+  assert.equal(runner.view().step.target, 'report-layout');
+  assert.match(runner.view().text, /all grades on one sheet/);
+  runner.next();
   assert.equal(runner.view().step.target, 'report-preview');
 });
 

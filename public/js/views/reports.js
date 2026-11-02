@@ -21,6 +21,7 @@ import { listDriveCopies, makeReports } from '../reportMaker.js';
 import { copyStatus, keptReportFiles, knownCopies, recheckCopies, weeklyReportFiles } from '../exportBridge.js';
 import { current, emptyNote, year } from './common.js';
 import { pieces } from '../workspace.js';
+import { fileThumbnail, fileThumbnailFailed, onThumbnail, requestFileThumbnail } from '../thumbnails.js';
 
 // Copies looked up for the preview when this computer doesn't keep them (this visit only).
 const looked = { key: null, copies: null, busy: false };
@@ -73,7 +74,7 @@ function formCard(files) {
   const { manual } = settings();
   return h('section', { class: 'card reports-card', 'data-tour': 'report-form' },
     h('h3', {}, '📊 Make a report'),
-    h('p', { class: 'hint' }, 'A Google Sheet with each week’s lessons in order (each one links to its lesson copy) and the instruments at the school that week. Each school gets its own file.'),
+    h('p', { class: 'hint' }, 'A Google Sheet with each week’s lessons in order (each one links to its lesson copy) and the instruments at the school that week. Choose one file per school, per grade, or all grades on one sheet.'),
     weekPickers(manual),
     chooser('Schools', current('schools'), manual.schoolIds, (schoolIds) => saveSettings({ manual: { schoolIds } })),
     chooser('Grades', current('grades'), manual.gradeIds, (gradeIds) => saveSettings({ manual: { gradeIds } }), { colors: true }),
@@ -116,12 +117,26 @@ function chooser(label, items, chosenIds, onChange, { colors = false } = {}) {
 }
 
 function fileChoice(manual) {
-  const radio = (perGrade, text) => h('label', { class: 'check' },
-    h('input', { type: 'radio', name: 'report-files', checked: manual.perGrade === perGrade, onchange: () => saveSettings({ manual: { perGrade } }) }),
+  const radio = (layout, text) => h('label', { class: 'check' },
+    h('input', { type: 'radio', name: 'report-files', checked: manual.layout === layout, onchange: () => saveSettings({ manual: { layout } }) }),
     text);
-  return h('div', { class: 'report-files' },
-    radio(false, 'One file per school, with a tab for each grade'),
-    radio(true, 'A separate file for each grade'));
+  return h('div', { class: 'report-files', 'data-tour': 'report-layout' },
+    radio('school', 'One file per school, with a tab for each grade'),
+    radio('grade', 'A separate file for each grade'),
+    radio('together', 'All grades on one sheet (one file, a tab for each school)'),
+    manual.layout === 'together' ? directionChoice(manual) : null);
+}
+
+/** For all grades on one sheet: grades one under another, or side by side. */
+function directionChoice(manual) {
+  const pill = (direction, text, tip) => h('button', {
+    class: `pill ${manual.direction === direction ? 'active' : ''}`, 'aria-pressed': manual.direction === direction ? 'true' : 'false',
+    'data-tip': tip, onclick: () => saveSettings({ manual: { direction } }),
+  }, text);
+  return h('div', { class: 'report-row report-direction', 'data-tour': 'report-direction' },
+    h('span', { class: 'mini-label' }, 'Grades go:'),
+    pill('down', '⬇️ Down', 'Each grade under the one before (scroll down)'),
+    pill('across', '➡️ Across', 'Grades side by side, each week on the same row (scroll sideways)'));
 }
 
 function folderChoice() {
@@ -405,7 +420,28 @@ function sheetTable(tab) {
       : h('td', { colspan: width, class: 'cell-blank' }))));
 }
 
+// A picture arriving from Drive redraws the preview (quietly, so clicks aren't lost).
+onThumbnail(() => { if (store.ui.tab === 'reports') refreshSoon(); });
+
+/**
+ * A picture cell in the preview: the small picture (linked to its file), asked for through the planner's
+ * Google Drive connection (the address in the Sheet needs the browser itself signed in to Google).
+ */
+function cellPicture(cell) {
+  const thumb = fileThumbnail(cell.imageId);
+  if (thumb.status === 'waiting') requestFileThumbnail(cell.imageId);
+  const picture = thumb.status === 'ready'
+    ? h('img', {
+      class: 'sheet-thumb', src: thumb.url, alt: cell.text || 'Picture', loading: 'lazy', referrerpolicy: 'no-referrer',
+      onerror: () => fileThumbnailFailed(cell.imageId),
+    })
+    : h('span', { class: 'sheet-thumb-note hint', 'data-tip': thumb.reason ?? 'Getting the picture from Google Drive…' },
+      thumb.status === 'none' ? `🖼️ ${thumb.reason}` : '🖼️ Loading…');
+  return cell.url ? h('a', { href: cell.url, target: '_blank', rel: 'noopener' }, picture) : picture;
+}
+
 function cellText(cell) {
+  if (cell.image) return cellPicture(cell);
   const linkAt = cell.url && cell.linkText ? cell.text.indexOf(cell.linkText) : -1;
   if (linkAt >= 0) {
     const end = linkAt + cell.linkText.length;

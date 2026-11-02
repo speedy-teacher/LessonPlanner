@@ -3,7 +3,7 @@
 // (Making the report in Google Drive is the teacher's click: the Make button on the Reports tab.)
 
 import { update } from './model.js';
-import { asColumn, changedReports, manualReports, reportRows, reportSettings } from './reportPlan.js';
+import { asColumn, changedReports, DIRECTIONS, manualReports, reportRows, reportSettings } from './reportPlan.js';
 import { fail, grade, idsOf, listOf, namesOf, patchFrom, school, weekOf, year } from './agentHelpers.js';
 
 function save(state, patch, manual = {}) {
@@ -20,16 +20,27 @@ function describe(state, s) {
     fromWeek: m.fromWeek, toWeek: m.toWeek,
     schools: m.schoolIds.length ? namesOf(state, 'schools', m.schoolIds) : 'all',
     grades: m.gradeIds.length ? namesOf(state, 'grades', m.gradeIds) : 'all',
-    oneFilePer: m.perGrade ? 'grade' : 'school', folder: m.folder?.name ?? null, keepUpToDate: m.keepUpToDate,
+    oneFilePer: m.layout === 'together' ? 'all grades on one sheet' : m.layout, gradesGo: m.direction, folder: m.folder?.name ?? null, keepUpToDate: m.keepUpToDate,
     keptUpToDate: s.watched.map((w) => w.name),
   };
 }
 
+/** "school" (a tab per grade), "grade" (a file each) or "all grades on one sheet" (a tab per school) → the layout. */
 function filePer(value) {
-  const v = String(value).toLowerCase();
-  if (v !== 'school' && v !== 'grade') fail('oneFilePer should be "school" (a tab per grade) or "grade".');
-  return v === 'grade';
+  const v = String(value).toLowerCase().trim();
+  if (v === 'school' || v === 'grade') return v;
+  if (/all|one sheet|together/.test(v)) return 'together';
+  return fail('oneFilePer should be "school" (a tab per grade), "grade" (a file per grade) or "all grades on one sheet" (a tab per school).');
 }
+
+function direction(value) {
+  const v = String(value).toLowerCase().trim();
+  const found = { down: 'down', vertical: 'down', vertically: 'down', across: 'across', horizontal: 'across', horizontally: 'across' }[v];
+  return found ?? fail(`gradesGo should be one of: ${DIRECTIONS.join(', ')}.`);
+}
+
+/** Only the values that were given. */
+const given = (values) => Object.fromEntries(Object.entries(values).filter(([, v]) => v !== undefined));
 
 /** "all" (or an empty list) = every one. */
 const chosen = (state, refs, one) => (String(refs).toLowerCase() === 'all' ? [] : idsOf(state, refs, one));
@@ -41,7 +52,7 @@ export const REPORT_COMMANDS = {
     run: (state) => describe(state, reportSettings(year(state))),
   },
   setReportOptions: {
-    summary: 'Change what each lesson shows in reports: its text (words like {{copy_name}}, {{template_name}}, {{week_number}}; "" = {{copy_name}}), extra rows above or below it (e.g. ["{{essential_outcome}}"]; [] = none), columns before or after it ([{ name, value }]) and whether column names show. Or turn the weekly reports in each week folder on or off.',
+    summary: 'Change what each lesson shows in reports: its text (words like {{copy_name}}, {{template_name}}, {{week_number}}; "" = {{copy_name}}; {{copy_thumbnail}} or {{template_thumbnail}} make that cell a small picture of the file), extra rows above or below it (e.g. ["{{essential_outcome}}"]; [] = none), columns before or after it ([{ name, value }]) and whether column names show. Or turn the weekly reports in each week folder on or off.',
     changes: true,
     params: {
       lessonText: ['e.g. "{{copy_name}} / {{template_name}}"'], rowsAbove: ['List of row texts above each lesson'],
@@ -64,27 +75,24 @@ export const REPORT_COMMANDS = {
     },
   },
   setupReport: {
-    summary: 'Choose what the Reports tab report covers: weeks (number or a date in the week), schools and grades (names, or "all"), and one file per school (a tab per grade) or per grade.',
+    summary: 'Choose what the Reports tab report covers: weeks (number or a date in the week), schools and grades (names, or "all"), and one file per school (a tab per grade), per grade, or all grades on one sheet (a tab per school, grades going down or across).',
     changes: true,
     params: {
       fromWeek: ['First week'], toWeek: ['Last week (default: same as fromWeek)'],
-      schools: ['Names, or "all"'], grades: ['Names, or "all"'], oneFilePer: ['"school" or "grade"'],
+      schools: ['Names, or "all"'], grades: ['Names, or "all"'], oneFilePer: ['"school", "grade" or "all grades on one sheet"'],
+      gradesGo: ['With all grades on one sheet: "down" (one under another) or "across" (side by side)'],
       keepUpToDate: ['true or false: when the teacher clicks Make, also keep those reports up to date automatically'],
     },
     run: (state, a) => {
       const manual = patchFrom(a, {
         fromWeek: (v) => weekOf(state, v).number, toWeek: (v) => weekOf(state, v).number,
-        schools: (v) => chosen(state, v, school), grades: (v) => chosen(state, v, grade), oneFilePer: filePer,
+        schools: (v) => chosen(state, v, school), grades: (v) => chosen(state, v, grade), oneFilePer: filePer, gradesGo: direction,
         keepUpToDate: (v) => v === true || v === 'true',
       });
-      const { schools, grades, oneFilePer, keepUpToDate, ...weeks } = manual;
+      const { schools, grades, oneFilePer, gradesGo, keepUpToDate, ...weeks } = manual;
       if (weeks.fromWeek && !weeks.toWeek) weeks.toWeek = Math.max(weeks.fromWeek, reportSettings(year(state)).manual.toWeek ?? 0);
       if (weeks.fromWeek && weeks.toWeek < weeks.fromWeek) fail('The last week has to come after the first week.');
-      const s = save(state, {}, {
-        ...weeks, ...(schools ? { schoolIds: schools } : {}), ...(grades ? { gradeIds: grades } : {}),
-        ...(oneFilePer === undefined ? {} : { perGrade: oneFilePer }),
-        ...(keepUpToDate === undefined ? {} : { keepUpToDate }),
-      });
+      const s = save(state, {}, given({ ...weeks, schoolIds: schools, gradeIds: grades, layout: oneFilePer, direction: gradesGo, keepUpToDate }));
       return { done: 'Report set up. The teacher clicks “Make” on the Reports tab to save it in Google Drive.', ...describe(state, s) };
     },
   },
