@@ -460,7 +460,9 @@ async function syncPieces() {
   // back while syncing), so loading newer pieces from Drive can't drop them.
   await pieces.save(store.state);
   const startText = JSON.stringify(store.state);
+  const sharingBefore = sharingNow();
   const results = await pieces.syncAll();
+  if (sharingNow() !== sharingBefore) refreshSoon(); // the sharing capsules and view-only parts follow Drive
   const loaded = results.some((r) => r.action === 'download' || r.action === 'conflict');
   const editedMeanwhile = JSON.stringify(store.state) !== startText;
   if (editedMeanwhile) useState(rebaseState(JSON.parse(startText), store.state, pieces.datas()), { sameDocument: true });
@@ -473,6 +475,11 @@ async function syncPieces() {
   current = scheduleInfo();
   for (const r of results) if (r.conflicts?.length) tellCombined(r.conflicts, r.theirs);
   tellPieceTrouble(results);
+}
+
+/** Whether each piece is shared, whose it is and whether it can be changed (what the page shows about sharing). */
+function sharingNow() {
+  return JSON.stringify(Object.values(pieces.recs).map((r) => r && [r.key, r.shared, r.ownedByMe, r.canEdit]));
 }
 
 function tellPieceTrouble(results) {

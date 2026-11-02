@@ -7,6 +7,7 @@ import { current, year } from './common.js';
 import { googleCard } from './googleCard.js';
 import { copiesCard } from './copiesCard.js';
 import { holidaysCard } from './holidaysCard.js';
+import { yoursCapsule } from './capsules.js';
 import { openNewYear } from './plans.js';
 
 const LISTS = [
@@ -47,7 +48,7 @@ function yearCard() {
 function listCard({ collection, tour, title, placeholder, note }) {
   const items = current(collection);
   return h('section', { class: 'card setup-card', 'data-tour': tour },
-    h('h3', {}, title, h('span', { class: 'count-badge' }, items.length)),
+    h('h3', {}, title, h('span', { class: 'count-badge' }, items.length), collection === 'schools' ? null : yoursColors()),
     h('p', { class: 'hint' }, note),
     h('ul', { class: 'setup-list' }, items.map((item) => h('li', {},
       extraBefore(collection, item),
@@ -60,6 +61,9 @@ function listCard({ collection, tour, title, placeholder, note }) {
     adder(placeholder, (name) => commit((s) => add(s, collection, newRecord(collection, name))), `add-${collection}`),
   );
 }
+
+/** The colors are each teacher's own, even when the School Year (names) is shared. */
+const yoursColors = () => yoursCapsule('Colors', { label: 'Colors: just yours' });
 
 function newRecord(collection, name) {
   const base = { yearId: year().id, name };

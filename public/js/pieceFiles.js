@@ -15,7 +15,7 @@ const driveReady = () => google.status === 'connected' && google.token;
 
 /** A new piece file: in Google Drive when connected (labelled so it can be found again), else on this computer. */
 export async function newPieceRecord(name, data, { fileName, folderId, schoolYearFileId = null }) {
-  const base = { piece: name, name: fileName, fileId: null, folderId: null, rev: null, base: null, canEdit: true, changed: false, keptDay: null, savedAt: Date.now(), data };
+  const base = { piece: name, name: fileName, fileId: null, folderId: null, rev: null, base: null, canEdit: true, changed: false, keptDay: null, savedAt: Date.now(), data, shared: false, ownedByMe: true };
   if (!driveReady()) return { ...base, key: `computer:${newId('piece')}` };
   const text = toPieceFile(data);
   const properties = { [PIECE_PROPERTY(name).key]: name, ...(schoolYearFileId ? { [SCHOOL_YEAR_PROPERTY]: schoolYearFileId } : {}) };

@@ -43,7 +43,7 @@ Cases make their data with the app's own commands (`window.lessonPlanner.run`) a
 # Browser tests: "Looking at" per tab
 
 The cases are described in `docs/plans/looking-at-per-tab-e2e.md`; the code is `lookingAt.e2e.js` (the runner) with the
-cases in `lookingAtLists.js` (L1-L5, L12), `lookingAtAccess.js` (L6-L8, L13) `lookingAtMine.js` (L9-L11) and `signInLate.js` (S1-S3), and the
+cases in `lookingAtLists.js` (L1-L5, L12), `lookingAtAccess.js` (L6-L8, L13) `lookingAtMine.js` (L9-L11) `signInLate.js` (S1-S3) and `capsules.js` (C1), and the
 scenario builders in `lookingAtKit.js`. `helpers.js` holds the helpers both test files share.
 
 ## A pretend Google Drive
@@ -83,3 +83,4 @@ Keep only one browser tab open on 127.0.0.1:5178 (`reset()` can wait forever if 
 | S1 | The share window, opened just before Google sign-in finishes, turns on “Join” once signed in. |
 | S2 | The “Looking at” list, opened just before sign-in finishes, stays open and finds colleagues once signed in. |
 | S3 | The new-year window, opened just before sign-in finishes, offers Google Drive once signed in (typed name kept). |
+| C1 | Sharing capsules: “Only you” → “Shared” once I share the School Year, “Shared with you” for a colleague’s, “Just yours” on my own Setup settings. |

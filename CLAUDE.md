@@ -93,6 +93,11 @@ A browser app for a (non-technical) elementary music teacher to plan a school ye
   `css/sharing.css`, inputs off except search/filters/`data-look`, `[data-edit]` clicks caught). Mark new edit buttons
   `data-edit` (`'hide'` to hide), personal parts `data-piece="schedule"`, and use `goButton`/`unavailableWhy` (common.js)
   for links to other records.
+- Sharing capsules (`views/capsules.js`, words in `shareStatus.js`, pure + tested): the bar shows one per file the page
+  shows ("🧺 School Year · Shared / Only you / Shared with you / On this computer"; tip = what's in that file), from Drive's
+  `shared` field kept on each piece record (`sharingOf` in pieceEngine; a sharing change redraws after a sync).
+  `yoursCapsule(what)` = "🔒 Just yours" beside personal settings on shared pages (Setup colors, lesson-copies folder);
+  add it for any new personal (Lesson Schedule) setting shown on a School Year page.
 
 ## UI patterns (`public/js/`)
 - Pages are listed in `tabInfo.js` (id, label, icon, Setup-menu or tab); `app.js` adds how each is drawn.

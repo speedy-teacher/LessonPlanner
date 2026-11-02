@@ -41,3 +41,16 @@
 .view-only :is(input, select, textarea):disabled:not(.can-edit *) { cursor: default; }
 .view-only [draggable]:not(.can-edit *) { cursor: default; }
 
+
+/* Sharing capsules (views/capsules.js): which file a page's data is in, and whether it's shared. */
+.piece-capsule {
+  display: inline-flex; align-items: center; gap: 4px; border-radius: 999px; padding: 3px 10px; font-size: 13px; white-space: nowrap;
+  background: var(--card-2); color: var(--ink-soft); border: 1px solid transparent;
+}
+.piece-capsule strong { font-weight: 700; }
+.piece-capsule.shared { background: color-mix(in srgb, var(--sage) 16%, #fff); color: #3f5a36; }
+.piece-capsule.theirs { background: var(--royal-soft); color: var(--royal); }
+.piece-capsule.mine { background: var(--gold-soft); color: #7a5a14; }
+.piece-capsule.local { background: var(--gold-soft); color: #7a5a14; border-style: dashed; border-color: #e3cf9b; }
+.piece-capsule.missing { background: var(--card-2); color: var(--ink-soft); border-style: dashed; border-color: var(--line, #ddd); }
+.piece-capsule.small { font-size: 12px; padding: 1px 8px; font-weight: 400; margin-left: 6px; vertical-align: middle; }

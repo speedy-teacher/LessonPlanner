@@ -11,6 +11,7 @@ import { canUseComputerFolders, folderPermission, pickComputerFolder, remembered
 import { copyStatus, folderKey, recheckCopies } from '../exportBridge.js';
 import { current as plan } from '../workspace.js';
 import { year } from './common.js';
+import { yoursCapsule } from './capsules.js';
 
 const STATUS = {
   none: () => 'No folder chosen yet, so no copies are made.',
@@ -31,7 +32,7 @@ export function copiesCard() {
   const output = y.output ?? null;
   const status = copyStatus();
   return h('section', { class: 'card setup-card copies-card', 'data-tour': 'copies-card' },
-    h('h3', {}, 'Lesson copies'),
+    h('h3', {}, 'Lesson copies', yoursCapsule('The lesson-copies folder')),
     h('p', { class: 'hint' }, 'Every lesson on the Lesson Schedule gets its own copy of its template, sorted into School › Grade › Week folders, with the “Filled in automatically” details typed in. Your templates are never changed. Change a lesson in its template — copies are remade when their details change.'),
     folderLine(output),
     h('p', { class: `copies-status ${status.state}` }, (STATUS[status.state] ?? STATUS.none)(status)),

@@ -10,7 +10,7 @@ const UPLOAD = 'https://www.googleapis.com/upload/drive/v3/files';
 const FOLDER_MIME = 'application/vnd.google-apps.folder';
 const FOLDER_PROPERTY = { key: 'lessonPlanner', value: 'folder' };
 export const FOLDER_NAME = 'Lesson Planner';
-const FILE_FIELDS = 'id,name,parents,headRevisionId,modifiedTime,ownedByMe,capabilities(canEdit),owners(displayName,permissionId),properties';
+const FILE_FIELDS = 'id,name,parents,headRevisionId,modifiedTime,ownedByMe,capabilities(canEdit),owners(displayName,permissionId),properties,shared';
 
 async function call(fetchFn, token, url, init = {}) {
   let res;
@@ -65,6 +65,7 @@ function fileInfo(f) {
   return {
     fileId: f.id, name: f.name, folderId: f.parents?.[0] ?? null, rev: f.headRevisionId ?? null, modifiedTime: f.modifiedTime ?? null,
     ownedByMe: f.ownedByMe !== false, canEdit: f.capabilities?.canEdit !== false, ...ownerOf(f), ...labelsOf(f),
+    shared: typeof f.shared === 'boolean' ? f.shared : null, // shared with anyone (Drive says so for your own files)
   };
 }
 

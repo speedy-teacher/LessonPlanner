@@ -16,10 +16,11 @@ import { CASES_ACCESS } from './lookingAtAccess.js';
 import { CASES_LISTS } from './lookingAtLists.js';
 import { CASES_MINE } from './lookingAtMine.js';
 import { CASES_SIGN_IN } from './signInLate.js';
+import { CASES_CAPSULES } from './capsules.js';
 
 export { reset } from './helpers.js';
 
-const CASES = { ...CASES_LISTS, ...CASES_ACCESS, ...CASES_MINE, ...CASES_SIGN_IN };
+const CASES = { ...CASES_LISTS, ...CASES_ACCESS, ...CASES_MINE, ...CASES_SIGN_IN, ...CASES_CAPSULES };
 
 // ---------- running ----------
 

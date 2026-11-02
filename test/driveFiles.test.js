@@ -107,3 +107,13 @@ test('Teacher Resources shared with you are asked for by label, leaving out your
   await listMyResources('tok', drive);
   assert.doesNotMatch(drive.calls.at(-1).url.searchParams.get('q'), /not 'me' in owners/);
 });
+
+test('a file’s details say whether it is shared (for the sharing capsules)', async () => {
+  const asked = [];
+  const fetchFn = async (url) => { asked.push(new URL(url)); return json({ id: 'f1', name: 'School Year', shared: true, ownedByMe: true, capabilities: { canEdit: true } }); };
+  const info = await planFileInfo('tok', 'f1', { fetchFn });
+  assert.match(asked[0].searchParams.get('fields'), /\bshared\b/);
+  assert.equal(info.shared, true);
+  const unknown = await planFileInfo('tok', 'f1', { fetchFn: async () => json({ id: 'f1', name: 'x' }) });
+  assert.equal(unknown.shared, null, 'not said = not known');
+});

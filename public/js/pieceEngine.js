@@ -198,7 +198,7 @@ export class PiecePlan {
     const rec = this.recs[name];
     if (!rec) return this.fetch(name);
     const info = await this.drive.info(rec.fileId);
-    this.put(name, { ...rec, canEdit: info.canEdit, name: info.name, folderId: info.folderId });
+    this.put(name, { ...rec, canEdit: info.canEdit, name: info.name, folderId: info.folderId, ...sharingOf(info) });
     delete this.stale[name];
     const action = syncAction({ localChanges: rec.changed && info.canEdit, knownRev: rec.rev, remoteRev: info.rev });
     if (action === 'upload') await this.upload(name);
@@ -213,7 +213,7 @@ export class PiecePlan {
     const file = await this.drive.read(link.fileId);
     this.put(name, {
       key: driveKey(file.fileId), piece: name, name: file.name, fileId: file.fileId, folderId: file.folderId, rev: file.rev,
-      base: file.text, canEdit: file.canEdit, changed: false, keptDay: null, savedAt: 0, data: fromPieceFile(file.text, name),
+      base: file.text, canEdit: file.canEdit, changed: false, keptDay: null, savedAt: 0, data: fromPieceFile(file.text, name), ...sharingOf(file),
     });
     this.setMissing(name, null);
     await this.cache.put(this.recs[name]);
@@ -267,6 +267,11 @@ export class PiecePlan {
     }
     return { name, action: 'none', error: why };
   }
+}
+
+/** Whether a file is shared and whose it is, as Drive told (kept on the record for the sharing capsules). */
+function sharingOf(info) {
+  return { shared: info.shared ?? null, ownedByMe: info.ownedByMe !== false, owner: info.owner ?? '' };
 }
 
 /** `view`'s options with the defaults filled in: no schedule = yours; Resources default to the shown schedule's own. */

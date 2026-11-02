@@ -102,6 +102,11 @@ export function share(fileId, role) {
   if (role) file.canEdit = role === 'writer';
 }
 
+/** I share one of my own files with colleagues in Drive (true), or stop (false). */
+export function shareMine(fileId, on = true) {
+  must(fileId).sharedOut = on;
+}
+
 /** The ids of my files (the ones I own) whose label `lessonPlanner` is `kind`. */
 export function mineOf(kind) {
   return [...drive.files.values()].filter((f) => f.ownedByMe && f.properties.lessonPlanner === kind).map((f) => f.id);
@@ -168,6 +173,8 @@ function opened(fileId, then) {
 const metadata = (f) => ({
   id: f.id, name: f.name, parents: f.parents, mimeType: f.mimeType, headRevisionId: `r${f.revNo}`, modifiedTime: f.modifiedAt,
   ownedByMe: f.ownedByMe, capabilities: { canEdit: f.canEdit }, owners: [f.owner], properties: f.properties,
+  // Like Drive: whether a file is shared with anyone (mine: only after I share it; a colleague's: yes).
+  shared: f.ownedByMe ? Boolean(f.sharedOut) : true,
 });
 
 function getFile(fileId, url) {

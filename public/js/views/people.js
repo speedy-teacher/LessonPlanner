@@ -3,6 +3,7 @@
 //     people who shared that page's part with you. Lesson Schedule, Reports and Outcomes list people
 //     whose Lesson Schedule uses the School Year you have open; Lesson Templates and Images list people
 //     whose Teacher Resources are shared with you. Each page remembers its own choice (lookingAt.js).
+//   - a capsule per file the page shows: which file it is and whether it's shared (views/capsules.js);
 //   - a soft banner when the page shows something you can only look at, or something that's missing.
 
 import { h } from '../dom.js';
@@ -13,6 +14,7 @@ import { pieces } from '../workspace.js';
 import { LENS } from '../lensRules.js';
 import { peopleFor, pick, pickedOn } from '../lookingAt.js';
 import { refresh } from '../store.js';
+import { pieceCapsule } from './capsules.js';
 
 /** Which pieces each page shows (the first = what the page is mostly about). */
 export const PAGE_PIECES = {
@@ -34,6 +36,7 @@ export function pieceBar(pageId) {
   if (!pieces) return null;
   if (openOn !== pageId) openOn = null;
   const parts = [
+    ...(PAGE_PIECES[pageId] ?? []).map(pieceCapsule),
     LENS[pageId] && canListPeople(pageId) ? peoplePicker(pageId) : null,
     ...pieceNotes(pageId),
   ].filter(Boolean);

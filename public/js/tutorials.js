@@ -584,6 +584,12 @@ const sharing = {
     },
     ...goTo('lessonSchedule'),
     {
+      target: ['capsule-schedule', 'capsule-resources'],
+      title: 'Shared or only you',
+      text: 'These capsules say which file a page’s things are kept in and whether it’s shared in Google Drive: “Shared”, “Only you”, or “Shared with you” for a colleague’s. Point at one to see what’s in that file. On Setup, “🔒 Just yours” marks settings that stay yours even in a shared School Year, like grade colors.',
+      skipIf: (ctx) => !ctx.exists('capsule-schedule'),
+    },
+    {
       target: 'people-picker',
       title: 'Look at a teammate’s plans',
       text: 'Click “👀 Looking at” and pick a name. Each tab lists only colleagues who shared that part with you: their Lesson Schedule (on Lesson Schedule, Reports and Outcomes, for the same School Year) or their Teacher Resources (on Lesson Templates and Images). Every tab remembers its own choice. Pick “Me” to come back.',
