@@ -186,24 +186,57 @@ export function autoFillWeek(state, cls, weeks, weekStart) {
 }
 
 /**
- * Last year's week-by-week lesson schedule, carried into a new year by week number (week 1 → week 1,
- * in the same order). Weeks past the new year's last week are left out, and so is anything whose
- * school, grade or lesson isn't in the new year. Adds to `to` (the new year's data, ids carried over);
- * returns { kept, dropped }.
+ * Another year's week-by-week lesson schedule laid onto this year by week number (week 1 → week 1, in the
+ * same order). Weeks past this year's last week are left out, and so is anything whose school, grade or
+ * lesson isn't here. `map` = { theirId: thisId } for things that have other ids here (joinYear.js,
+ * resourceMerge.js). With `onlyEmpty`, a class's week that already has lessons here keeps them (skipped).
+ * Changes nothing; returns { entries (new records, without ids), kept, dropped, skipped }.
+ */
+export function weeksFrom(from, to, { map = {}, onlyEmpty = false } = {}) {
+  const fromYear = from.years.find((y) => y.id === from.activeYearId);
+  const toYear = to.years.find((y) => y.id === to.activeYearId);
+  const lay = {
+    map, yearId: toYear.id, here: idSets(to),
+    numberOf: new Map(schoolWeeks(fromYear).map((w) => [w.weekStart, w.number])),
+    startOf: new Map(schoolWeeks(toYear).map((w) => [w.number, w.weekStart])),
+  };
+  const filled = new Set(to.weekLessons.filter((e) => e.yearId === toYear.id).map(classWeek));
+  const out = { entries: [], kept: 0, dropped: 0, skipped: 0 };
+  for (const entry of from.weekLessons.filter((e) => e.yearId === fromYear?.id)) {
+    const moved = layEntry(entry, lay);
+    if (!moved) out.dropped += 1;
+    else if (onlyEmpty && filled.has(classWeek(moved))) out.skipped += 1;
+    else out.entries.push(moved);
+  }
+  out.kept = out.entries.length;
+  return out;
+}
+
+const classWeek = (e) => `${e.schoolId}|${e.gradeId}|${e.weekStart}`;
+
+function idSets(state) {
+  return Object.fromEntries(['schools', 'grades', 'lessons', 'criteria'].map((c) => [c, new Set(state[c].map((r) => r.id))]));
+}
+
+/** One entry moved onto this year (null when its week, class or lesson isn't here). */
+function layEntry(entry, { map, yearId, here, numberOf, startOf }) {
+  const mapped = (id) => map[id] ?? id;
+  const weekStart = startOf.get(numberOf.get(entry.weekStart));
+  const schoolId = mapped(entry.schoolId);
+  const gradeId = mapped(entry.gradeId);
+  const lessonId = mapped(entry.lessonId);
+  if (!weekStart || !here.schools.has(schoolId) || !here.grades.has(gradeId) || !here.lessons.has(lessonId)) return null;
+  const criterionId = here.criteria.has(mapped(entry.criterionId)) ? mapped(entry.criterionId) : null;
+  const { id: _id, ...rest } = structuredClone(entry);
+  return { ...rest, yearId, weekStart, schoolId, gradeId, lessonId, criterionId };
+}
+
+/**
+ * Last year's week-by-week lesson schedule, carried into a new year by week number (see weeksFrom).
+ * Adds to `to` (the new year's data, ids carried over); returns { kept, dropped }.
  */
 export function carryWeekLessons(from, to) {
-  const oldYear = from.years.find((y) => y.id === from.activeYearId);
-  const newYear = to.years.find((y) => y.id === to.activeYearId);
-  const numberOf = new Map(schoolWeeks(oldYear).map((w) => [w.weekStart, w.number]));
-  const startOf = new Map(schoolWeeks(newYear).map((w) => [w.number, w.weekStart]));
-  const ids = Object.fromEntries(['schools', 'grades', 'lessons', 'criteria'].map((c) => [c, new Set(to[c].map((r) => r.id))]));
-  const fits = (e) => ids.schools.has(e.schoolId) && ids.grades.has(e.gradeId) && ids.lessons.has(e.lessonId);
-  let dropped = 0;
-  for (const entry of from.weekLessons.filter((e) => e.yearId === oldYear?.id)) {
-    const weekStart = startOf.get(numberOf.get(entry.weekStart));
-    if (!weekStart || !fits(entry)) { dropped += 1; continue; }
-    const criterionId = ids.criteria.has(entry.criterionId) ? entry.criterionId : null;
-    to.weekLessons.push({ ...structuredClone(entry), yearId: newYear.id, weekStart, criterionId });
-  }
-  return { kept: to.weekLessons.length, dropped };
+  const { entries, kept, dropped } = weeksFrom(from, to);
+  for (const entry of entries) add(to, 'weekLessons', entry);
+  return { kept, dropped };
 }

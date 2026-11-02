@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { normalize } from '../public/js/model.js';
 import { seedState } from '../public/js/seed.js';
-import { addWeekLesson, schoolWeeks } from '../public/js/weekPlan.js';
+import { addWeekLesson, schoolWeeks, weeksFrom } from '../public/js/weekPlan.js';
 import { newYearPlan } from '../public/js/workspaceFile.js';
 
 /** Last year with lessons in weeks 1 (two, in order), 3 and its very last week. */
@@ -53,4 +53,37 @@ test('not asked for (or nothing copied): the schedule starts empty as before', (
   assert.equal(newYearPlan(s, FIELDS, { copy: true }).state.weekLessons.length, 0);
   assert.equal(newYearPlan(s, FIELDS, { copy: true }).carried, null);
   assert.equal(newYearPlan(s, FIELDS, { copy: false, weeks: true }).state.weekLessons.length, 0);
+});
+
+// ---------- bringing last year's weeks into a year that's already set up ----------
+
+
+/** This year (already set up, with the same classes), where week 3 of the first class is already planned. */
+function thisYearWithWeek3Planned() {
+  const { s } = lastYear();
+  const now = newYearPlan(s, FIELDS, { copy: true }).state;
+  const weeks = schoolWeeks(now.years[0]);
+  addWeekLesson(now, { yearId: now.years[0].id, schoolId: now.schools[0].id, gradeId: now.grades[0].id, weekStart: weeks[2].weekStart, lessonId: now.lessons[5].id });
+  return { s, now };
+}
+
+test('later, only weeks still empty get last year’s lessons; planned weeks are kept as they are', () => {
+  const { s, now } = thisYearWithWeek3Planned();
+  const r = weeksFrom(s, now, { onlyEmpty: true });
+  assert.equal(r.kept, 2, 'week 1’s two lessons');
+  assert.equal(r.skipped, 1, 'week 3 already had a lesson here');
+  assert.equal(r.dropped, 1, 'the last week is past the end of this year');
+  assert.ok(r.entries.every((e) => !e.id), 'new records get their own ids when added');
+});
+
+test('things with other ids here are followed through the match (e.g. a colleague’s School Year)', () => {
+  const { s } = lastYear();
+  const now = newYearPlan(s, FIELDS, { copy: true }).state;
+  const school = now.schools[0];
+  const oldId = school.id;
+  school.id = 'sch_theirs';
+  assert.equal(weeksFrom(s, now).kept, 0, 'without the match, the school isn’t found');
+  const r = weeksFrom(s, now, { map: { [oldId]: 'sch_theirs' } });
+  assert.equal(r.kept, 3);
+  assert.ok(r.entries.every((e) => e.schoolId === 'sch_theirs'));
 });

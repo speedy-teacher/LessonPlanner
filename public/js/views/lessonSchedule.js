@@ -17,6 +17,7 @@ import { driveOpenLabel, driveOpenUrl, findLocation } from '../locations.js';
 import { copiesOfLesson, copyFileOfEntry } from '../exportBridge.js';
 import { outcomeColor } from './plan.js';
 import { slideCanvas, copyCanvas } from './lessonPreview.js';
+import { bringWeeksButton } from './bringWeeks.js';
 
 const NO_EVAL_COLOR = '#9a8b7a';
 
@@ -60,7 +61,8 @@ function header(ctx) {
       h('button', {
         class: 'btn ls-fill', 'data-tour': 'ls-fill', onclick: () => openAutoFill(ctx),
         'data-tip': 'Puts each eval’s lessons, in order, into the weeks it’s on the Outcome & Eval Calendar.',
-      }, '✨ Fill from Outcome & Eval Calendar')),
+      }, '✨ Fill from Outcome & Eval Calendar'),
+      bringWeeksButton()),
     armedBanner());
 }
 

@@ -375,6 +375,11 @@ const lessonSchedule = {
       until: (ctx) => !ctx.modal,
     },
     {
+      target: 'ls-bring-weeks',
+      text: 'Planned last year week by week? “📥 Bring last year’s weeks…” copies another year’s lessons in by week number (week 1 → week 1), only into weeks that are still empty.',
+      skipIf: (ctx) => !ctx.exists('ls-bring-weeks'),
+    },
+    {
       target: ['ls-palette', 'ls-weeks'],
       text: 'Drag a lesson from the list on the right into a week (or click it, then click weeks). Drag lessons to reorder them, or back to the list to take them off.',
       ...addSome('weekLessons'),

@@ -35,6 +35,9 @@ A browser app for a (non-technical) elementary music teacher to plan a school ye
 - Everything is per academic year (`yearId`); a new year copies `ROLLOVER` collections with `copiedFromId`; calendars start empty.
   The week-by-week Lesson Schedule comes along only when the teacher ticks it in the new-year window
   (`newYearPlan(…, { weeks })` → `weekPlan.js` `carryWeekLessons`: by week number, weeks past the new year's end dropped and counted).
+  Later, "📥 Bring last year's weeks…" on the Lesson Schedule (`views/bringWeeks.js`, `lastYearWeeks.js`) does the same into
+  weeks still empty only (`weeksFrom(…, { map, onlyEmpty })`, one Undo), from any of the teacher's other plans (cache, else Drive);
+  classes/evals matched with `matchToSchoolYear`, templates with `mergeResources`' map.
 - Essential outcome (code, `color`) → eval criteria (`gradeIds[]`) → `criterionLessons` (ordered: lessonId, position) → `lessons`.
   **Each grade of an eval has its own lesson order** (`criterionLessons.gradeId`; null = eval has no grades yet; schema v6
   copied the old shared order to every grade). Always pass the grade: `stepsFor(state, critId, gradeId)` (a grade the eval

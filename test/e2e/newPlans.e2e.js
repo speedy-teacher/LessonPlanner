@@ -251,6 +251,26 @@ const CASES = {
     await startNewYear({ ...YEAR2, name: 'Unticked Test Year', copy: true });
     check(store.state.weekLessons.length === 0, 'without ticking it, the week-by-week schedule starts empty');
   },
+
+  async E12() {
+    await planWithContent();
+    commands([{ command: 'addLessonToWeek', args: { school: 'Maple School', grade: 'Grade 3', week: 3, lesson: 'Steady Beat Game' } }]);
+    await saved();
+    await startNewYear({ ...YEAR2, copy: true });
+    commands([{ command: 'addLesson', args: { name: 'Already Planned Lesson' } },
+      { command: 'addLessonToWeek', args: { school: 'Maple School', grade: 'Grade 3', week: 3, lesson: 'Already Planned Lesson' } }]);
+    setUi({ tab: 'lessonSchedule' });
+    await click('[data-tour="ls-bring-weeks"]');
+    await waitFor(() => find(YEAR1.name, modal() ?? document), 5000, 'last year’s plan in the list');
+    await click(YEAR1.name);
+    await waitFor(() => /will go into empty weeks/.test(text(modal())), 5000, 'the preview');
+    check(/1 lesson in weeks you’ve already planned stay out/.test(text(modal())), `week 3 is already planned here: ${text(modal())}`);
+    await click('Bring 1 lesson');
+    await waitFor(() => !modal(), 3000, 'the window to close');
+    const weekNumber = (e) => Math.round((Date.parse(e.weekStart) - Date.parse(YEAR2.start)) / 604800000) + 1;
+    const byWeek = store.state.weekLessons.map((e) => [weekNumber(e), store.state.lessons.find((l) => l.id === e.lessonId)?.name]).sort();
+    check(JSON.stringify(byWeek) === JSON.stringify([[1, 'Steady Beat Game'], [3, 'Already Planned Lesson']]), `week 1 came over, week 3 kept mine: ${JSON.stringify(byWeek)}`);
+  },
 };
 
 // ---------- the pieces of E3/E5/E6/E9 that need the page ----------
