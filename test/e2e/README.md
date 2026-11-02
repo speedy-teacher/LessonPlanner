@@ -39,6 +39,7 @@ Cases make their data with the app's own commands (`window.lessonPlanner.run`) a
 | E8 | The "on this computer" list shows only plans (Lesson Schedules and older plans), not pieces. |
 | E9 | Removing a local plan removes its Schedule and School Year, never the Teacher Resources or the other year. |
 | E10 | With no Drive, the plans menu and new-year window offer no Drive-only buttons. |
+| E11 | A new year can bring the week-by-week schedule along by week number; weeks past the new year's end are left out (and counted). |
 
 # Browser tests: "Looking at" per tab
 

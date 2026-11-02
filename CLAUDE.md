@@ -33,6 +33,8 @@ A browser app for a (non-technical) elementary music teacher to plan a school ye
   still get the old ask ("Use the Drive version" keeps mine as a "(my changes)" plan). One Drive revision kept forever per day.
 - Per-browser only (`deviceSettings.js`): recent plans, last plan, `driveConnected`. View state in `lesson-planner-ui`.
 - Everything is per academic year (`yearId`); a new year copies `ROLLOVER` collections with `copiedFromId`; calendars start empty.
+  The week-by-week Lesson Schedule comes along only when the teacher ticks it in the new-year window
+  (`newYearPlan(…, { weeks })` → `weekPlan.js` `carryWeekLessons`: by week number, weeks past the new year's end dropped and counted).
 - Essential outcome (code, `color`) → eval criteria (`gradeIds[]`) → `criterionLessons` (ordered: lessonId, position) → `lessons`.
   **Each grade of an eval has its own lesson order** (`criterionLessons.gradeId`; null = eval has no grades yet; schema v6
   copied the old shared order to every grade). Always pass the grade: `stepsFor(state, critId, gradeId)` (a grade the eval

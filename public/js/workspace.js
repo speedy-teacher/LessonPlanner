@@ -182,12 +182,14 @@ export function ownResources() {
 /**
  * Start a new school year as a plan in pieces: a new School Year and Lesson Schedule from the teacher's
  * own data (never a teammate's shown by "Looking at"), linked to the same Teacher Resources. Opens it.
+ * With `weeks`, last year's week-by-week schedule comes along by week number. Returns { schedule, carried }.
  */
-export async function startNewYear(fields, { copy = true, folderId = null } = {}) {
+export async function startNewYear(fields, { copy = true, weeks = false, folderId = null } = {}) {
   await saveOpenPlan();
   const reuse = ownResources();
-  const plan = newYearPlan(current ? myPlanState() : null, fields, { copy });
-  return createPiecePlan(plan.state, { folderId, reuseResources: reuse });
+  const plan = newYearPlan(current ? myPlanState() : null, fields, { copy, weeks });
+  const schedule = await createPiecePlan(plan.state, { folderId, reuseResources: reuse });
+  return { schedule, carried: plan.carried };
 }
 
 /** Every plan this computer has a copy of. */

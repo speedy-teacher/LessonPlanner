@@ -9,6 +9,7 @@
 // Pure logic, shared by the browser app and the Node tests.
 
 import { COLLECTIONS, createYear, emptyState, normalize } from './model.js';
+import { carryWeekLessons } from './weekPlan.js';
 
 export const WORKSPACE_KIND = 'lesson-planner-workspace';
 export const WORKSPACE_MIME = 'application/json';
@@ -56,12 +57,16 @@ export function planName(year) {
 /**
  * The plan for a new school year. With `copy`, instruments, schools, grades, lesson decks and
  * outcomes (with evals and lesson order) come along from `state`'s year; calendars start empty.
+ * With `weeks` (and `copy`), the week-by-week lesson schedule comes along too, by week number
+ * (carryWeekLessons; `carried` = { kept, dropped }, else null).
  */
-export function newYearPlan(state, fields, { copy = true } = {}) {
+export function newYearPlan(state, fields, { copy = true, weeks = false } = {}) {
   const base = copy && state ? structuredClone(state) : emptyState();
   const fromId = copy && state ? state.activeYearId : null;
   const year = createYear(base, fields, fromId);
-  return { name: planName(year), state: keepIds(yearOnly(base, year.id)) };
+  const next = keepIds(yearOnly(base, year.id));
+  const carried = weeks && fromId ? carryWeekLessons(state, next) : null;
+  return { name: planName(year), state: next, carried };
 }
 
 /**

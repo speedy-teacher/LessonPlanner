@@ -184,3 +184,26 @@ export function autoFillWeek(state, cls, weeks, weekStart) {
   plan.forEach((item) => addWeekLesson(state, { ...cls, ...item }));
   return plan.length;
 }
+
+/**
+ * Last year's week-by-week lesson schedule, carried into a new year by week number (week 1 → week 1,
+ * in the same order). Weeks past the new year's last week are left out, and so is anything whose
+ * school, grade or lesson isn't in the new year. Adds to `to` (the new year's data, ids carried over);
+ * returns { kept, dropped }.
+ */
+export function carryWeekLessons(from, to) {
+  const oldYear = from.years.find((y) => y.id === from.activeYearId);
+  const newYear = to.years.find((y) => y.id === to.activeYearId);
+  const numberOf = new Map(schoolWeeks(oldYear).map((w) => [w.weekStart, w.number]));
+  const startOf = new Map(schoolWeeks(newYear).map((w) => [w.number, w.weekStart]));
+  const ids = Object.fromEntries(['schools', 'grades', 'lessons', 'criteria'].map((c) => [c, new Set(to[c].map((r) => r.id))]));
+  const fits = (e) => ids.schools.has(e.schoolId) && ids.grades.has(e.gradeId) && ids.lessons.has(e.lessonId);
+  let dropped = 0;
+  for (const entry of from.weekLessons.filter((e) => e.yearId === oldYear?.id)) {
+    const weekStart = startOf.get(numberOf.get(entry.weekStart));
+    if (!weekStart || !fits(entry)) { dropped += 1; continue; }
+    const criterionId = ids.criteria.has(entry.criterionId) ? entry.criterionId : null;
+    to.weekLessons.push({ ...structuredClone(entry), yearId: newYear.id, weekStart, criterionId });
+  }
+  return { kept: to.weekLessons.length, dropped };
+}

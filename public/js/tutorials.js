@@ -528,7 +528,7 @@ const plans = {
     },
     {
       target: 'plans-actions',
-      text: 'When next school year comes, click “🌱 Start a new school year”. It makes a new School Year (copied from this one) and a new Lesson Schedule; your templates and pictures carry on. If a colleague already made next year’s School Year, choose “Use one a colleague already made”.',
+      text: 'When next school year comes, click “🌱 Start a new school year”. It makes a new School Year (copied from this one) and a new Lesson Schedule; your templates and pictures carry on, and you can tick “Also bring my week-by-week lesson schedule” to copy it over by week number. If a colleague already made next year’s School Year, choose “Use one a colleague already made”.',
       backIf: (ctx) => !ctx.modal,
     },
   ],

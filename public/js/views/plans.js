@@ -272,8 +272,9 @@ export function openNewYear() {
     const fields = { name: h('input', { value: next.name }), start: h('input', { type: 'date', value: next.startDate }), end: h('input', { type: 'date', value: next.endDate }) };
     const copy = h('input', { type: 'checkbox', checked: Boolean(from) });
     const bring = h('input', { type: 'checkbox', checked: true });
-    const ownBox = h('div', {}, ownYearFields({ ...fields, copy, from }));
-    const bringBox = h('div', { hidden: true }, from ? h('label', { class: 'check big' }, bring, `Bring my lesson order, templates and pictures from ${from.name}`) : null);
+    const weeks = { own: weeksBox(copy, from), join: weeksBox(bring, from) };
+    const ownBox = h('div', {}, ownYearFields({ ...fields, copy, from }), weeks.own.el);
+    const bringBox = h('div', { hidden: true }, from ? h('label', { class: 'check big' }, bring, `Bring my lesson order, templates and pictures from ${from.name}`) : null, weeks.join.el);
     const drive = { el: h('div', {}), kind: null, folder: null };
     const draw = () => {
       drive.folder = driveConnected() ? folderChooser() : null;
@@ -286,8 +287,8 @@ export function openNewYear() {
     liveNewYear = { el: drive.el, status: google.status, draw };
     const folderId = () => drive.folder?.folderId() ?? null;
     const create = () => (drive.kind.joining()
-      ? joinColleague(close, { copy: bring.checked, folderId: folderId() })
-      : makeYear(close, { ...fields, copy: copy.checked, folderId: folderId() }));
+      ? joinColleague(close, { copy: bring.checked, weeks: weeks.join.on(), folderId: folderId() })
+      : makeYear(close, { ...fields, copy: copy.checked, weeks: weeks.own.on(), folderId: folderId() }));
     return h('div', { class: 'modal-body' }, drive.el,
       h('div', { class: 'button-row end' },
         h('button', { class: 'btn light', onclick: close }, 'Cancel'),
@@ -307,6 +308,24 @@ function newYearHint() {
   return h('p', { class: 'hint' }, driveConnected()
     ? 'It’s saved in your Google Drive as a new School Year (to share with your department) and your Lesson Schedule. Calendars start empty; past years stay just as they are.'
     : 'Google Drive isn’t connected, so it’s kept on this computer for now (you can save it to Drive later). Calendars start empty.');
+}
+
+/**
+ * "Bring my week-by-week lesson schedule too", asked in the new-year window (off unless ticked). It needs
+ * last year's classes and templates, so it's only on while `needs` (the copy box) is ticked.
+ * Returns { el, on() }.
+ */
+function weeksBox(needs, from) {
+  if (!from) return { el: null, on: () => false };
+  const box = h('input', { type: 'checkbox', 'data-tour': 'new-year-weeks' });
+  const follow = () => { box.disabled = !needs.checked; if (!needs.checked) box.checked = false; };
+  needs.addEventListener('change', follow);
+  follow();
+  return {
+    el: h('label', { class: 'check big' }, box,
+      `Also bring my week-by-week lesson schedule from ${from.name}, by week number (week 1 goes to week 1). Weeks past the end of the new year are left out.`),
+    on: () => box.checked && !box.disabled,
+  };
 }
 
 /** Name, dates and what to copy, for making a School Year of one's own. */
@@ -335,23 +354,30 @@ function schoolYearChoice(onChange) {
   return { el, joining: () => joining };
 }
 
-async function makeYear(close, { name, start, end, copy, folderId }) {
+async function makeYear(close, { name, start, end, copy, weeks, folderId }) {
   if (!name.value.trim() || !start.value || !end.value || end.value < start.value) {
     toast('Please give the year a name, and a last day after the first day.');
     return;
   }
   close();
-  const made = await attempt(() => startNewYear({ name: name.value.trim(), startDate: start.value, endDate: end.value }, { copy, folderId }));
-  if (made) toast(`Welcome to ${name.value.trim()}! Switch back to past years with the plan button at the top.`);
+  const made = await attempt(() => startNewYear({ name: name.value.trim(), startDate: start.value, endDate: end.value }, { copy, weeks, folderId }));
+  if (made) toast(`Welcome to ${name.value.trim()}! ${carriedWords(made.carried)}Switch back to past years with the plan button at the top.`);
+}
+
+/** "Brought 120 lessons over by week number (6 left out: past the end of the new year)." */
+function carriedWords(carried) {
+  if (!carried) return '';
+  const left = carried.dropped ? ` (${carried.dropped} left out: past the end of the new year, or no longer in it)` : '';
+  return `Brought ${carried.kept} lesson${carried.kept === 1 ? '' : 's'} over by week number${left}. `;
 }
 
 /** Pick the colleague's School Year; this year's name and dates come from it. */
-async function joinColleague(close, { copy, folderId }) {
+async function joinColleague(close, { copy, weeks, folderId }) {
   close();
   await saveOpenPlan();
   const mine = (shared) => {
     const year = shared.years[0];
-    return newYearPlan(current ? myPlanState() : null, { name: year.name, startDate: year.startDate, endDate: year.endDate }, { copy }).state;
+    return newYearPlan(current ? myPlanState() : null, { name: year.name, startDate: year.startDate, endDate: year.endDate }, { copy, weeks }).state;
   };
   joinFlow({ title: 'Use a colleague’s School Year', mine, folderId });
 }

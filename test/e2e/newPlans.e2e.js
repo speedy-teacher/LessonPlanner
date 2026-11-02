@@ -234,6 +234,23 @@ const CASES = {
     await waitFor(modal, 3000, 'the new-year window');
     check(!find('Use one a colleague already made'), 'no colleague choice in the new-year window');
   },
+
+  async E11() {
+    await planWithContent();
+    commands([{ command: 'addLessonToWeek', args: { school: 'Maple School', grade: 'Grade 3', week: 3, lesson: 'Steady Beat Game' } },
+      { command: 'addLessonToWeek', args: { school: 'Maple School', grade: 'Grade 3', week: '2031-06-09', lesson: 'Steady Beat Game' } }]);
+    await saved();
+    const short = { name: 'Short Test Year 2031–32', start: '2031-08-25', end: '2032-05-28' }; // ends two weeks earlier
+    await startNewYear({ ...short, copy: true, weeks: true });
+    const year = store.state.years[0];
+    const weekNumber = (e) => Math.round((Date.parse(e.weekStart) - Date.parse('2031-08-25')) / 604800000) + 1;
+    const numbers = store.state.weekLessons.map(weekNumber).sort((a, b) => a - b);
+    check(JSON.stringify(numbers) === '[1,3]', `weeks 1 and 3 come along, the last week is left out; got weeks ${numbers.join(', ')}`);
+    check(store.state.weekLessons.every((e) => e.yearId === year.id), 'the lessons belong to the new year');
+    check(/Brought 2 lessons over by week number \(1 left out/.test(text(document.body)), 'a note says how many came along and how many were left out');
+    await startNewYear({ ...YEAR2, name: 'Unticked Test Year', copy: true });
+    check(store.state.weekLessons.length === 0, 'without ticking it, the week-by-week schedule starts empty');
+  },
 };
 
 // ---------- the pieces of E3/E5/E6/E9 that need the page ----------

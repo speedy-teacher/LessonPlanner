@@ -74,7 +74,7 @@ export async function openPlansMenu() {
 }
 
 /** Start a new school year through the buttons (the welcome screen, or the plans menu). */
-export async function startNewYear({ name, start, end, copy }) {
+export async function startNewYear({ name, start, end, copy, weeks }) {
   if (!modal() && find('[data-tour="plan-button"]')) await openPlansMenu();
   await click('[data-tour="start-year"]');
   await waitFor(() => modal()?.querySelector('[aria-label="Start a new school year"]') ?? modal(), 4000, 'the new-year window');
@@ -83,6 +83,8 @@ export async function startNewYear({ name, start, end, copy }) {
   await fill('Last day', end);
   const box = [...modal().querySelectorAll('label.check input[type="checkbox"]')].find((b) => text(b.parentElement).startsWith('Copy schools'));
   if (box && copy !== undefined) tick(box, copy);
+  const weeksBox = modal().querySelector('[data-tour="new-year-weeks"]');
+  if (weeksBox && weeks !== undefined) tick(weeksBox, weeks);
   await click('Create year');
   await waitFor(() => !modal() && yearOpen(name), 10000, `the year "${name}" to open`);
   await flushSave();
