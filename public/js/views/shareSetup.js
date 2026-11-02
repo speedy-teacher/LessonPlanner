@@ -36,13 +36,24 @@ export function offerSharing() {
   });
 }
 
+// Redraws the window's first step while it shows, so a Google sign-in finishing after the window opened
+// (the click that opened it also renews the sign-in) turns on what needs Google Drive.
+let liveIntro = null;
+
 export function openShareSetup() {
   openModal('Share with your department', (close) => {
     const body = h('div', { class: 'share-setup', 'data-tour': 'share-setup' });
-    const step = (...parts) => body.replaceChildren(...parts.filter(Boolean));
-    step(...intro(step, close));
+    const step = (...parts) => { delete body.dataset.step; body.replaceChildren(...parts.filter(Boolean)); };
+    const showIntro = () => { step(...intro(step, close, showIntro)); body.dataset.step = 'intro'; };
+    liveIntro = () => { if (body.isConnected && body.dataset.step === 'intro') showIntro(); };
+    showIntro();
     return body;
   });
+}
+
+/** The Google Drive connection changed: redraw the share window's first step if it's open. */
+export function refreshShareSetup() {
+  liveIntro?.();
 }
 
 /**
@@ -62,7 +73,7 @@ export function joinFlow({ title, mine = null, folderId = null }) {
 
 // ---------- 1 + 2: what changes, and the choice ----------
 
-function intro(step, close) {
+function intro(step, close, showIntro) {
   return [
     h('p', {}, 'Your plan becomes three files in your Google Drive, so each part can be shared on its own:'),
     h('ul', { class: 'share-pieces' },
@@ -77,7 +88,7 @@ function intro(step, close) {
         text: 'Recommended if you’re the first in your department. Your colleagues join it afterwards.' }, () => run(step, close, splitCurrentPlan)),
       choice({ icon: '🤝', title: 'Join a School Year a colleague shared', tour: 'share-join', disabledWhy: !google.token && 'Connect Google Drive first',
         text: 'Your schools, grades and evals are matched to theirs; you check any that don’t match.' },
-      () => pickYear(step, close, { back: () => step(...intro(step, close)), backLabel: 'Back' }))),
+      () => pickYear(step, close, { back: showIntro, backLabel: 'Back' }))),
     h('div', { class: 'button-row' }, h('button', { class: 'btn light', onclick: close }, 'Not now')),
   ];
 }

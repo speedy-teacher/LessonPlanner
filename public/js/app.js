@@ -8,7 +8,7 @@ import { openLastPlan, pieces, syncNow } from './workspace.js';
 import { follow, needsSwap } from './lookingAt.js';
 import { drivePill, showSignInNotice, warnIfGoogleNotSetUp } from './views/googleCard.js';
 import { planButton, refreshPlansMenu, welcome } from './views/plans.js';
-import { offerSharing } from './views/shareSetup.js';
+import { offerSharing, refreshShareSetup } from './views/shareSetup.js';
 import { pieceBar } from './views/people.js';
 import { installViewOnlyBlock, markViewOnly } from './views/viewOnly.js';
 import { renderPlan, planKeys } from './views/plan.js';
@@ -184,6 +184,7 @@ async function start() {
       wasConnected = connected;
       refresh();
       refreshPlansMenu();
+      refreshShareSetup();
       checkWatchedFolders();
       checkCopies();
     },

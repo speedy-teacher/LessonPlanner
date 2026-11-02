@@ -15,10 +15,11 @@ import * as fakeDrive from './fakeDrive.js';
 import { CASES_ACCESS } from './lookingAtAccess.js';
 import { CASES_LISTS } from './lookingAtLists.js';
 import { CASES_MINE } from './lookingAtMine.js';
+import { CASES_SIGN_IN } from './signInLate.js';
 
 export { reset } from './helpers.js';
 
-const CASES = { ...CASES_LISTS, ...CASES_ACCESS, ...CASES_MINE };
+const CASES = { ...CASES_LISTS, ...CASES_ACCESS, ...CASES_MINE, ...CASES_SIGN_IN };
 
 // ---------- running ----------
 

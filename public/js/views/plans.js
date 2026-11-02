@@ -66,8 +66,9 @@ export function openPlansMenu() {
   });
 }
 
-/** Redraw the open plans menu when the Google Drive connection changes (e.g. it finishes connecting). */
+/** Redraw the open plans menu (and new-year window) when the Google Drive connection changes (e.g. it finishes connecting). */
 export function refreshPlansMenu() {
+  refreshNewYear();
   if (!liveMenu?.holder.isConnected) { liveMenu = null; return; }
   if (liveMenu.status === google.status) return;
   liveMenu.status = google.status;
@@ -258,6 +259,11 @@ function copyOldPlans(state) {
 
 // ---------- new school year ----------
 
+// The new-year window's Google Drive parts, redrawn when the connection changes: the click that opened the
+// window also renews the sign-in, and the year must not be kept on this computer just because Drive was a
+// moment late. { el, status, draw }
+let liveNewYear = null;
+
 export function openNewYear() {
   const own = current ? myPlanState() : null;
   const from = own?.years.find((y) => y.id === own.activeYearId);
@@ -266,22 +272,41 @@ export function openNewYear() {
     const fields = { name: h('input', { value: next.name }), start: h('input', { type: 'date', value: next.startDate }), end: h('input', { type: 'date', value: next.endDate }) };
     const copy = h('input', { type: 'checkbox', checked: Boolean(from) });
     const bring = h('input', { type: 'checkbox', checked: true });
-    const folder = driveConnected() ? folderChooser() : null;
     const ownBox = h('div', {}, ownYearFields({ ...fields, copy, from }));
     const bringBox = h('div', { hidden: true }, from ? h('label', { class: 'check big' }, bring, `Bring my lesson order, templates and pictures from ${from.name}`) : null);
-    const kind = schoolYearChoice((joining) => { ownBox.hidden = joining; bringBox.hidden = !joining; });
-    const create = () => (kind.joining()
-      ? joinColleague(close, { copy: bring.checked, folderId: folder?.folderId() ?? null })
-      : makeYear(close, { ...fields, copy: copy.checked, folderId: folder?.folderId() ?? null }));
-    return h('div', { class: 'modal-body' },
-      kind.el, ownBox, bringBox, folder?.el,
-      h('p', { class: 'hint' }, driveConnected()
-        ? 'It’s saved in your Google Drive as a new School Year (to share with your department) and your Lesson Schedule. Calendars start empty; past years stay just as they are.'
-        : 'Google Drive isn’t connected, so it’s kept on this computer for now (you can save it to Drive later). Calendars start empty.'),
+    const drive = { el: h('div', {}), kind: null, folder: null };
+    const draw = () => {
+      drive.folder = driveConnected() ? folderChooser() : null;
+      drive.kind = schoolYearChoice((joining) => { ownBox.hidden = joining; bringBox.hidden = !joining; });
+      ownBox.hidden = false;
+      bringBox.hidden = true;
+      drive.el.replaceChildren(...[drive.kind.el, ownBox, bringBox, drive.folder?.el, newYearHint()].filter(Boolean));
+    };
+    draw();
+    liveNewYear = { el: drive.el, status: google.status, draw };
+    const folderId = () => drive.folder?.folderId() ?? null;
+    const create = () => (drive.kind.joining()
+      ? joinColleague(close, { copy: bring.checked, folderId: folderId() })
+      : makeYear(close, { ...fields, copy: copy.checked, folderId: folderId() }));
+    return h('div', { class: 'modal-body' }, drive.el,
       h('div', { class: 'button-row end' },
         h('button', { class: 'btn light', onclick: close }, 'Cancel'),
         h('button', { class: 'btn', onclick: create }, 'Create year')));
   });
+}
+
+/** Redraw the new-year window's Google Drive parts when the connection changes (names and dates typed stay). */
+function refreshNewYear() {
+  if (!liveNewYear?.el.isConnected) { liveNewYear = null; return; }
+  if (liveNewYear.status === google.status) return;
+  liveNewYear.status = google.status;
+  liveNewYear.draw();
+}
+
+function newYearHint() {
+  return h('p', { class: 'hint' }, driveConnected()
+    ? 'It’s saved in your Google Drive as a new School Year (to share with your department) and your Lesson Schedule. Calendars start empty; past years stay just as they are.'
+    : 'Google Drive isn’t connected, so it’s kept on this computer for now (you can save it to Drive later). Calendars start empty.');
 }
 
 /** Name, dates and what to copy, for making a School Year of one's own. */

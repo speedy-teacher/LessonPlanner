@@ -32,6 +32,7 @@ const canListPeople = (pageId) => LENS[pageId] === 'resources' || Boolean(pieces
 /** The bar for a page, or null when there's nothing to show. */
 export function pieceBar(pageId) {
   if (!pieces) return null;
+  if (openOn !== pageId) openOn = null;
   const parts = [
     LENS[pageId] && canListPeople(pageId) ? peoplePicker(pageId) : null,
     ...pieceNotes(pageId),
@@ -91,6 +92,10 @@ const NOBODY = {
   resources: 'Nobody has shared their Teacher Resources with you yet.',
 };
 
+// The tab whose list is open: a redraw (e.g. Google sign-in finishing just after the list was opened)
+// opens it again and looks for colleagues again, instead of closing it with "Connect Google Drive".
+let openOn = null;
+
 function peoplePicker(pageId) {
   const chosen = pickedOn(pageId);
   const list = h('ul', { class: 'people-list', role: 'listbox' });
@@ -111,12 +116,14 @@ function peoplePicker(pageId) {
   const choose = (person) => { picker.open = false; pick(pageId, person).finally(refresh); };
   search.addEventListener('input', draw);
   picker.addEventListener('toggle', async () => {
-    if (!picker.open) return;
+    if (!picker.open) { if (picker.isConnected) openOn = null; return; }
+    openOn = pageId;
     draw();
     search.focus();
     people = await peopleFor(pageId).catch(() => people);
     draw();
   });
+  if (openOn === pageId) picker.open = true;
   return picker;
 }
 
