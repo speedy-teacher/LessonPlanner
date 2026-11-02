@@ -171,7 +171,15 @@ A browser app for a (non-technical) elementary music teacher to plan a school ye
   "Required: <lessons' instruments> / Also available: <others at the school>". Footer "Automatically maintained by Lesson Planner"
   (`linkText` links only those words to `SITE_URL`, Sheets `textFormatRuns`); `footer: false` leaves it out.
 - Settings on the year record: `year.reports = { label, above[], below[], left[], right[], columnNames, footer, weekly (false = off), manual: { fromWeek, toWeek, schoolIds[], gradeIds[]
-  (empty = all), perGrade, folder } }` (`reportSettings` fills defaults). Command area `agentReports.js`.
+  (empty = all), layout, direction, perGrade, folder } }` (`reportSettings` fills defaults). Command area `agentReports.js`.
+- Layouts (`fileLayout`): 'school' (file per school, tab per grade), 'grade' (file each), 'together' (one file, tab per school, every
+  grade on it; `direction` 'down' or 'across' = side by side, each week on the same row, gap column, one footer). A together tab is
+  `{ title, heading, direction, footer, parts: [classTab] }` (`reportParts`/`combinedRows`, `frozenRows`). `perGrade` stays in step
+  (older planners read it); apart from 'together' it decides. Watched 'together' entries keep layout/direction/schoolIds (empty = all).
+- Picture words `{{copy_thumbnail}}`/`{{template_thumbnail}}` (`PICTURE_WORDS`, `thumbnailUrl` = drive.google.com/thumbnail?id=):
+  in the label, a column or a row the cell becomes `{ image, link }` (Sheet: `=HYPERLINK(link, IMAGE(url))`, rows 120 px); no Drive
+  file = the words as usual. Google fetches IMAGE() without the teacher's sign-in, so private files may show blank in the Sheet
+  (preview works) — not yet tried against real Google.
 - Sheets: `reportSheets.js` `driveReports` (labels `lessonPlannerReport`=yearId, `reportKind` weekly|manual, `reportKey`, `hash`,
   `place`); a rewrite adds fresh tabs, deletes the old ones and fills the new in one batchUpdate (`sheetRequests`); only when `hash` changed.
 - Weekly: `reportBridge.js`, run by `exportBridge.js` after the copy queue is empty (same lock, Drive output only): one

@@ -488,9 +488,13 @@ const reports = {
     },
     {
       target: 'report-label',
-      text: 'Choose what each lesson shows, and add columns before or after it (like its essential outcome).',
+      text: 'Choose what each lesson shows, and add columns before or after it (like its essential outcome). {{copy_thumbnail}} or {{template_thumbnail}} puts a small picture of the slide in that spot.',
     },
     ...instrumentColumn(),
+    {
+      target: 'report-layout',
+      text: 'Choose one file per school, one per grade, or all grades on one sheet. With all grades on one sheet, each school gets a tab, and you pick whether the grades go down or across.',
+    },
     {
       target: 'report-preview',
       text: (ctx) => `The preview shows the report as it will look${hasInstrumentColumn(ctx) ? ' — with your Instrument column next to each lesson' : ''}.`,

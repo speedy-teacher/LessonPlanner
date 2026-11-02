@@ -8,7 +8,7 @@ import { addWeekLesson, moveWeekLesson, removeWeekLesson } from '../public/js/we
 import { canFillIn, driveFileId, driveLocation } from '../public/js/locations.js';
 import { wantedCopies } from '../public/js/exportPlan.js';
 import {
-  copyFinder, instrumentsLine, tint, watchedEntry, withWatched, instrumentText, lessonLabel, manualReports, REPORT_NOTE, reportRows, reportSettings, reportSteps, SITE_URL,
+  copyFinder, frozenRows, instrumentsLine, reportWidth, thumbnailUrl, tint, watchedReport, watchedEntry, withWatched, instrumentText, lessonLabel, manualReports, REPORT_NOTE, reportRows, reportSettings, reportSteps, SITE_URL,
   weeklyReports,
 } from '../public/js/reportPlan.js';
 import { driveReports, REPORT_LABEL, sheetCell, SHEETS, sheetRequests } from '../public/js/reportSheets.js';
@@ -259,7 +259,7 @@ test('an assistant can set up the report and its options, and preview it', () =>
   const settings = runCommand(t.s, 'reportSettings');
   assert.deepEqual(settings, {
     lessonText: '{{template_name}}', rowsAbove: [], rowsBelow: [], columnsBefore: [], columnsAfter: [], columnNames: true, footer: true, weeklyReports: false, fromWeek: 3, toWeek: 4,
-    schools: ['School A'], grades: ['Kindergarten'], oneFilePer: 'grade', folder: null, keepUpToDate: false, keptUpToDate: [],
+    schools: ['School A'], grades: ['Kindergarten'], oneFilePer: 'grade', gradesGo: 'down', folder: null, keepUpToDate: false, keptUpToDate: [],
   });
   const [preview] = runCommand(t.s, 'previewReport');
   assert.equal(preview.file, 'School A – Kindergarten – Weeks 3–4 report');
@@ -431,4 +431,88 @@ test('an assistant can take a report off the kept-up-to-date list', () => {
   const answer = runCommand(t.s, 'stopKeepingReportUpToDate', { report: 'school a – week 3 report' });
   assert.match(answer.done, /not deleted/);
   assert.deepEqual(runCommand(t.s, 'reportSettings').keptUpToDate, []);
+});
+
+test('all grades on one sheet: one file, a tab per school, grades going down or across with weeks lined up', () => {
+  const t = setup();
+  lessonAt(t, t.beat);
+  lessonAt(t, t.song);
+  lessonAt(t, t.song, { grade: t.g1 });
+  lessonAt(t, t.beat, { school: t.schoolB, grade: t.g1, week: '2026-09-14' });
+  const manual = { ...reportSettings(t.year).manual, fromWeek: 3, toWeek: 4, layout: 'together' };
+  const files = manualReports(t.s, t.year.id, { manual, copyOf: () => null });
+  assert.equal(files.length, 1, 'one file');
+  assert.equal(files[0].name, 'All schools – all grades – Weeks 3–4 report');
+  assert.deepEqual(files[0].tabs.map((tab) => tab.title), ['School A', 'School B'], 'a tab per school');
+
+  const down = reportRows(files[0].tabs[0]).map((r) => r.map((c) => c.text));
+  const headings = down.filter((r) => r[0]?.startsWith('School A ·')).map((r) => r[0]);
+  assert.deepEqual(headings, ['School A · Kindergarten', 'School A · Grade 1'], 'grades one under another');
+  assert.equal(down.filter((r) => r[0] === 'Automatically maintained by Lesson Planner').length, 1, 'one footer at the bottom');
+  assert.equal(frozenRows(files[0].tabs[0]), 0);
+
+  const [across] = manualReports(t.s, t.year.id, { manual: { ...manual, direction: 'across' }, copyOf: () => null });
+  const tab = across.tabs[0];
+  const rows = reportRows(tab);
+  assert.equal(reportWidth(tab), 5, 'two grades of two columns, an empty one between');
+  assert.ok(rows.every((r) => !r.length || r.reduce((n, c) => n + (c.span ?? 1), 0) === 5), 'every row fills the width');
+  assert.deepEqual(rows[0].filter((c) => c.style === 'heading').map((c) => c.text), ['School A · Kindergarten', 'School A · Grade 1'], 'side by side');
+  const weekRows = rows.map((r, i) => [i, r.filter((c) => c.style === 'week' && c.text.startsWith('Week ')).length]).filter(([, n]) => n);
+  assert.deepEqual(weekRows.map(([, n]) => n), [2, 2], 'each week starts on the same row for every grade');
+  assert.equal(frozenRows(tab), 2, 'the titles stay in view');
+  const requests = sheetRequests([0], across.tabs, [7, 8]);
+  const widths = requests.filter((r) => r.updateDimensionProperties?.range.dimension === 'COLUMNS' && r.updateDimensionProperties.range.sheetId === 7)
+    .map((r) => r.updateDimensionProperties.properties.pixelSize);
+  assert.deepEqual(widths, [90, 420, 24, 90, 420]);
+
+  const chosen = manualReports(t.s, t.year.id, { manual: { ...manual, schoolIds: [t.schoolB.id] }, copyOf: () => null });
+  assert.equal(chosen[0].name, 'School B – all grades – Weeks 3–4 report');
+  const entry = watchedEntry({ ...manual, direction: 'across' }, files[0], { folderId: 'f', name: 'Reports' });
+  const again = watchedReport(t.s, t.year.id, entry, { settings: reportSettings(t.year), copyOf: () => null, defaultWeek: 1 });
+  assert.equal(again.key, files[0].key, 'kept up to date: the same file');
+  assert.equal(again.tabs[0].direction, 'across');
+});
+
+test('the layout choice: older plans (one file per grade) still work, and an assistant can choose all grades on one sheet', () => {
+  const t = setup();
+  update(t.s, 'years', t.year.id, { reports: { manual: { perGrade: true } } });
+  assert.equal(reportSettings(t.s.years[0]).manual.layout, 'grade');
+  runCommand(t.s, 'setupReport', { oneFilePer: 'all grades on one sheet', gradesGo: 'horizontally' });
+  const m = reportSettings(t.s.years[0]).manual;
+  assert.deepEqual([m.layout, m.direction, m.perGrade], ['together', 'across', false]);
+  assert.equal(runCommand(t.s, 'reportSettings').gradesGo, 'across');
+  runCommand(t.s, 'setupReport', { oneFilePer: 'grade' });
+  assert.deepEqual([reportSettings(t.s.years[0]).manual.layout, reportSettings(t.s.years[0]).manual.perGrade], ['grade', true]);
+  assert.throws(() => runCommand(t.s, 'setupReport', { gradesGo: 'diagonal' }), /gradesGo/);
+});
+
+test('{{copy_thumbnail}} and {{template_thumbnail}} show a small picture of the file, in the lesson spot or a column', () => {
+  const t = setup();
+  lessonAt(t, t.beat);
+  lessonAt(t, t.noTemplate);
+  const manual = { ...reportSettings(t.year).manual, fromWeek: 3, schoolIds: [t.schoolA.id], gradeIds: [t.k.id] };
+  const copyOf = (entryId) => (t.s.weekLessons.find((e) => e.id === entryId).lessonId === t.beat.id
+    ? { id: 'copy1', name: 'Copy', url: 'https://example.test/c' } : null);
+  const [file] = manualReports(t.s, t.year.id, {
+    manual, copyOf, label: '{{copy_thumbnail}}', right: [{ name: 'Template', value: '{{template_thumbnail}}' }], below: ['{{template_thumbnail}}'],
+  });
+  const [beat, game] = file.tabs[0].weeks[0].lessons;
+  assert.equal(beat.image, thumbnailUrl('copy1'));
+  assert.equal(game.image, undefined, 'no copy: no picture …');
+  assert.equal(game.text, '2 - Game', '… the copy name instead');
+  assert.equal(beat.right[0].image, thumbnailUrl('tmpl-Beat'));
+  assert.match(beat.right[0].link, /tmpl-Beat/, 'the picture links to its file');
+  assert.equal(game.right[0], '', 'a lesson without a Drive template gets an empty cell');
+  assert.equal(game.below.length, 0, 'and no extra row');
+  assert.equal(beat.below[0].image, thumbnailUrl('tmpl-Beat'));
+  assert.equal(file.tabs[0].columns.right[0], 'Template');
+
+  const rows = reportRows(file.tabs[0]);
+  const lessonCell = rows.flat().find((c) => c.style === 'lesson' && c.image);
+  const cell = sheetCell(lessonCell);
+  assert.equal(cell.userEnteredValue.formulaValue, `=HYPERLINK("https://example.test/c", IMAGE("${thumbnailUrl('copy1')}"))`);
+  assert.equal(sheetCell({ image: 'https://x.test/a"b', style: 'column' }).userEnteredValue.formulaValue, '=IMAGE("https://x.test/a""b")');
+  const requests = sheetRequests([], file.tabs, [5]);
+  const tall = requests.filter((r) => r.updateDimensionProperties?.range.dimension === 'ROWS' && r.updateDimensionProperties.properties.pixelSize === 120);
+  assert.equal(tall.length, 2, 'rows with a picture are taller (the lesson and its row below)');
 });
