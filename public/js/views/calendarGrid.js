@@ -119,12 +119,34 @@ function trackVisibleMonth() {
   if (visible) rememberMonth(visible);
 }
 
-/** Scroll the calendar when the pointer is held near its top or bottom edge. Returns true if it scrolled. */
-export function edgeScroll(clientY) {
+// Edge scrolling runs every animation frame while the pointer keeps being reported (drag/resize events),
+// and stops a moment after the last report (dropped, or the pointer left the window).
+const STOP_AFTER_MS = 200;
+const edge = { y: 0, seenAt: 0, frame: 0, last: 0, carry: 0 };
+
+function edgeFrame(now) {
+  if (now - edge.seenAt > STOP_AFTER_MS) { edge.frame = 0; return; }
   const box = scroller().getBoundingClientRect();
-  const step = edgeStep(clientY, Math.max(box.top, stickyBottom()), box.bottom);
-  if (step) scroller().scrollTop += step;
-  return step !== 0;
+  const ms = Math.min(50, now - edge.last);
+  edge.last = now;
+  edge.carry += edgeStep(edge.y, Math.max(box.top, stickyBottom()), box.bottom, ms);
+  const whole = Math.trunc(edge.carry);
+  if (whole) { scroller().scrollTop += whole; edge.carry -= whole; }
+  edge.frame = requestAnimationFrame(edgeFrame);
+}
+
+/** Scroll the page while the pointer is held near its top or bottom edge (call on every drag/move event). */
+export function edgeScroll(clientY) {
+  edge.y = clientY;
+  edge.seenAt = performance.now();
+  if (edge.frame) return;
+  edge.last = edge.seenAt;
+  edge.carry = 0;
+  edge.frame = requestAnimationFrame(edgeFrame);
+}
+
+function stopEdgeScroll() {
+  edge.seenAt = 0;
 }
 
 export function installCalendarScrolling() {
@@ -136,4 +158,6 @@ export function installCalendarScrolling() {
   document.addEventListener('dragover', (e) => {
     if (document.querySelector('#main .cal-grid, #main .ls-weeks')) edgeScroll(e.clientY);
   });
+  document.addEventListener('drop', stopEdgeScroll);
+  document.addEventListener('dragend', stopEdgeScroll);
 }

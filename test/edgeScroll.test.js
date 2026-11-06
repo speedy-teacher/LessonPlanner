@@ -1,34 +1,39 @@
-// Dragging a lesson (or eval/instrument) near the top or bottom of the page scrolls it.
+// Dragging a lesson (or eval/instrument) near the top or bottom of the page scrolls it:
+// fast at the very edge, slow just outside the middle half, never inside the middle half.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { edgeStep, EDGE_PX, MAX_STEP, MIN_STEP } from '../public/js/edgeScroll.js';
+import { edgeSpeed, edgeStep, MAX_SPEED, MIN_SPEED } from '../public/js/edgeScroll.js';
 
 const TOP = 100;
-const BOTTOM = 900;
+const BOTTOM = 900; // 800 tall: middle half = 300…700
 
-test('the middle of the page does not scroll', () => {
-  assert.equal(edgeStep(500, TOP, BOTTOM), 0);
-  assert.equal(edgeStep(TOP + EDGE_PX + 1, TOP, BOTTOM), 0);
-  assert.equal(edgeStep(BOTTOM - EDGE_PX - 1, TOP, BOTTOM), 0);
+test('the middle half of the page does not scroll', () => {
+  for (const y of [300, 400, 500, 600, 700]) assert.equal(edgeSpeed(y, TOP, BOTTOM), 0, `at ${y}`);
 });
 
-test('near the top scrolls up, near the bottom scrolls down', () => {
-  assert.ok(edgeStep(TOP + 10, TOP, BOTTOM) < 0);
-  assert.ok(edgeStep(BOTTOM - 10, TOP, BOTTOM) > 0);
+test('the top quarter scrolls up, the bottom quarter scrolls down', () => {
+  assert.ok(edgeSpeed(250, TOP, BOTTOM) < 0);
+  assert.ok(edgeSpeed(750, TOP, BOTTOM) > 0);
 });
 
-test('closer to the edge scrolls faster', () => {
-  const slow = Math.abs(edgeStep(TOP + EDGE_PX - 5, TOP, BOTTOM));
-  const fast = Math.abs(edgeStep(TOP + 5, TOP, BOTTOM));
-  assert.ok(slow >= MIN_STEP && fast > slow);
+test('just outside the middle half it is slow', () => {
+  const speed = Math.abs(edgeSpeed(295, TOP, BOTTOM));
+  assert.ok(speed >= MIN_SPEED && speed < 100, `speed ${speed}`);
 });
 
-test('past the edge (over the tabs or below the page) scrolls at full speed', () => {
-  assert.equal(edgeStep(20, TOP, BOTTOM), -MAX_STEP);
-  assert.equal(edgeStep(BOTTOM + 30, TOP, BOTTOM), MAX_STEP);
+test('it speeds up steadily toward the very edge', () => {
+  const speeds = [280, 240, 200, 160, 120, 105].map((y) => Math.abs(edgeSpeed(y, TOP, BOTTOM)));
+  speeds.slice(1).forEach((s, i) => assert.ok(s > speeds[i], `${s} > ${speeds[i]}`));
+  assert.ok(Math.abs(edgeSpeed(200, TOP, BOTTOM)) < MAX_SPEED / 4, 'halfway into the zone is still gentle');
 });
 
-test('a short window still has a middle that stays still', () => {
-  assert.equal(edgeStep(250, 100, 400), 0);
-  assert.ok(edgeStep(110, 100, 400) < 0);
+test('at or past the edge (over the tabs, below the page) it is fastest', () => {
+  assert.equal(edgeSpeed(TOP, TOP, BOTTOM), -MAX_SPEED);
+  assert.equal(edgeSpeed(20, TOP, BOTTOM), -MAX_SPEED);
+  assert.equal(edgeSpeed(BOTTOM + 30, TOP, BOTTOM), MAX_SPEED);
+});
+
+test('the distance depends on time, not on how often the mouse moves', () => {
+  assert.equal(edgeStep(120, TOP, BOTTOM, 1000), edgeSpeed(120, TOP, BOTTOM));
+  assert.equal(edgeStep(120, TOP, BOTTOM, 500) * 2, edgeStep(120, TOP, BOTTOM, 1000));
 });

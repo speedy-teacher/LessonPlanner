@@ -1,15 +1,23 @@
-// While dragging, holding the mouse near the top or bottom of the page scrolls it (pure, tested).
-// The closer to the edge (or past it, e.g. over the tabs), the faster.
+// While dragging, holding the mouse in the top or bottom quarter of the page scrolls it (pure, tested).
+// Gentle just outside the middle half, speeding up toward the very edge (fastest past it, e.g. over
+// the tabs). The middle half never scrolls, so there's a calm place to drop. Speeds are per second, so
+// moving the mouse around doesn't make it faster.
 
-export const EDGE_PX = 80; // how close to the top/bottom edge before auto-scrolling
-export const MIN_STEP = 6; // pixels per drag event just inside the zone
-export const MAX_STEP = 40; // pixels per drag event at (or past) the edge
+export const ZONE_SHARE = 0.25; // top and bottom quarter of the view scroll
+export const MIN_SPEED = 40; // pixels per second just outside the middle half
+export const MAX_SPEED = 1200; // pixels per second at (or past) the very edge
 
-/** How far to scroll for a pointer at `y` in a view from `top` to `bottom`: negative = up, 0 = stay. */
-export function edgeStep(y, top, bottom) {
-  const zone = Math.min(EDGE_PX, (bottom - top) / 3);
+/** Scroll speed (pixels per second) for a pointer at `y` in a view from `top` to `bottom`: negative = up, 0 = stay. */
+export function edgeSpeed(y, top, bottom) {
+  const zone = (bottom - top) * ZONE_SHARE;
   const depth = Math.max(top + zone - y, y - (bottom - zone));
-  if (depth <= 0) return 0;
-  const step = Math.round(MIN_STEP + (MAX_STEP - MIN_STEP) * Math.min(1, depth / zone));
-  return y < (top + bottom) / 2 ? -step : step;
+  if (zone <= 0 || depth <= 0) return 0;
+  const closeness = Math.min(1, depth / zone);
+  const speed = MIN_SPEED + (MAX_SPEED - MIN_SPEED) * closeness ** 3;
+  return y < (top + bottom) / 2 ? -speed : speed;
+}
+
+/** How far to scroll in `ms` milliseconds. */
+export function edgeStep(y, top, bottom, ms) {
+  return (edgeSpeed(y, top, bottom) * ms) / 1000;
 }
