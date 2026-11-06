@@ -381,7 +381,7 @@ const lessonSchedule = {
     },
     {
       target: ['ls-palette', 'ls-weeks'],
-      text: 'Drag a lesson from the list on the right into a week (or click it, then click weeks). Drag lessons to reorder them, or back to the list to take them off.',
+      text: 'Drag a lesson from the list on the right into a week (or click it, then click weeks). Drag lessons to reorder them, or back to the list to take them off. To reach a faraway week, hold the lesson near the top or bottom of the page and it scrolls.',
       ...addSome('weekLessons'),
     },
     {

@@ -8,10 +8,9 @@ import {
   addDays, addMonths, formatMonth, monthKey, monthsBetween, mondayOf, parseISO, shortMonth, todayISO,
 } from '../dates.js';
 import { year } from './common.js';
+import { edgeStep } from '../edgeScroll.js';
 
 const UI_KEY = 'lesson-planner-ui';
-const EDGE_PX = 70; // how close to the top/bottom edge before auto-scrolling
-const SCROLL_STEP = 14;
 
 const scroller = () => document.getElementById('main');
 
@@ -123,10 +122,7 @@ function trackVisibleMonth() {
 /** Scroll the calendar when the pointer is held near its top or bottom edge. Returns true if it scrolled. */
 export function edgeScroll(clientY) {
   const box = scroller().getBoundingClientRect();
-  const top = Math.max(box.top, stickyBottom());
-  let step = 0;
-  if (clientY < top + EDGE_PX) step = -SCROLL_STEP;
-  else if (clientY > box.bottom - EDGE_PX) step = SCROLL_STEP;
+  const step = edgeStep(clientY, Math.max(box.top, stickyBottom()), box.bottom);
   if (step) scroller().scrollTop += step;
   return step !== 0;
 }
@@ -135,8 +131,9 @@ export function installCalendarScrolling() {
   scroller().addEventListener('scroll', () => {
     if (document.querySelector('.cal-month')) trackVisibleMonth();
   }, { passive: true });
-  // Dragging an outcome/instrument/bar near the edge scrolls into other months.
+  // Dragging an outcome/instrument/bar (or a lesson on the Lesson Schedule) near the top or bottom —
+  // or up over the tabs — scrolls into other months/weeks.
   document.addEventListener('dragover', (e) => {
-    if (e.target.closest?.('#main') && document.querySelector('.cal-grid')) edgeScroll(e.clientY);
+    if (document.querySelector('#main .cal-grid, #main .ls-weeks')) edgeScroll(e.clientY);
   });
 }

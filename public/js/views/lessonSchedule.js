@@ -68,7 +68,7 @@ function header(ctx) {
 
 function armedBanner() {
   const armed = store.ui.lsArmed;
-  if (!armed) return h('p', { class: 'hint' }, 'Drag lessons from the list on the right into a week. Drag them to put them in order, to another week, or back to the list to take them off.');
+  if (!armed) return h('p', { class: 'hint' }, 'Drag lessons from the list on the right into a week. Drag them to put them in order, to another week (hold near the top or bottom to scroll), or back to the list to take them off.');
   return h('div', { class: 'armed-banner' },
     `Click weeks to add “${name('lessons', armed.lessonId)}”.`,
     h('button', { class: 'btn small light', onclick: () => setUi({ lsArmed: null }) }, 'Done (Esc)'));
