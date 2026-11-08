@@ -90,6 +90,14 @@ A browser app for a (non-technical) elementary music teacher to plan a school ye
   your own. `lookingAt.js` keeps each tab's pick (this visit, cleared when another plan opens), `follow(pageId)` swaps pieces
   (`flushSave` + `pieces.save` first, fresh undo history; `app.js` shows "Loading…" meanwhile). Whatever is shown merges as usual
   (Editor = both ways, Viewer = guard); your own pieces set aside stay current because every record write goes through `put`.
+- **Colleagues' templates on your Lesson Schedule** (`sharedLessons.js` pure + tested, `borrowedPieces.js` `BorrowedResources`
+  tested against a fake Drive): Teacher Resources shared with you (`listSharedResources`, re-asked every 10 min, remembered in
+  `device.sharedResources`) are read-only "borrowed" files on the PiecePlan; `datas().borrowed` → `composeState` adds their lessons
+  stamped `sharedFrom` (file id) + `sharedBy` (Drive display name, never saved); `splitState` drops them. `addWeekLesson` copies
+  `sharedFrom` onto the entry so it can say why it's greyed (`sharedWhy`, `entryLessonWhy`). `guard` → `keepBorrowed` (blocked
+  'borrowed' = notice). `current('lessons')` = own only (Lessons tab, Outcomes); palette uses `filterLessons` with `author`
+  ('' / `MINE` / file id, "From" select `ls-author`). Copies fill in your own year/schedule/pictures; `heldEntries` keeps copies
+  of an unavailable shared template untouched. Their template file must be shared with you too (copying needs read access).
 - `workspace.js`: `pieces` (null = older one-file plan, still fully supported), `createPiecePlan`, `splitCurrentPlan`,
   `joinSchoolYear` (`joinYear.js` matches by name, tested), `myPlanState()` (exports and
   reports read only this), `copiesWaitFor()` (copies pause while looking, and wait — never trash — while a piece is missing).
