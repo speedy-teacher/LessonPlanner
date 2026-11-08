@@ -49,7 +49,8 @@ export const COLLECTIONS = {
   instrumentBlocks: 'id, yearId, schoolId, instrumentId, startDate, endDate',
   // The Lesson Schedule: lesson decks taught to a class (school + grade) in a school week
   // (`weekStart` = that week's Monday), in teaching order. `criterionId` = the eval it's taught for, if known.
-  weekLessons: 'id, yearId, schoolId, gradeId, weekStart, lessonId, criterionId, position',
+  // `sharedFrom` = the colleague's Teacher Resources (Drive file id) its template comes from (sharedLessons.js), else absent.
+  weekLessons: 'id, yearId, schoolId, gradeId, weekStart, lessonId, criterionId, position, sharedFrom',
   // Pictures (e.g. bitmojis) that lesson copies can show. Folders work like deckFolders. An image has
   // `tagIds[]` (your own tags), `instrumentIds[]`, `lessonIds[]` (lessons you chose to always get it)
   // and `when` = when it fits (see imagePick.js):

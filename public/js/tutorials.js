@@ -385,6 +385,11 @@ const lessonSchedule = {
       ...addSome('weekLessons'),
     },
     {
+      target: 'ls-author',
+      text: 'A colleague shared their Teacher Resources with you, so their lesson templates are in this list too (marked 🤝 with their name). Use “From” to show everyone’s, just yours, or one person’s. Your copy of their lesson fills in your own school, week and picture — their template itself is never changed.',
+      skipIf: (ctx) => !ctx.exists('ls-author'),
+    },
+    {
       target: 'ls-weeks',
       text: 'Each week shows its evals and the instruments at the school. The ✨ at a week’s top right fills just that week. Click a lesson for its menu.',
     },

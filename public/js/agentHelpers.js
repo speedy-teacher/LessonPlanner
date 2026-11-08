@@ -14,7 +14,7 @@ export const fail = (message) => { throw new CommandError(message); };
 
 // ---------- finding things by name or id ----------
 
-const same = (a, b) => String(a ?? '').trim().toLowerCase() === String(b ?? '').trim().toLowerCase();
+export const same = (a, b) => String(a ?? '').trim().toLowerCase() === String(b ?? '').trim().toLowerCase();
 
 const isBlank = (v) => v === undefined || v === null || v === '';
 
@@ -48,6 +48,13 @@ export const ofYear = (state, collection) => inYear(state, collection, year(stat
 export const school = (state, ref) => pick(ofYear(state, 'schools'), ref, 'school');
 export const grade = (state, ref) => pick(ofYear(state, 'grades'), ref, 'grade', ['name', 'short']);
 export const lesson = (state, ref) => pick(ofYear(state, 'lessons'), ref, 'lesson');
+
+/** A lesson template of your own, to change: a colleague's shared one can only be put on the schedule. */
+export function ownLesson(state, ref) {
+  const l = lesson(state, ref);
+  if (l.sharedFrom) fail(`"${l.name}" is ${l.sharedBy}’s template (shared with you): it can go on your Lesson Schedule, but only they can change it.`);
+  return l;
+}
 export const instrument = (state, ref) => pick(ofYear(state, 'instruments'), ref, 'instrument');
 export const outcome = (state, ref) => pick(ofYear(state, 'outcomes'), ref, 'outcome', ['code', 'title']);
 export const image = (state, ref) => pick(ofYear(state, 'images'), ref, 'picture');
@@ -149,6 +156,7 @@ export function lessonInfo(state, l) {
     instruments: namesOf(state, 'instruments', l.instrumentIds),
     folder: folderPath(state, l.folderId).map((f) => f.name).join(' › ') || null,
     ...(l.isNew ? { isNew: true } : {}),
+    ...(l.sharedFrom ? { sharedBy: l.sharedBy } : {}),
   };
 }
 

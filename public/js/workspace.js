@@ -13,7 +13,7 @@ import { device, setDevice } from './deviceSettings.js';
 import { google } from './google.js';
 import { allPlans, deletePlan, getPlan, putPlan, rescue } from './localCache.js';
 import {
-  createPlanFile, folderName, keepRevision, movePlanFile, planFileInfo, readPlanFile, renamePlanFile, savePlanFile,
+  createPlanFile, folderName, keepRevision, listSharedResources, movePlanFile, planFileInfo, readPlanFile, renamePlanFile, savePlanFile,
 } from './driveFiles.js';
 import { joinedPieces } from './joinYear.js';
 import { linkTo, newPieceRecord, resourcesFor } from './pieceFiles.js';
@@ -64,12 +64,17 @@ setPersist({
 
 // Changes to pieces you can only look at are taken back out at once (see pieces.js keepViewOnly).
 setGuard(
-  (before, after) => (pieces?.readOnly().length ? pieces.guard(before(), after) : { state: after, blocked: [] }),
-  (blocked) => showNotice({
-    id: 'view-only', tone: 'warn', title: 'View only',
-    message: `You can look at the ${blocked.map((name) => PIECES[name].label).join(' and ')} but not change it. ${blocked.map(whyViewOnly).join(' ')}`,
-  }),
+  (before, after) => (pieces ? pieces.guard(before(), after) : { state: after, blocked: [] }),
+  (blocked) => showNotice({ id: 'view-only', tone: 'warn', title: 'View only', message: viewOnlyWords(blocked) }),
 );
+
+function viewOnlyWords(blocked) {
+  const pieceNames = blocked.filter((name) => PIECES[name]);
+  const borrowed = blocked.includes('borrowed')
+    ? 'A colleague’s lesson template can be put on your Lesson Schedule, but only they can change it.' : '';
+  if (!pieceNames.length) return borrowed;
+  return `You can look at the ${pieceNames.map((name) => PIECES[name].label).join(' and ')} but not change it. ${pieceNames.map(whyViewOnly).join(' ')} ${borrowed}`.trim();
+}
 const isDrivePlan = () => Boolean(current?.fileId);
 const driveReady = () => google.status === 'connected' && google.token;
 
@@ -411,7 +416,23 @@ function driveCalls() {
     read: (id) => readPlanFile(google.token, id),
     save: (id, text) => savePlanFile(google.token, id, text),
     keep: (id, rev) => keepRevision(google.token, id, rev),
+    // Colleagues' Teacher Resources shared with you (their templates can go on your Lesson Schedule).
+    listShared: async () => {
+      const listed = (await listSharedResources(google.token)).map((f) => ({ fileId: f.fileId, name: f.owner || f.name }));
+      setDevice({ sharedResources: listed }); // so they show at once next time, also offline
+      return listed;
+    },
   };
+}
+
+const RELIST_MS = 10 * 60 * 1000;
+let listedAt = 0;
+
+/** Who shares their Teacher Resources with you is asked again at most every 10 minutes. */
+function relistDue(now = Date.now()) {
+  if (now - listedAt < RELIST_MS) return false;
+  listedAt = now;
+  return true;
 }
 
 /** What `current` says about a plan made of pieces: its Teacher Schedule's details. */
@@ -426,7 +447,7 @@ function scheduleInfo() {
 /** Open a Teacher Schedule with its School Year and Teacher Resources (this computer's copies first, then Drive). */
 async function openPieces(scheduleRec, { sameDocument = false } = {}) {
   const plan = new PiecePlan({ drive: scheduleRec.fileId ? driveCalls() : null, cache: cacheCalls });
-  await plan.load(scheduleRec);
+  await plan.load(scheduleRec, { shared: device.sharedResources ?? [] });
   pieces = plan;
   current = scheduleInfo();
   setDevice({ lastKey: current.key, recent: rememberPlan(device.recent, entryFor(current)) });
@@ -464,11 +485,12 @@ async function syncPieces() {
   const startText = JSON.stringify(store.state);
   const sharingBefore = sharingNow();
   const results = await pieces.syncAll();
+  const borrowedNews = await pieces.syncBorrowed({ relist: relistDue() }).catch(() => false);
   if (sharingNow() !== sharingBefore) refreshSoon(); // the sharing capsules and view-only parts follow Drive
   const loaded = results.some((r) => r.action === 'download' || r.action === 'conflict');
   const editedMeanwhile = JSON.stringify(store.state) !== startText;
   if (editedMeanwhile) useState(rebaseState(JSON.parse(startText), store.state, pieces.datas()), { sameDocument: true });
-  else if (loaded) useState(pieces.state());
+  else if (loaded || borrowedNews) useState(pieces.state(), { sameDocument: !loaded }); // colleagues' news keeps your undo
   if (editedMeanwhile || saveAfterSync) {
     saveAfterSync = false;
     await pieces.save(store.state);
@@ -650,7 +672,7 @@ let mine = { key: [], state: null };
 /** Your own plan's data, also while looking at someone else's (lesson copies and reports come from it). */
 export function myPlanState() {
   if (!pieces?.own) return store.state;
-  const key = [pieces.recs.schoolYear, pieces.own.schedule, pieces.own.resources];
+  const key = [pieces.recs.schoolYear, pieces.own.schedule, pieces.own.resources, pieces.borrowed.version];
   if (key.some((rec, i) => rec !== mine.key[i])) mine = { key, state: pieces.myState() };
   return mine.state;
 }

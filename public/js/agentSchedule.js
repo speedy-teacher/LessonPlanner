@@ -22,14 +22,20 @@ function placementInfo(state, p) {
   };
 }
 
+function scheduledLesson(state, e, i, placements) {
+  const l = find(state, 'lessons', e.lessonId);
+  return {
+    entryId: e.id, position: i + 1, lesson: l?.name ?? (e.sharedFrom ? 'A colleague’s template that isn’t available right now' : undefined),
+    ...(l?.sharedFrom ? { sharedBy: l.sharedBy } : {}),
+    eval: entryCriterion(state, e, placements)?.title ?? null,
+  };
+}
+
 function weekInfo(state, cls, week) {
   const placements = placementsInWeek(state, cls, week);
   return {
     week: week.number, weekStart: week.weekStart, schoolDays: week.days.length,
-    lessons: weekLessonsFor(state, cls, week.weekStart).map((e, i) => ({
-      entryId: e.id, position: i + 1, lesson: find(state, 'lessons', e.lessonId)?.name,
-      eval: entryCriterion(state, e, placements)?.title ?? null,
-    })),
+    lessons: weekLessonsFor(state, cls, week.weekStart).map((e, i) => scheduledLesson(state, e, i, placements)),
     evalsOnCalendar: placements.map((p) => find(state, 'criteria', p.criterionId)?.title),
   };
 }
@@ -80,7 +86,7 @@ export const SCHEDULE_COMMANDS = {
     },
   },
   addLessonToWeek: {
-    summary: 'Put a lesson on a class\'s Lesson Schedule in a week.',
+    summary: "Put a lesson on a class's Lesson Schedule in a week: your own template, or a colleague's shared with you (listLessons shows sharedBy). Its copy fills in your own details and pictures.",
     changes: true,
     params: { ...CLASS, week: WEEK, lesson: ['Lesson name', true], eval: ['The eval it is taught for'], position: ['Place in the week (1 = first); default last'] },
     run: (state, a) => {

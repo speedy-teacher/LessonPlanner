@@ -19,7 +19,8 @@ export function scanSlides(presentation) {
 
 /** Lessons whose template (a Google Slides file) hasn't been read since it last changed: [{ lesson, location }]. */
 export function scansNeeded(state, yearId) {
-  return state.lessons.filter((l) => l.yearId === yearId).map((lesson) => ({ lesson, location: findLocation(lesson, 'drive') }))
+  // A colleague's template is scanned (and saved) by their own planner; until then its "image" detail decides.
+  return state.lessons.filter((l) => l.yearId === yearId && !l.sharedFrom).map((lesson) => ({ lesson, location: findLocation(lesson, 'drive') }))
     .filter(({ lesson, location }) => location?.mimeType === SLIDES && !isCurrent(lesson.scan, location));
 }
 

@@ -16,6 +16,8 @@ import {
   changedPieces, composeState, emptyPiece, fromPieceFile, keepViewOnly, PIECE_NAMES, PIECES, pieceOf, splitState, toPieceFile,
 } from './pieces.js';
 import { mergePiece } from './planMerge.js';
+import { BorrowedResources } from './borrowedPieces.js';
+import { keepBorrowed, sourcesUsed } from './sharedLessons.js';
 import { shouldKeepRevision, syncAction } from './workspaceFile.js';
 
 export const driveKey = (fileId) => `drive:${fileId}`;
@@ -43,17 +45,45 @@ export class PiecePlan {
     this.own = null; // your own schedule + resources, kept aside while looking at a teammate's
     this.viewing = null; // { schedule, resources }: { name, fileId } of whose piece is shown (null = yours)
     this.chosen = {}; // { resources: { key, fileId } } when a Teacher Resources was picked on its own
+    this.borrowed = new BorrowedResources({ drive, cache }); // colleagues' templates for your Lesson Schedule
   }
 
   /** Open from the Teacher Schedule's record; the other pieces come from this computer's copies. */
-  async load(scheduleRec) {
+  async load(scheduleRec, { shared = [] } = {}) {
     this.recs.schedule = scheduleRec;
     for (const name of ['schoolYear', 'resources']) {
       const link = this.link(name);
       this.recs[name] = link ? await this.cache.get(link.key).catch(() => null) ?? null : null;
       this.setMissing(name, link ? (this.recs[name] ? null : 'not_loaded') : 'not_linked');
     }
+    await this.borrowed.want(this.borrowWanted(shared));
     return this;
+  }
+
+  // ---------- colleagues' templates (borrowedPieces.js) ----------
+
+  /** Which colleagues' Teacher Resources to keep: those shared with you and those your schedule uses. */
+  borrowWanted(listed = this.borrowed.listed) {
+    const mine = this.own ?? this.recs;
+    const used = mine.schedule?.data ? sourcesUsed({ weekLessons: mine.schedule.data.weekLessons }) : [];
+    return { listed, used, ownFileIds: [mine.resources?.fileId ?? this.link('resources')?.fileId].filter(Boolean) };
+  }
+
+  /**
+   * Bring colleagues' templates up to date (`relist` = ask Google Drive again who shares with you first).
+   * Resolves to true when the templates shown changed.
+   */
+  async syncBorrowed({ relist = false } = {}) {
+    const before = JSON.stringify(this.borrowed.list());
+    if (relist) await this.borrowed.relist();
+    await this.borrowed.want(this.borrowWanted());
+    await this.borrowed.sync();
+    return JSON.stringify(this.borrowed.list()) !== before;
+  }
+
+  /** { fileId: why } for colleagues' Teacher Resources that can't be had (see sharedLessons.js sharedWhy). */
+  borrowStatus() {
+    return this.borrowed.status();
   }
 
   link(name) {
@@ -133,7 +163,8 @@ export class PiecePlan {
   }
 
   datas() {
-    return Object.fromEntries(PIECE_NAMES.map((name) => [name, this.recs[name]?.data ?? null]));
+    const datas = Object.fromEntries(PIECE_NAMES.map((name) => [name, this.recs[name]?.data ?? null]));
+    return { ...datas, borrowed: this.borrowed.list() };
   }
 
   /** The combined data the app works on. */
@@ -154,9 +185,11 @@ export class PiecePlan {
 
   /** A change, minus anything it did to pieces that can't be changed. See pieces.js keepViewOnly. */
   guard(before, after) {
+    // Colleagues' templates are only ever used, never changed.
+    const kept = keepBorrowed(before, after);
     const readOnly = this.readOnly();
-    if (!readOnly.length) return { state: after, blocked: [] };
-    return keepViewOnly(before, after, readOnly, this.datas());
+    const result = readOnly.length ? keepViewOnly(before, kept.state, readOnly, this.datas()) : { state: kept.state, blocked: [] };
+    return kept.touched ? { ...result, blocked: [...result.blocked, 'borrowed'] } : result;
   }
 
   /** Keep the combined data's changes on this computer. Returns the names of the pieces that changed. */
@@ -296,7 +329,7 @@ export function rebaseState(start, mine, pieces) {
   for (const name of PIECE_NAMES) {
     out[name] = pieces[name] ? mergePiece(PIECES[name].collections, was[name], now[name], pieces[name]).state : null;
   }
-  return composeState(out);
+  return composeState({ ...out, borrowed: pieces.borrowed });
 }
 
 /**

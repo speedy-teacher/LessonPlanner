@@ -5,8 +5,18 @@ import { AUTO_FIELDS, AUTO_FIELD_PLACEHOLDERS, duplicateLesson, editLesson, less
 import { addDeck, addFolder, decksIn, foldersIn, moveDeck, moveFolder, removeFolder } from './library.js';
 import { filterLessons } from './weekPlan.js';
 import {
-  evalOf, fail, folder, grade, idsOf, image, instrument, lesson, lessonInfo, listOf, outcome, patchFrom, shelfOf, text, year,
+  evalOf, fail, folder, grade, idsOf, image, instrument, lesson, lessonInfo, listOf, outcome, ownLesson, patchFrom, same, shelfOf, text, year,
 } from './agentHelpers.js';
+import { lessonAuthors, MINE } from './sharedLessons.js';
+
+/** "me", "everyone" or the name of a colleague who shared their templates → the palette's "From" value. */
+function authorOf(state, ref) {
+  if (ref === undefined || ref === null || ref === '' || same(ref, 'everyone')) return '';
+  if (same(ref, 'me') || same(ref, 'mine')) return MINE;
+  const authors = lessonAuthors(state.lessons);
+  const found = authors.find((a) => same(a.name, ref) || a.id === ref);
+  return found?.id ?? fail(`No one called "${ref}" shares lesson templates with you. Choices: me, everyone${authors.map((a) => `, ${a.name}`).join('')}.`);
+}
 
 /** Auto-fill details by key ("school") or label ("Week number"). */
 function autoFieldKeys(value) {
@@ -44,9 +54,12 @@ const KIND = ['"lessons" (default) or "images"'];
 export const LESSON_COMMANDS = {
   listLessons: {
     summary: 'Lesson templates (slide decks), optionally narrowed. With grade/outcome/eval, only lessons taught in matching evals, in teaching order.',
-    params: { search: ['Words in the lesson name or category'], category: ['Category name'], grade: ['Grade name'], outcome: ['Outcome code or title'], eval: ['Eval title'] },
+    params: {
+      search: ['Words in the lesson name or category'], category: ['Category name'], grade: ['Grade name'], outcome: ['Outcome code or title'], eval: ['Eval title'],
+      from: ['Whose templates: "me", "everyone" (default) or a colleague who shared their Teacher Resources (their templates show sharedBy)'],
+    },
     run: (state, a) => filterLessons(state, year(state).id, {
-      search: a.search ?? '', category: a.category ?? '',
+      search: a.search ?? '', category: a.category ?? '', author: authorOf(state, a.from),
       gradeId: a.grade ? grade(state, a.grade).id : '',
       outcomeId: a.outcome ? outcome(state, a.outcome).id : '',
       criterionId: a.eval ? evalOf(state, a.eval).id : '',
@@ -77,7 +90,7 @@ export const LESSON_COMMANDS = {
       filledIn: [`The full list of details filled into its copies: ${Object.keys(AUTO_FIELDS).join(', ')}`],
     },
     run: (state, a) => {
-      const l = lesson(state, a.lesson);
+      const l = ownLesson(state, a.lesson);
       const patch = patchFrom(a, { name: (v) => text(v, 'name'), category: String });
       if (a.instruments !== undefined) patch.instrumentIds = idsOf(state, a.instruments, instrument);
       if (a.filledIn !== undefined) patch.autoFields = autoFieldKeys(a.filledIn);
@@ -90,7 +103,7 @@ export const LESSON_COMMANDS = {
     changes: true,
     params: { lesson: ['Lesson name', true] },
     run: (state, a) => {
-      const copy = duplicateLesson(state, lesson(state, a.lesson).id);
+      const copy = duplicateLesson(state, ownLesson(state, a.lesson).id);
       return { id: copy.id, done: `Made ${copy.name}.` };
     },
   },
@@ -99,7 +112,7 @@ export const LESSON_COMMANDS = {
     changes: true,
     params: { lesson: ['Lesson name', true] },
     run: (state, a) => {
-      const l = lesson(state, a.lesson);
+      const l = ownLesson(state, a.lesson);
       remove(state, 'lessons', l.id);
       return { done: `Deleted the lesson ${l.name}.` };
     },

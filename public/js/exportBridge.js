@@ -15,6 +15,7 @@ import { google } from './google.js';
 import { copiesWaitFor, myPlanState, current as plan } from './workspace.js';
 import { canFillIn, driveFileId, driveOpenUrl, findLocation, googleTypeFor } from './locations.js';
 import { groupCopies, keysToDo, nextStep, safeName, SETTLE_MS, sparesFor, updateTime, wantedCopies } from './exportPlan.js';
+import { heldEntries } from './sharedLessons.js';
 import { SLIDES } from './exportGoogle.js';
 import { isShared, markShareRefused, onSharingNews } from './imageSharing.js';
 import { downloadTemplate, driveCopies } from './exportDrive.js';
@@ -227,7 +228,7 @@ async function checkBehind(year, output, status) {
   try {
     const haves = await driveCopies({ token: google.token, rootId: output.folderId, yearId: year.id }).list();
     const wants = wantedCopies(myPlanState(), year.id, { ...driveTarget(year, output), yearFolder: plan.name });
-    return { ...status, behind: keysToDo(wants, haves).length };
+    return { ...status, behind: keysToDo(wants, workable(haves)).length };
   } catch {
     return { ...status, behind: null }; // can't see the copies: say who keeps them anyway
   }
@@ -276,7 +277,7 @@ async function queueWork(target) {
 }
 
 function fillQueue(target) {
-  for (const key of keysToDo([...wanted(target).values()], bridge.haves)) {
+  for (const key of keysToDo([...wanted(target).values()], workable())) {
     if (bridge.failed.get(key) !== signature(target, key)) bridge.queue.add(key);
   }
 }
@@ -341,12 +342,22 @@ function wanted(target) {
   return bridge.wants.map;
 }
 
+/**
+ * The copies there's anything to do about: not those of entries whose colleague's template can't be had
+ * right now (not shared any more, offline…) — those are left as they are, never remade or put in the trash.
+ */
+function workable(haves = bridge.haves) {
+  const held = heldEntries(myPlanState() ?? { lessons: [], weekLessons: [] });
+  return held.size ? haves.filter((c) => !held.has(c.entryId)) : haves;
+}
+
 /** What to do next for one schedule entry (copies another job is busy with aren't reused). */
 function stepFor(target, key, busy = new Set()) {
   const wants = wanted(target);
   const want = wants.get(key) ?? null;
-  const spares = want ? sparesFor(want, bridge.haves.filter((c) => !busy.has(c.id)), new Set(wants.keys())) : [];
-  return nextStep(want, bridge.haves.filter((c) => c.entryId === key), spares);
+  const haves = workable();
+  const spares = want ? sparesFor(want, haves.filter((c) => !busy.has(c.id)), new Set(wants.keys())) : [];
+  return nextStep(want, haves.filter((c) => c.entryId === key), spares);
 }
 
 function signature(target, key) {
@@ -565,7 +576,7 @@ function warnOtherComputer(status) {
 /** How many copies your recent changes will update (only known when this computer keeps the copies). */
 function waitingCount() {
   if (!bridge.target || bridge.status.state !== 'ready') return 0;
-  return new Set([...bridge.queue, ...keysToDo([...wanted(bridge.target).values()], bridge.haves)]).size;
+  return new Set([...bridge.queue, ...keysToDo([...wanted(bridge.target).values()], workable())]).size;
 }
 
 /** While changes settle, the panel counts down to the update (and offers to do it now). */

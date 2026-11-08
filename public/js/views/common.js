@@ -6,15 +6,20 @@ import { activeYear, inYear } from '../model.js';
 import { setUi, store } from '../store.js';
 import { pieces } from '../workspace.js';
 import { whyUnavailable } from '../pieceEngine.js';
+import { ownOnly, sharedWhy } from '../sharedLessons.js';
 
 export function year() {
   return activeYear(store.state);
 }
 
-/** Records of a collection in the year being viewed. */
+/**
+ * Records of a collection in the year being viewed. Lessons are your own only: colleagues' templates
+ * show on the Lesson Schedule's list (filterLessons), never where templates are changed.
+ */
 export function current(collection) {
   const y = year();
-  return y ? inYear(store.state, collection, y.id) : [];
+  const list = y ? inYear(store.state, collection, y.id) : [];
+  return collection === 'lessons' ? ownOnly(list) : list;
 }
 
 /** Pick a remembered id if it still exists, otherwise the first one. */
@@ -138,6 +143,11 @@ export function emptyNote(text) {
  */
 export function unavailableWhy(collection, id) {
   return whyUnavailable(store.state, collection, id, pieces?.missing);
+}
+
+/** Why a Lesson Schedule entry's template can't be had (a colleague's no longer shared…), or null. */
+export function entryLessonWhy(entry) {
+  return sharedWhy(store.state, entry, pieces?.borrowStatus()) ?? unavailableWhy('lessons', entry.lessonId);
 }
 
 /** A link-style button to another record: greyed out, with the reason as its tip, when it can't be followed. */

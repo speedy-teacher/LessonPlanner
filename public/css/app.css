@@ -690,6 +690,8 @@ button.ins-tag:hover { filter: brightness(.92); box-shadow: 0 0 0 1.5px var(--in
 .ls-item-name .count { --chip: var(--royal); background: var(--royal-soft); }
 .ls-item-meta { display: flex; gap: 4px; flex-wrap: wrap; }
 .ls-cat { font-size: 11px; color: var(--ink-soft); font-weight: 700; }
+.ls-by { font-size: 11px; font-weight: 700; color: var(--ink); background: var(--gold-soft); border: 1px solid var(--gold); border-radius: 999px; padding: 0 7px; }
+.ls-shared { font-size: 11px; }
 @media (max-width: 1000px) {
   .ls-layout { grid-template-columns: 1fr; }
   .ls-palette { position: static; max-height: none; }

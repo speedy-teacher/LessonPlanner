@@ -11,7 +11,8 @@ import {
 } from '../weekPlan.js';
 import { commit, setUi, store, undo } from '../store.js';
 import { formatRange, todayISO } from '../dates.js';
-import { contextMenu, current, emptyNote, gradePills, instrumentTag, pickId, pills, unavailableWhy, year } from './common.js';
+import { contextMenu, current, emptyNote, entryLessonWhy, gradePills, instrumentTag, pickId, pills, year } from './common.js';
+import { isBorrowed, lessonAuthors, MINE } from '../sharedLessons.js';
 import { canChange } from './viewOnly.js';
 import { driveOpenLabel, driveOpenUrl, findLocation } from '../locations.js';
 import { copiesOfLesson, copyFileOfEntry } from '../exportBridge.js';
@@ -169,8 +170,8 @@ function entryCard(entry, index, week, placements) {
   const outcome = entryOutcome(store.state, entry, placements);
   const missing = missingInstruments(store.state, entry, week).map((id) => name('instruments', id));
   // A template that can't be had says why (not shared with you, gone…) instead of just going blank.
-  const gone = lesson ? null : unavailableWhy('lessons', entry.lessonId);
-  const tip = [lesson?.name ?? gone, outcome ? outcomeLabel(outcome) : 'Not part of an eval this week',
+  const gone = lesson ? null : entryLessonWhy(entry);
+  const tip = [lesson?.name ?? gone, sharedNote(lesson), outcome ? outcomeLabel(outcome) : 'Not part of an eval this week',
     missing.length ? `⚠ ${missing.join(', ')} isn’t at the school this week` : null].filter(Boolean).join('\n');
   return h('div', {
     class: `ls-card ${missing.length ? 'has-warn' : ''}`, draggable: 'true',
@@ -182,8 +183,16 @@ function entryCard(entry, index, week, placements) {
   h('div', { class: 'ls-card-caption' },
     h('span', { class: 'slide-num' }, index + 1),
     missing.length ? h('span', { class: 'warn', 'aria-label': 'Instrument warning' }, '⚠') : null,
+    sharedMark(lesson),
     h('span', { class: 'chip-title' }, lesson?.name)),
   iconButton('×', 'Take off this week', () => takeOff(entry), 'ls-x'));
+}
+
+const sharedMark = (lesson) => (isBorrowed(lesson) ? h('span', { class: 'ls-shared', 'aria-label': sharedNote(lesson) }, '🤝') : null);
+
+/** "From <name>'s Teacher Resources" for a colleague's template (null for your own). */
+function sharedNote(lesson) {
+  return isBorrowed(lesson) ? `🤝 From ${lesson.sharedBy}’s Teacher Resources (your copy fills in your own details and pictures)` : null;
 }
 
 /** Clicking a lesson: go to its template, open it or this week's copy, or take it off the week. */
@@ -194,7 +203,8 @@ function cardMenu(e, entry, lesson) {
   const open = (url) => window.open(url, '_blank', 'noopener');
   contextMenu(e, [
     {
-      icon: '🖼️', label: 'Go to the lesson template', disabled: unavailableWhy('lessons', entry.lessonId),
+      icon: '🖼️', label: 'Go to the lesson template',
+      disabled: isBorrowed(lesson) ? `Shared by ${lesson.sharedBy}: only they can change it.` : entryLessonWhy(entry),
       run: () => setUi({ tab: 'lessons', lessonId: lesson.id, deckFolderId: lesson.folderId, lessonSearch: '' }),
     },
     template ? { icon: '☁️', label: `${driveOpenLabel(template, 'Template')} ↗`, run: () => open(driveOpenUrl(template)) } : null,
@@ -255,7 +265,10 @@ let paletteScroll = 0;
 
 function filters() {
   const ui = store.ui;
-  return { search: ui.lsSearch || '', category: ui.lsCategory || '', gradeId: ui.lsGrade || '', outcomeId: ui.lsOutcome || '', criterionId: ui.lsEval || '' };
+  return {
+    search: ui.lsSearch || '', category: ui.lsCategory || '', gradeId: ui.lsGrade || '', outcomeId: ui.lsOutcome || '', criterionId: ui.lsEval || '',
+    author: ui.lsAuthor || '',
+  };
 }
 
 function palette(ctx) {
@@ -292,11 +305,23 @@ function filterSelects(ctx, f) {
   const categories = [...new Set(inYear(store.state, 'lessons', ctx.cls.yearId).map((l) => l.category).filter(Boolean))].sort();
   const anyOn = Object.entries(f).some(([k, v]) => k !== 'search' && v);
   return h('div', { class: 'ls-filters' },
+    authorSelect(f.author),
     filterSelect('Grade', 'lsGrade', f.gradeId, ctx.grades.map((g) => [g.id, g.name])),
     filterSelect('Outcome', 'lsOutcome', f.outcomeId, outcomes.map((o) => [o.id, outcomeLabel(o)])),
     filterSelect('Eval', 'lsEval', f.criterionId, criteria.map((c) => [c.id, evalLabel(store.state, c)])),
     categories.length ? filterSelect('Category', 'lsCategory', f.category, categories.map((c) => [c, c])) : null,
-    anyOn ? h('button', { class: 'btn small light', onclick: () => setUi({ lsGrade: '', lsOutcome: '', lsEval: '', lsCategory: '' }) }, 'Clear filters') : null);
+    anyOn ? h('button', { class: 'btn small light', onclick: () => setUi({ lsGrade: '', lsOutcome: '', lsEval: '', lsCategory: '', lsAuthor: '' }) }, 'Clear filters') : null);
+}
+
+/** "From": everyone's templates, just yours, or one colleague's (shown once someone shares theirs with you). */
+function authorSelect(value) {
+  const authors = lessonAuthors(store.state.lessons);
+  if (!authors.length) return null;
+  return h('label', { class: 'mini-select', 'data-tour': 'ls-author', 'data-tip': 'Whose lesson templates to show: yours, or a colleague’s who shared their Teacher Resources with you' }, 'From',
+    h('select', { dataset: { key: 'ls-author', look: '' }, onchange: (e) => setUi({ lsAuthor: e.target.value }) },
+      h('option', { value: '' }, 'Everyone'),
+      h('option', { value: MINE, selected: value === MINE }, 'Just mine'),
+      authors.map((a) => h('option', { value: a.id, selected: a.id === value }, `🤝 ${a.name}`))));
 }
 
 function paletteItem(ctx, { lesson, criterionId }) {
@@ -313,7 +338,9 @@ function paletteItem(ctx, { lesson, criterionId }) {
   h('div', { class: 'ls-item-text' },
     h('div', { class: 'ls-item-name' }, h('span', {}, lesson.name),
       used ? h('span', { class: 'count', title: `In this class’s schedule ${used}×` }, used) : null),
-    h('div', { class: 'ls-item-meta' }, lesson.category ? h('span', { class: 'ls-cat' }, lesson.category) : null,
+    h('div', { class: 'ls-item-meta' },
+      isBorrowed(lesson) ? h('span', { class: 'ls-by', 'data-tip': sharedNote(lesson) }, `🤝 ${lesson.sharedBy}`) : null,
+      lesson.category ? h('span', { class: 'ls-cat' }, lesson.category) : null,
       lessonInstruments(store.state, lesson).map((i) => instrumentTag(i)))));
 }
 

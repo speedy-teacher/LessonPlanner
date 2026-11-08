@@ -12,6 +12,7 @@
 // Pure logic, shared by the browser app and the Node tests.
 
 import { COLLECTIONS, emptyState, normalize, PALETTE, SCHEMA_VERSION } from './model.js';
+import { borrowedLessons, ownOnly } from './sharedLessons.js';
 
 export const PIECE_NAMES = ['schoolYear', 'schedule', 'resources'];
 
@@ -66,7 +67,7 @@ export function splitState(state, previous = {}) {
   const pieces = {};
   for (const name of PIECE_NAMES) {
     const piece = emptyPiece(name, previous[name]?.meta);
-    for (const c of PIECES[name].collections) piece[c] = state[c].map((r) => fileRecord(name, c, r));
+    for (const c of PIECES[name].collections) piece[c] = savedRecords(state, c).map((r) => fileRecord(name, c, r));
     pieces[name] = piece;
   }
   Object.assign(pieces.schedule, { settings: structuredClone(state.settings ?? {}), ...teacherFields(state, previous.schedule) });
@@ -93,6 +94,9 @@ function teacherFields(state, previous) {
   };
 }
 
+/** Colleagues' templates (sharedLessons.js) are never saved into your pieces. */
+const savedRecords = (state, collection) => (collection === 'lessons' ? ownOnly(state.lessons) : state[collection]);
+
 function fileRecord(piece, collection, record) {
   const out = structuredClone(record);
   for (const field of TEACHER_FIELDS[collection] ?? []) delete out[field];
@@ -115,11 +119,13 @@ function colorsOf(records) {
 /**
  * The combined planner data the app works on. Any piece may be missing (null): its collections are
  * empty. Records of the teacher's pieces get the School Year's year; grade/instrument colors are the
- * teacher's own, or a default color.
+ * teacher's own, or a default color. `pieces.borrowed` = colleagues' Teacher Resources whose templates
+ * are added too ([{ fileId, owner, lessons }], see sharedLessons.js).
  */
 export function composeState(pieces = {}) {
   const state = emptyState();
   for (const name of PIECE_NAMES) Object.assign(state, collectionsOf(name, pieces[name]));
+  state.lessons.push(...borrowedLessons(pieces.borrowed, state.lessons));
   const teacher = normalizePiece('schedule', pieces.schedule ?? {});
   const yearId = state.years[0]?.id ?? teacher.meta.year?.id ?? null;
   stampYear(state, yearId);
@@ -196,7 +202,7 @@ export function keepViewOnly(before, after, readOnly, previous = {}) {
   const blocked = changed.filter((name) => readOnly.includes(name));
   if (!blocked.length) return { state: after, changed, blocked };
   for (const name of blocked) now[name] = was[name];
-  return { state: composeState(now), changed: changed.filter((name) => !blocked.includes(name)), blocked };
+  return { state: composeState({ ...now, borrowed: previous.borrowed }), changed: changed.filter((name) => !blocked.includes(name)), blocked };
 }
 
 /** The Drive file name of a piece, e.g. "School Year 2026–27". */
