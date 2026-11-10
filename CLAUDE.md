@@ -204,8 +204,8 @@ A browser app for a (non-technical) elementary music teacher to plan a school ye
 - Weekly: `reportBridge.js`, run by `exportBridge.js` after the copy queue is empty (same lock, Drive output only): one
   "Week n report" per week folder that has wanted copies (`weeklyReports` + `reportSteps` reconcile create/update/remove).
 - Kept up to date: Make with `manual.keepUpToDate` ticked adds each report to `year.reports.watched` ([{ id, name, schoolId, gradeIds, perGrade, fromWeek, toWeek, folder }],
-  `watchedEntry`/`withWatched`). `reportBridge.js` remakes every watched report (`watchedReport`; kind `manual`, Drive file found by key = school[+grade], not
-  the weeks) after the copies, Drive output only, re-listing the folder before making one (no twins). Remove on the Reports tab only drops it from the
+  `watchedEntry`/`withWatched`). `reportBridge.js` remakes every watched report (`watchedReport`; kind `manual`, Drive file found by key = school[+grade] + weeks, so
+  another week's report is its own file and never changes an earlier one; `sameReport` also finds an older weekless-key file by its name) after the copies, Drive output only, re-listing the folder before making one (no twins). Remove on the Reports tab only drops it from the
   list (+ notice: the Drive file is kept). Make fetches the copies fresh so every lesson links. Sheet links must be `textFormatRuns` (a link in the
   cell format is ignored); `LAYOUT_VERSION` in `reportHash` rewrites reports when the layout changes.
 - Reports tab (`views/reports.js`, `css/reports.css`): weeks range, schools/grades toggles, one file per school (tab per grade)

@@ -142,7 +142,7 @@ test('Reports tab: one file per school with a tab per grade, or one file per gra
   const again = manualReports(t.s, t.year.id, { manual: { ...manual, perGrade: true, schoolIds: [t.schoolA.id] }, label: '', copyOf: () => null });
   assert.equal(again[0].key, perGrade[0].key, 'making the same report again finds the same file');
   const shifted = manualReports(t.s, t.year.id, { manual: { ...manual, fromWeek: 4, toWeek: 5, perGrade: true, schoolIds: [t.schoolA.id] }, label: '', copyOf: () => null });
-  assert.equal(shifted[0].key, perGrade[0].key, 'other weeks: the same file, brought up to date');
+  assert.notEqual(shifted[0].key, perGrade[0].key, 'other weeks: a file of their own (an earlier week’s file is never changed)');
   assert.notEqual(shifted[0].name, perGrade[0].name);
 });
 

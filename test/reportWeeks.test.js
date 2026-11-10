@@ -103,3 +103,23 @@ test('a month-long report stays about its own weeks too', async () => {
     'School A – Weeks 4–7 report': ['Song'],
   });
 });
+
+test('a Sheet made before reports were kept per week is still found for its own weeks, never for others', async () => {
+  const t = setup();
+  t.lesson('Beat', WEEK3);
+  t.lesson('Song', WEEK4);
+  // Made by the older planner: labelled without its weeks, and on the list with a fromWeek/toWeek only.
+  const manual = { ...settingsOf(t).manual, fromWeek: 4, toWeek: 4, schoolIds: [t.school.id], gradeIds: [t.k.id] };
+  const [file] = manualReports(t.s, t.year.id, { ...settingsOf(t), manual, copyOf: () => null });
+  await makeReports({ send: t.g.send, yearId: t.year.id, files: [{ ...file, key: file.oldKey }], folderId: FOLDER.folderId });
+  const older = { ...watchedEntry(manual, file, FOLDER), id: 'olderEntry' };
+  update(t.s, 'years', t.year.id, { reports: { weekly: false, watched: [older] } });
+
+  t.lesson('Dance', WEEK4);
+  await keepUpToDate(t);
+  assert.equal(t.g.files.size, 1, 'the same Sheet is updated, not a second one made');
+  assert.deepEqual(sheets(t), { 'School A – Week 4 report': ['Song', 'Dance'] });
+
+  await makeAndKeep(t, 3);
+  assert.deepEqual(sheets(t), { 'School A – Week 3 report': ['Beat'], 'School A – Week 4 report': ['Song', 'Dance'] });
+});

@@ -1,9 +1,10 @@
 // Making the reports chosen on the Reports tab, in a Google Drive folder the teacher picks
 // (browser only). Making the same report again (same school, grades and weeks, same folder)
-// updates that file instead of making another one.
+// updates that file instead of making another one; other weeks get a file of their own.
 
 import { driveCopies, driveSender } from './exportDrive.js';
 import { driveReports, reportUrl } from './reportSheets.js';
+import { sameReport } from './reportPlan.js';
 
 const MANUAL = 'manual';
 
@@ -22,7 +23,7 @@ export async function makeReports({ token, yearId, files, folderId, send = drive
   const haves = await reports.list(MANUAL, { folderId });
   const made = [];
   for (const file of files) {
-    const have = haves.find((h) => h.key === file.key);
+    const have = sameReport(haves, file);
     const done = have ? await reports.update(MANUAL, have, file, folderId) : await reports.create(MANUAL, file, folderId);
     made.push({ name: done.name, url: reportUrl(done.id), updated: Boolean(have) });
   }

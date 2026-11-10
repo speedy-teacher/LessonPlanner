@@ -15,7 +15,7 @@ import { schoolWeeks } from '../weekPlan.js';
 import { showNotice } from '../notices.js';
 import {
   changedReports, copyFinder, currentWeekNumber, DEFAULT_LABEL, LABEL_WORDS, manualReports, reportFolder, reportRows, reportSettings, reportWidth,
-  watchedEntry, watchedReport, withWatched,
+  sameReport, watchedEntry, watchedReport, withWatched,
 } from '../reportPlan.js';
 import { listDriveCopies, makeReports } from '../reportMaker.js';
 import { copyStatus, keptReportFiles, knownCopies, recheckCopies, weeklyReportFiles } from '../exportBridge.js';
@@ -244,7 +244,7 @@ function keepStatus() {
 function watchedRow(entry, found, look) {
   const file = watchedReport(store.state, year().id, entry, look);
   const name = file?.name ?? entry.name;
-  const there = found.find((f) => f.folderId === entry.folder.folderId && f.key === file?.key);
+  const there = file && sameReport(found.filter((f) => f.folderId === entry.folder.folderId), file);
   return h('li', { class: 'report-watched' },
     there ? h('a', { href: there.url, target: '_blank', rel: 'noopener' }, `📄 ${name}`) : h('span', {}, `📄 ${name}`),
     h('span', { class: 'hint' }, ` ☁️ ${entry.folder.name}${file ? '' : ' · its school or grades are gone'}`),

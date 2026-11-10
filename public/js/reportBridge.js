@@ -6,7 +6,7 @@
 import { activeYear, find } from './model.js';
 import { todayISO } from './dates.js';
 import {
-  copyFinder, currentWeekNumber, reportSettings, reportSteps, watchedReport, weeklyReports,
+  copyFinder, currentWeekNumber, reportSettings, reportSteps, sameReport, watchedReport, weeklyReports,
 } from './reportPlan.js';
 import { driveReports, reportUrl } from './reportSheets.js';
 
@@ -58,7 +58,8 @@ export function weeklyReportKeeper(adapter, yearId) {
       const found = keeper.manualHaves.get(entry.folder.folderId);
       const want = found && watchedReport(state, yearId, entry, context);
       if (!want) return [];
-      return reportSteps([want], found.filter((h) => h.key === want.key))
+      const have = sameReport(found, want); // (one made before reports were kept per week gets its new key on update)
+      return reportSteps([want], have ? [{ ...have, key: want.key }] : [])
         .filter((s) => s.kind !== 'remove').map((s) => ({ ...s, group: MANUAL, folderId: entry.folder.folderId }));
     });
   };
@@ -87,7 +88,7 @@ export function weeklyReportKeeper(adapter, yearId) {
     let current = have;
     if (kind === 'create') {
       keeper.manualHaves.set(folderId, await files.list(MANUAL, { folderId }));
-      current = keeper.manualHaves.get(folderId).find((h) => h.key === want.key);
+      current = sameReport(keeper.manualHaves.get(folderId), want);
     }
     const made = current ? await files.update(MANUAL, current, want, folderId) : await files.create(MANUAL, want, folderId);
     keeper.manualHaves.set(folderId, [...keeper.manualHaves.get(folderId).filter((h) => h.id !== made.id && h.key !== want.key), made]);

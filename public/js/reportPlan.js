@@ -454,15 +454,25 @@ export function reportFolder(year) {
  */
 export function watchedEntry(manual, file, folder) {
   const layout = fileLayout(manual);
+  // The weeks are remembered as numbers (not "this week"), so the report stays about the weeks it was made for.
   const entry = {
     name: file.name, schoolId: file.schoolId, gradeIds: file.gradeIds, perGrade: layout === 'grade',
-    fromWeek: manual.fromWeek, toWeek: manual.toWeek, folder: { folderId: folder.folderId, name: folder.name },
+    fromWeek: file.fromWeek ?? manual.fromWeek, toWeek: file.toWeek ?? manual.toWeek, folder: { folderId: folder.folderId, name: folder.name },
   };
+  const weeks = [entry.fromWeek, entry.toWeek];
   if (layout !== 'together') {
-    return { id: fingerprint(JSON.stringify([entry.schoolId, entry.gradeIds, entry.perGrade, entry.folder.folderId])), ...entry };
+    return { id: fingerprint(JSON.stringify([entry.schoolId, entry.gradeIds, entry.perGrade, entry.folder.folderId, weeks])), ...entry };
   }
   const together = { ...entry, layout, direction: manual.direction ?? 'down', schoolIds: file.schoolIds };
-  return { id: fingerprint(JSON.stringify([layout, together.schoolIds, together.gradeIds, together.folder.folderId])), ...together };
+  return { id: fingerprint(JSON.stringify([layout, together.schoolIds, together.gradeIds, together.folder.folderId, weeks])), ...together };
+}
+
+/**
+ * The file in Drive that is this report: the one with its key, else one made before reports were kept per week
+ * (`oldKey`, same school and grades) that still has its name — i.e. still shows these same weeks.
+ */
+export function sameReport(haves, want) {
+  return haves.find((h) => h.key === want.key) ?? haves.find((h) => h.key === want.oldKey && h.name === want.name) ?? null;
 }
 
 /** The list with `entries` added (one already there, made the same way, is replaced). */
@@ -488,8 +498,9 @@ export function manualWeeks(year, manual, defaultWeek = 1) {
 /**
  * The files a manual report makes (see `layout` at the top): one per school (a tab per grade), one per
  * school and grade, or one with a tab per school showing every grade. Schools and grades not chosen =
- * every one. Returns [{ key, name, schoolId, schoolIds?, gradeIds, tabs, hash }]
- * (the key finds the same file again — whatever the weeks — so making the report again updates it).
+ * every one. Returns [{ key, oldKey, name, schoolId, schoolIds?, gradeIds, fromWeek, toWeek, tabs, hash }]
+ * (the key finds the same file again — same schools, grades and weeks — so making the report again updates it,
+ * while a report for other weeks is a file of its own; `oldKey` = the key before weeks counted, see sameReport).
  */
 export function manualReports(state, yearId, { manual, copyOf, defaultWeek, ...look }) {
   const year = find(state, 'years', yearId);
@@ -502,17 +513,22 @@ export function manualReports(state, yearId, { manual, copyOf, defaultWeek, ...l
   const tabOf = (school, g, extra = {}) => reportTab(state, { yearId, schoolId: school.id, gradeId: g.id }, weeks, { ...look, ...extra, copyOf, numbers });
   const layout = fileLayout(manual);
   if (layout === 'together') return [togetherFile({ manual, schools, grades, weeks, footer: look.footer }, tabOf)];
+  const span = weeksSpan(weeks);
   const groups = layout === 'grade' ? grades.map((g) => [g]) : [grades];
   return schools.flatMap((school) => groups.map((group) => {
     const tabs = group.map((g) => tabOf(school, g));
     const who = layout === 'grade' ? `${school.name} – ${group[0].name}` : school.name;
+    const ids = [school.id, group.map((g) => g.id)];
     const file = {
-      key: fingerprint(JSON.stringify([school.id, group.map((g) => g.id)])), place: '',
-      name: safeName(`${who} – ${weeksTitle(weeks)} report`), schoolId: school.id, gradeIds: group.map((g) => g.id), tabs,
+      key: fingerprint(JSON.stringify([...ids, span])), oldKey: fingerprint(JSON.stringify(ids)), place: '',
+      name: safeName(`${who} – ${weeksTitle(weeks)} report`), schoolId: school.id, gradeIds: group.map((g) => g.id), ...span, tabs,
     };
     return { ...file, hash: reportHash(file) };
   }));
 }
+
+/** The first and last week number a report covers. */
+const weeksSpan = (weeks) => ({ fromWeek: weeks[0].number, toWeek: weeks.at(-1).number });
 
 /** The one file of a report with every grade together: a tab per school, its grades down or across. */
 function togetherFile({ manual, schools, grades, weeks, footer }, tabOf) {
@@ -521,9 +537,11 @@ function togetherFile({ manual, schools, grades, weeks, footer }, tabOf) {
     footer: footer !== false, parts: grades.map((g) => tabOf(school, g, { footer: false })),
   }));
   const who = manual.schoolIds.length ? schools.map((s) => s.name).join(' & ') : 'All schools';
+  const ids = ['together', manual.schoolIds, manual.gradeIds];
+  const span = weeksSpan(weeks);
   const file = {
-    key: fingerprint(JSON.stringify(['together', manual.schoolIds, manual.gradeIds])), place: '',
-    name: safeName(`${who} – all grades – ${weeksTitle(weeks)} report`), schoolId: null, schoolIds: manual.schoolIds, gradeIds: manual.gradeIds, tabs,
+    key: fingerprint(JSON.stringify([...ids, span])), oldKey: fingerprint(JSON.stringify(ids)), place: '',
+    name: safeName(`${who} – all grades – ${weeksTitle(weeks)} report`), schoolId: null, schoolIds: manual.schoolIds, gradeIds: manual.gradeIds, ...span, tabs,
   };
   return { ...file, hash: reportHash(file) };
 }
