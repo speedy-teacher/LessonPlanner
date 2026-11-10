@@ -15,10 +15,10 @@ export async function listDriveCopies({ token, year }) {
 
 /**
  * Make or update each report file (reportPlan.js manualReports) in `folderId`.
- * Returns [{ name, url, updated }] (updated = an earlier one was brought up to date).
+ * Returns [{ name, url, updated }] (updated = an earlier one was brought up to date). `send` = for tests.
  */
-export async function makeReports({ token, yearId, files, folderId }) {
-  const reports = driveReports({ send: driveSender({ token }), yearId });
+export async function makeReports({ token, yearId, files, folderId, send = driveSender({ token }) }) {
+  const reports = driveReports({ send, yearId });
   const haves = await reports.list(MANUAL, { folderId });
   const made = [];
   for (const file of files) {
