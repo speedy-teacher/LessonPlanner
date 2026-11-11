@@ -6,7 +6,7 @@
 //
 // Pure logic, shared by the browser and the Node tests.
 
-import { addDeck, addImage } from '../library.js';
+import { addDeck, addFolder, addImage } from '../library.js';
 import { driveLocation } from '../locations.js';
 import { inYear } from '../model.js';
 
@@ -15,15 +15,25 @@ const FOLDERS = { lessons: 'deckFolders', images: 'imageFolders' };
 const driveIdOf = (record) => record.locations?.find((l) => l.kind === 'drive')?.fileId ?? null;
 
 /**
- * `made` = { lessons: [{ fileId, mimeType, modifiedTime, name, folderId, fields }],
+ * `made` = { lessons: [{ fileId, mimeType, modifiedTime, name, folderId, folderDriveId, folderName, fields }],
  *            images: [{ fileId, mimeType, modifiedTime, name, folderId }] }
- * (folderId = the planner's folder record). Changes `state`; returns { lessons, images } = the records.
+ * (folderId = the planner's folder record; null + folderDriveId = a Drive folder the teacher picked, made into one). Changes `state`; returns { lessons, images } = the records.
  */
 export function addTemplates(state, made, { yearId, now = new Date().toISOString() }) {
+  const placed = (item) => (!item.folderId && item.folderDriveId ? { ...item, folderId: folderFor(state, item, { yearId, now }).id } : item);
   return {
-    lessons: (made.lessons ?? []).map((item) => put(state, 'lessons', item, { yearId, now })),
+    lessons: (made.lessons ?? []).map((item) => put(state, 'lessons', placed(item), { yearId, now })),
     images: (made.images ?? []).map((item) => put(state, 'images', item, { yearId, now })),
   };
+}
+
+/** The Lesson Templates folder for a Drive folder the teacher picked: the one already there, else a new one. */
+function folderFor(state, item, { yearId, now }) {
+  const known = inYear(state, 'deckFolders', yearId).find((f) => driveIdOf(f) === item.folderDriveId);
+  return known ?? addFolder(state, {
+    yearId, name: item.folderName || 'Templates', watch: false,
+    locations: [driveLocation({ fileId: item.folderDriveId, mimeType: 'application/vnd.google-apps.folder' }, now)],
+  });
 }
 
 function put(state, collection, item, { yearId, now }) {

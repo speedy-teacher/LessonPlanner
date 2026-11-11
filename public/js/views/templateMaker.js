@@ -8,7 +8,7 @@
 import { h, tour } from '../dom.js';
 import { canReadFolders, google } from '../google.js';
 import { apiKey, clientId } from '../deviceSettings.js';
-import { pickFilesFromDrive } from '../drive.js';
+import { pickFilesFromDrive, pickFolderFromDrive } from '../drive.js';
 import { copyPace } from '../copyPace.js';
 import { showNotice } from '../notices.js';
 import { commit, setUi, store } from '../store.js';
@@ -26,10 +26,12 @@ let session = null;
 let body = null;
 let openFor = null; // the school year the session was made for
 let pickFiles = pickFilesFromDrive; // Google's file picker (the browser test hands in a pretend one)
+let pickFolder = pickFolderFromDrive;
 
-/** For the browser test (test/e2e/templateMaker.e2e.js) only: choose files without Google's picker. */
-export function usePicker(fn) {
+/** For the browser test (test/e2e/templateMaker.e2e.js) only: choose files and folders without Google's picker. */
+export function usePicker(fn, folderFn = null) {
   pickFiles = fn ?? pickFilesFromDrive;
+  pickFolder = folderFn ?? pickFolderFromDrive;
 }
 
 function sessionNow() {
@@ -132,11 +134,13 @@ function setupPart(s) {
       h('button', { class: 'btn small light', onclick: () => s.checkSetup() }, '🔄 Check again'));
   }
   const { chosen } = setup;
-  const locked = files.length > 0;
+  const picturesLocked = !s.canChoose('imageFolder');
   return h('div', { class: 'tm-setup', 'data-tour': 'tm-folders' },
-    setupRow('📁', 'Templates go in', folderPick(s, 'templateFolder', chosen.templateFolders, chosen.templateFolder, locked), chosen.several.templateFolder),
-    setupRow('🖼️', 'Pictures go in', picturesPick(s, chosen, locked), chosen.several.imageFolder),
-    locked ? h('p', { class: 'tm-hint small' }, 'To change these, take the files below out first.') : null);
+    setupRow('📁', 'Templates go in', templatesPick(s, chosen), chosen.several.templateFolder),
+    setupRow('🖼️', 'Pictures go in', picturesPick(s, chosen, picturesLocked), chosen.several.imageFolder),
+    files.length ? h('p', { class: 'tm-hint small' }, s.state.phase === 'review'
+      ? 'You can still change the templates folder: the templates are moved there when you add them.'
+      : 'You can change the templates folder until you add the templates. To change the pictures folder, take the files below out first.') : null);
 }
 
 function setupRow(icon, what, control, several) {
@@ -150,9 +154,23 @@ function select(options, value, onPick, locked) {
     options.map(([id, label]) => h('option', { value: id, selected: id === value }, label)));
 }
 
-function folderPick(s, part, folders, current, locked) {
-  if (folders.length === 1) return h('span', {}, `✓ ${current.path}`);
-  return select(folders.map((f) => [f.id, f.path]), current?.id, (id) => s.choose(part, id), locked);
+const ANOTHER = 'another-drive-folder';
+
+/** Your templates folders, plus "Another folder in Drive…" (Google's folder picker). */
+function templatesPick(s, chosen) {
+  const options = [...chosen.templateFolders.map((f) => [f.id, f.path]), [ANOTHER, '📂 Another folder in Drive…']];
+  const onPick = (id) => (id === ANOTHER ? pickAnotherFolder(s) : s.choose('templateFolder', id));
+  return tour('tm-template-folder', select(options, chosen.templateFolder?.id, onPick, !s.canChoose('templateFolder')));
+}
+
+async function pickAnotherFolder(s) {
+  try {
+    const [folder] = await pickFolder({ token: google.token, apiKey: apiKey(), clientId: clientId() }, { title: 'Pick the folder for your templates' });
+    if (folder) s.pickFolder(folder);
+  } catch {
+    showNotice({ id: 'template-maker', tone: 'error', title: 'Google Drive', message: 'Google’s folder picker didn’t open. Check the internet connection and try again.' });
+  }
+  redraw(); // puts the list back on the chosen folder if the picker was closed
 }
 
 function picturesPick(s, chosen, locked) {

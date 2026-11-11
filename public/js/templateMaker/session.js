@@ -9,7 +9,7 @@
 // Works with driveCalls (makerDrive.js) on the real Google Drive or the fake one in the tests.
 
 import { problemText, runPool } from './googleApi.js';
-import { dropFile, keepTemplate, makeTemplate, prepareFile, previewPicture, staleDrafts } from './maker.js';
+import { dropFile, keepTemplate, makeTemplate, moveTemplate, prepareFile, previewPicture, staleDrafts } from './maker.js';
 import { describeSetup, findSetup, setupProblemText } from './setup.js';
 
 const PICKS_KEY = 'lesson-planner-template-maker';
@@ -47,13 +47,29 @@ export function createSession({ calls, pace, storage, plan }) {
     changed();
   }
 
-  /** Pick another templates folder / pictures folder ('none' = no pictures). Only before files are added. */
+  /** Can this folder be changed now? Templates: until they're added. Pictures: only before files are read. */
+  function canChoose(part) {
+    if (state.setup.status !== 'ready') return false;
+    if (part === 'templateFolder') return ['choose', 'review'].includes(state.phase);
+    return state.files.length === 0;
+  }
+
+  /** Pick another templates folder / pictures folder ('none' = no pictures). */
   function choose(part, id) {
-    if (state.setup.status !== 'ready' || state.files.length) return;
+    if (!canChoose(part)) return;
     const picks = { ...(kept.get(PICKS_KEY) ?? {}), [`${part}Id`]: id };
     kept.set(PICKS_KEY, picks);
     state.setup = { ...state.setup, chosen: describeSetup(state.setup.found, picks) };
     changed();
+  }
+
+  /** A Drive folder the teacher picked that isn't in the planner yet: offered as a templates folder, and chosen. */
+  function pickFolder({ id, name }) {
+    if (!canChoose('templateFolder')) return;
+    const { found } = state.setup;
+    const known = found.templateFolders.find((f) => f.driveId === id);
+    if (!known) found.templateFolders = [...found.templateFolders, { id: `drive:${id}`, name, path: `${name} (new in your planner)`, driveId: id, watched: false, isNew: true }];
+    choose('templateFolder', known?.id ?? `drive:${id}`);
   }
 
   function tidyDrafts() {
@@ -122,7 +138,8 @@ export function createSession({ calls, pace, storage, plan }) {
     changed();
     const made = state.files.filter((f) => f.status === 'made');
     const kept = made.filter((f) => f.keep);
-    const results = await runPool(kept, (f) => keepTemplate(calls, f.made), { pace });
+    const folder = setupNow().templateFolder;
+    const results = await runPool(kept, async (f) => { await moveTemplate(calls, f.made, folder); await keepTemplate(calls, f.made); }, { pace });
     kept.forEach((f, i) => { if (!results[i].ok) Object.assign(f, { status: 'failed', error: problemFor(results[i].error) }); });
     const added = kept.filter((f) => f.status === 'made').map((f) => f.made);
     await throwAway(made.filter((f) => !f.keep).map((f) => f.made), added);
@@ -161,7 +178,7 @@ export function createSession({ calls, pace, storage, plan }) {
   }
 
   return {
-    state, checkSetup, choose, addFiles, removeFile, makeAll, setKeep, addKept, startOver, busy,
+    state, checkSetup, choose, canChoose, pickFolder, addFiles, removeFile, makeAll, setKeep, addKept, startOver, busy,
     onChange: (fn) => { listeners.add(fn); return () => listeners.delete(fn); },
     rename: (id, name) => edit(id, (p) => { p.name = name; }),
     tickMatch: (id, key, field) => edit(id, (p) => { p.choices.matches[key] = field; }),

@@ -47,9 +47,8 @@ export async function makeTemplate(calls, prepared, { setup, shared, step = () =
   const { kind, source, draft } = prepared;
   const name = prepared.name.trim() || suggestName(source.name);
   step('Copying into your templates folder…');
-  const copy = draft
-    ? await calls.renameFile(draft.id, { name, label: 'review' })
-    : await calls.copyFile(source.id, { name, folderId: setup.templateFolder.driveId, label: 'review' });
+  const folder = setup.templateFolder;
+  const copy = await copyInto(calls, { source, draft, name, folder });
   step('Finding the numbers in the copy…');
   const before = await calls.readFile(kind, copy.id);
   const picked = chosen(scanFile(kind, before, { pictures: picturesWanted(kind, setup) }), prepared.choices);
@@ -62,10 +61,34 @@ export async function makeTemplate(calls, prepared, { setup, shared, step = () =
   checkChanged(kind, before, after, picked);
   const info = await calls.fileInfo(copy.id);
   return {
-    lesson: { fileId: copy.id, mimeType: info.mimeType, modifiedTime: info.modifiedTime ?? null, name, folderId: setup.templateFolder.id, fields: fieldsUsed(kind, picked, saved.placed) },
+    lesson: { fileId: copy.id, mimeType: info.mimeType, modifiedTime: info.modifiedTime ?? null, name, ...folderOf(folder), fields: fieldsUsed(kind, picked, saved.placed) },
     images: saved.images, failedPictures: saved.failed, link: openUrl(copy.id, info.mimeType), changes: picked.matches.length,
     pictures: saved.placed.length, preview: kind === 'slides' ? after.slides?.[0]?.objectId ?? null : null,
   };
+}
+
+/** The template copy in the templates folder: a draft (Office file) is renamed — and moved, if the folder changed since. */
+async function copyInto(calls, { source, draft, name, folder }) {
+  if (!draft) return calls.copyFile(source.id, { name, folderId: folder.driveId, label: 'review' });
+  const copy = await calls.renameFile(draft.id, { name, label: 'review' });
+  const from = draft.parents?.[0];
+  if (from && from !== folder.driveId) await calls.moveFile(copy.id, { from, to: folder.driveId });
+  return copy;
+}
+
+/**
+ * Where a template goes, as the planner needs it: its folder record (`folderId`), or — for a Drive folder the
+ * teacher picked that isn't in the planner yet — that Drive folder (the folder record is made when it's added).
+ */
+export function folderOf(folder) {
+  return { folderId: folder.isNew ? null : folder.id, folderDriveId: folder.driveId, folderName: folder.name };
+}
+
+/** Move a made template to another templates folder (the teacher changed it while looking). */
+export async function moveTemplate(calls, made, folder) {
+  if (made.lesson.folderDriveId === folder.driveId) return;
+  await calls.moveFile(made.lesson.fileId, { from: made.lesson.folderDriveId, to: folder.driveId });
+  Object.assign(made.lesson, folderOf(folder));
 }
 
 /** The copy must now hold a placeholder for every chosen number (else Google didn't take the change). */

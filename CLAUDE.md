@@ -199,6 +199,11 @@ A browser app for a (non-technical) elementary music teacher to plan a school ye
   `addKept` = `keepTemplate` (label `template`, planner label cleared) + `plan.add`; unticked → trashed with pictures only they
   used. Unkept reviews > 1 day old are trashed on open. Slides pictures become picture spots even with no pictures folder
   (just not saved); Docs only offer pictures when there is a folder.
+- **Templates folder changes until Add** (`canChoose`: templates in phases choose/review, pictures only before files are read):
+  made copies are moved on `addKept` (`moveTemplate`, Drive addParents/removeParents), an Office draft read before the change
+  is moved when made (`copyInto`). "📂 Another folder in Drive…" (`pickFolder` → Google's folder picker) offers a folder not in
+  the planner yet (`isNew`, id `drive:<id>`); `folderOf` sends `folderId: null` + `folderDriveId`/`folderName`, and
+  `addTemplates` finds or makes its Lesson Templates folder (`watch: false`) in the same Undo step.
 - Tests: `test/tm*.test.js` (fakes in `test/e2e/templateMaker/`), browser `test/e2e/templateMaker.e2e.js`. Tutorial
   `make-templates`. Not by command (`NEEDS_THE_TEACHER`: Google's picker). Not yet tried against real Google
   (needs the Slides/Docs/Sheets APIs on in the Google project).

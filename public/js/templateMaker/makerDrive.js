@@ -42,6 +42,8 @@ export function driveCalls(client) {
     renameFile: (fileId, { name, label }) => json(`${DRIVE}/${id(fileId)}?fields=${FILE_FIELDS}&${ALL}`, jsonBody('PATCH', {
       name, appProperties: { [LABEL]: label }, properties: { [PIECE_LABEL]: label === 'template' ? null : DRAFT },
     })),
+    /** Move a file from one folder to another. */
+    moveFile: (fileId, { from, to }) => json(`${DRIVE}/${id(fileId)}?addParents=${id(to)}&removeParents=${id(from)}&fields=${FILE_FIELDS}&${ALL}`, jsonBody('PATCH', {})),
     trashFile: (fileId) => json(`${DRIVE}/${id(fileId)}?fields=id&${ALL}`, jsonBody('PATCH', { trashed: true })),
     /** Half-made drafts this tool left behind (a closed tab), to tidy away. */
     listDrafts: async () => [

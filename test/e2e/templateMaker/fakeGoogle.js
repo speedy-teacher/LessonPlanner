@@ -71,9 +71,17 @@ export function fakeGoogle() {
     if (extra === '/copy') return copy(file, JSON.parse(init.body));
     if (extra === '/export') return file.exported ? new Response(file.exported) : json({ error: { code: 400, message: 'cannot export' } }, 400);
     if (isUpload) { file.text = init.body; touch(file); return json({ headRevisionId: file.headRevisionId }); }
-    if (method === 'PATCH') return patch(file, JSON.parse(init.body));
+    if (method === 'PATCH') return patch(move(file, u), JSON.parse(init.body));
     if (u.searchParams.get('alt') === 'media') return new Response(file.text ?? file.bytes ?? '');
     return json(meta(file));
+  }
+
+  /** addParents / removeParents in the address: the file moves folder. */
+  function move(file, u) {
+    const [to, from] = ['addParents', 'removeParents'].map((k) => u.searchParams.get(k));
+    if (from) file.parents = file.parents.filter((p) => p !== from);
+    if (to && !file.parents.includes(to)) file.parents.push(to);
+    return file;
   }
 
   function patch(file, body) {

@@ -121,8 +121,8 @@ export function pickPlanFromDrive({ token, apiKey, clientId }) {
 }
 
 /** Open Google's picker for one folder (also gives the planner permission to save plans in it). */
-export function pickFolderFromDrive({ token, apiKey, clientId }) {
-  return openPicker({ token, apiKey, clientId }, { mimeTypes: [DRIVE_FOLDER], folders: true, title: 'Pick a folder for the plan' });
+export function pickFolderFromDrive({ token, apiKey, clientId }, { title = 'Pick a folder for the plan' } = {}) {
+  return openPicker({ token, apiKey, clientId }, { mimeTypes: [DRIVE_FOLDER], folders: true, title });
 }
 
 const PICTURE_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/bmp', 'image/svg+xml'];

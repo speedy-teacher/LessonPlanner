@@ -77,6 +77,45 @@ test('looking first: an unticked template is thrown away (with its picture), onl
   assert.equal(g.get(sheet.made.lesson.fileId).properties.lessonPlanner, undefined, 'the kept one is a normal file now');
 });
 
+test('while looking, the templates folder can still be changed: the templates are moved there when added', async () => {
+  const { g, session, files, plan } = await visit();
+  await session.addFiles([files.slides, files.office]);
+  assert.equal(session.canChoose('templateFolder'), true, 'after files are read');
+  assert.equal(session.canChoose('imageFolder'), false, 'pictures folder: only before files are read');
+  await session.makeAll();
+  assert.equal(session.state.phase, 'review');
+  session.choose('templateFolder', 'fld_g2');
+  await session.addKept();
+  for (const f of session.state.files) assert.deepEqual(g.get(f.made.lesson.fileId).parents, ['g2Folder']);
+  assert.ok(plan.now.lessons.filter((l) => l.isNew).every((l) => l.folderId === 'fld_g2'));
+});
+
+test('a folder changed after an Office file was read: its template is still made in the new folder', async () => {
+  const { g, session, files } = await visit();
+  await session.addFiles([files.office]);
+  session.choose('templateFolder', 'fld_g2');
+  await session.makeAll();
+  assert.deepEqual(g.get(session.state.files[0].made.lesson.fileId).parents, ['g2Folder']);
+});
+
+test('“Another folder in Drive…”: a folder not in the planner yet becomes a Lesson Templates folder when added', async () => {
+  const { g, session, files, plan } = await visit();
+  g.add({ id: 'newFolder', name: 'Fall Templates', mimeType: 'application/vnd.google-apps.folder' });
+  await session.addFiles([files.slides]);
+  await session.makeAll();
+  session.pickFolder({ id: 'newFolder', name: 'Fall Templates' });
+  assert.equal(session.state.setup.chosen.templateFolder.driveId, 'newFolder');
+  await session.addKept();
+  assert.deepEqual(g.get(session.state.files[0].made.lesson.fileId).parents, ['newFolder']);
+  const folder = plan.now.deckFolders.find((f) => f.name === 'Fall Templates');
+  assert.ok(folder, 'a Lesson Templates folder for it');
+  assert.equal(folder.yearId, 'yr_1');
+  assert.equal(plan.now.lessons.find((l) => l.name === 'Rhythm Tree').folderId, folder.id);
+  session.startOver();
+  session.pickFolder({ id: 'tplFolder', name: 'Lessons' });
+  assert.equal(session.state.setup.chosen.templateFolder.id, 'fld_top', 'a folder already in the planner is used as it is');
+});
+
 test('“Throw them all away” while looking leaves nothing behind', async () => {
   const { g, session, files, plan } = await visit();
   await session.addFiles([files.slides]);

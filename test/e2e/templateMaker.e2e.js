@@ -34,6 +34,7 @@ const BITMOJI = {
 function pretendDrive() {
   const g = fakeGoogle();
   g.add({ id: 'tplFolder', name: 'My Templates', mimeType: FOLDER });
+  g.add({ id: 'fallFolder', name: 'Fall Templates', mimeType: FOLDER });
   g.add({
     id: 'deck1', name: 'Week 2 - Rhythm Tree Lesson 3', mimeType: SLIDES,
     content: { slides: [{ objectId: 'slide1', pageElements: [shape('t1', 'Rhythm Tree'), shape('t2', 'Lesson 3 · Week 2'), BITMOJI] }] },
@@ -68,7 +69,7 @@ export async function run() {
     const yearId = activeYear(store.state).id;
     commit((s) => { addFolder(s, { yearId, name: 'My Templates', watch: true, locations: [driveLocation({ fileId: 'tplFolder', mimeType: FOLDER })] }); });
     Object.assign(google, { status: 'connected', token: 'pretend', scope: DRIVE_SCOPE });
-    usePicker(async () => [{ id: 'deck1', name: 'Week 2 - Rhythm Tree Lesson 3', mimeType: SLIDES }]);
+    usePicker(async () => [{ id: 'deck1', name: 'Week 2 - Rhythm Tree Lesson 3', mimeType: SLIDES }], async () => [{ id: 'fallFolder', name: 'Fall Templates', mimeType: FOLDER }]);
 
     const tm = await openWindow();
     await waitFor(() => tm.querySelector('[data-tour="tm-folders"]'), 6000, 'the folders to be checked');
@@ -86,13 +87,21 @@ export async function run() {
     const words = made.content.slides[0].pageElements.map((el) => el.shape?.text?.textElements?.map((t) => t.textRun?.content).join('') ?? '');
     check(words.includes('Lesson {{lesson_number}} · Week {{week_number}}\n'), `the copy should have the placeholders, has ${JSON.stringify(words)}`);
     check(!made.content.slides[0].pageElements.some((el) => el.image), 'the bitmoji should be taken out of the copy');
+    const folderList = tm.querySelector('[data-tour="tm-template-folder"]');
+    check(!folderList.disabled, 'the templates folder can still be changed while looking');
+    folderList.value = 'another-drive-folder';
+    folderList.dispatchEvent(new Event('change', { bubbles: true }));
+    await waitFor(() => tm.querySelector('[data-tour="tm-template-folder"]')?.selectedOptions[0]?.textContent.startsWith('Fall Templates'), 4000, 'the picked folder to be chosen');
     await click('[data-tour="tm-add"]');
     await waitFor(() => find('Show me'), 6000, 'the templates to be added');
+    check(drive.g.get(made.id).parents.includes('fallFolder'), 'the template should be moved to the folder picked while looking');
+    const fall = store.state.deckFolders.find((f) => f.name === 'Fall Templates');
+    check(fall && store.state.lessons.find((l) => l.name === 'Rhythm Tree')?.folderId === fall.id, 'the new folder should be in Lesson Templates, holding the template');
 
     const lesson = store.state.lessons.find((l) => l.name === 'Rhythm Tree');
     check(lesson?.isNew && lesson.yearId === yearId, 'the template should be in Lesson Templates, marked new');
     const copy = drive.g.get(lesson.locations[0].fileId);
-    check(copy.parents.includes('tplFolder'), 'the template copy should be in the templates folder');
+    check(copy.parents.includes('fallFolder'), 'the template copy should be in the folder picked');
     check(drive.g.get('deck1').content.slides[0].pageElements[1].shape.text.textElements[0].textRun.content.startsWith('Lesson 3'), 'the teacher’s own file must not change');
     await click('Show me');
     await waitFor(() => !modal(), 3000, 'the window to close');
