@@ -36,14 +36,20 @@ export function driveCalls(client) {
     // A draft also carries Lesson Planner's own label, which tells Lesson Planner not to bring it in from a watched folder.
     copyFile: (fileId, { name, folderId, mimeType = null, label }) => json(`${DRIVE}/${id(fileId)}/copy?fields=${FILE_FIELDS}&${ALL}`, jsonBody('POST', {
       name, parents: [folderId], ...(mimeType ? { mimeType } : {}), appProperties: { [LABEL]: label },
-      ...(label === 'draft' ? { properties: { [PIECE_LABEL]: DRAFT } } : {}),
+      ...(label === 'template' ? {} : { properties: { [PIECE_LABEL]: DRAFT } }),
     })),
+    // Until the teacher keeps it ('template'), a copy keeps the planner's label, so watched folders skip it.
     renameFile: (fileId, { name, label }) => json(`${DRIVE}/${id(fileId)}?fields=${FILE_FIELDS}&${ALL}`, jsonBody('PATCH', {
-      name, appProperties: { [LABEL]: label }, properties: { [PIECE_LABEL]: null },
+      name, appProperties: { [LABEL]: label }, properties: { [PIECE_LABEL]: label === 'template' ? null : DRAFT },
     })),
     trashFile: (fileId) => json(`${DRIVE}/${id(fileId)}?fields=id&${ALL}`, jsonBody('PATCH', { trashed: true })),
     /** Half-made drafts this tool left behind (a closed tab), to tidy away. */
-    listDrafts: () => list(`appProperties has { key='${LABEL}' and value='draft' }`),
+    listDrafts: async () => [
+      ...await list(`appProperties has { key='${LABEL}' and value='draft' }`),
+      ...await list(`appProperties has { key='${LABEL}' and value='review' }`),
+    ],
+    /** A picture of one slide, drawn by Google now (Drive's own thumbnails can be minutes behind). */
+    slideThumbnail: async (fileId, pageId) => (await json(`https://slides.googleapis.com/v1/presentations/${id(fileId)}/pages/${id(pageId)}/thumbnail?thumbnailProperties.thumbnailSize=MEDIUM`)).contentUrl ?? null,
     /** A picture saved before with the same fingerprint, in that folder. */
     findPicture: async (folderId, hash) => (await list(`appProperties has { key='${HASH_LABEL}' and value='${q(hash)}' } and '${q(folderId)}' in parents`))[0] ?? null,
     exportFile: async (fileId, mimeType) => new Uint8Array(await (await send(`${DRIVE}/${id(fileId)}/export?mimeType=${id(mimeType)}`)).arrayBuffer()),

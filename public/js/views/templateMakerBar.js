@@ -1,5 +1,6 @@
 // The bar at the bottom of the Template Maker window: what will happen ("3 templates · 7 placeholders ·
-// 2 pictures") and the Make button; while making, how far along it is; afterwards, what was added.
+// 2 pictures") and the Make button; while making, how far along it is; then "Add to my templates" for the
+// ones the teacher kept after looking; afterwards, what was added.
 
 import { h } from '../dom.js';
 
@@ -41,12 +42,24 @@ function barContent(session, state, onShow) {
       h('button', { class: 'btn tm-make', disabled: !s.templates, onclick: () => session.makeAll(), 'data-tour': 'tm-make' }, `✨ Make ${plural(s.templates, 'template')}`),
     ];
   }
+  if (state.phase === 'review') return reviewContent(session, state);
+  if (state.phase === 'adding') return [h('div', { class: 'tm-status' }, h('span', { class: 'tm-spinner' }), 'Adding them to your Lesson Templates…')];
   if (state.phase === 'making') {
     const p = progressOf(state);
     return [h('div', { class: 'tm-progress' }, h('div', { class: 'small' }, `Making templates… ${p.done} of ${p.total}`),
       h('div', { class: 'tm-track' }, h('div', { class: 'tm-fill', style: { width: `${p.percent}%` } })))];
   }
   return doneContent(session, state, onShow);
+}
+
+function reviewContent(session, state) {
+  const kept = state.files.filter((f) => f.status === 'made' && f.keep).length;
+  return [
+    h('div', {}, h('strong', {}, 'Have a look first.'), h('div', { class: 'small' }, 'Open each template to check it. Untick any you don’t want — those are thrown away.')),
+    h('div', { class: 'tm-row' },
+      h('button', { class: 'btn light', onclick: () => session.startOver() }, 'Throw them all away'),
+      h('button', { class: 'btn tm-make', disabled: !kept, onclick: () => session.addKept(), 'data-tour': 'tm-add' }, kept ? `✓ Add ${plural(kept, 'template')} to my planner` : 'Nothing ticked to add')),
+  ];
 }
 
 function doneContent(session, state, onShow) {

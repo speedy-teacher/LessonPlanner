@@ -11,7 +11,7 @@
 import { isGoogleFile, KINDS, kindOf, openUrl } from './fileKinds.js';
 import { GoogleError } from './googleApi.js';
 import { documentPictures, matchPictures, pictureFile, slidePictures, zipEntries } from './officePackage.js';
-import { chosen, defaultChoices, editRequests, fieldsUsed, scanFile } from './scan.js';
+import { chosen, defaultChoices, editRequests, fieldsUsed, placeholdersIn, scanFile, SCANNERS } from './scan.js';
 import { suggestName } from './templateName.js';
 
 /** Read a picked file: { source, kind, draft, name, scan, choices }. `step(text)` tells how it's going. */
@@ -29,7 +29,9 @@ export async function prepareFile(calls, source, { setup, step = () => {} }) {
   return { source, kind, draft, name, scan, choices: defaultChoices(scan) };
 }
 
-const picturesWanted = (kind, setup) => Boolean(setup.imageFolder) && KINDS[kind].pictures;
+// Slides: a picture becomes a picture spot even without a pictures folder (it just isn't saved anywhere).
+// Docs keep their pictures in place, so there they're only offered for saving to the pictures folder.
+const picturesWanted = (kind, setup) => KINDS[kind].pictures && (Boolean(setup.imageFolder) || !SCANNERS[kind].picturesStay);
 
 /** A prepared file the teacher took out again: its draft goes to the trash. */
 export async function dropFile(calls, prepared) {
@@ -38,27 +40,49 @@ export async function dropFile(calls, prepared) {
 
 /**
  * Make the template. `shared` = { pictures: Map } is passed to every file of one run (the same picture in
- * several files is saved once). Returns { lesson, images, failedPictures, link }.
+ * several files is saved once). Returns { lesson, images, failedPictures, link, changes, pictures, preview }.
+ * The copy stays hidden from watched folders until the teacher keeps it (`keepTemplate`) or throws it away.
  */
 export async function makeTemplate(calls, prepared, { setup, shared, step = () => {} }) {
   const { kind, source, draft } = prepared;
   const name = prepared.name.trim() || suggestName(source.name);
   step('Copying into your templates folder…');
   const copy = draft
-    ? await calls.renameFile(draft.id, { name, label: 'template' })
-    : await calls.copyFile(source.id, { name, folderId: setup.templateFolder.driveId, label: 'template' });
+    ? await calls.renameFile(draft.id, { name, label: 'review' })
+    : await calls.copyFile(source.id, { name, folderId: setup.templateFolder.driveId, label: 'review' });
   step('Finding the numbers in the copy…');
-  const picked = chosen(scanFile(kind, await calls.readFile(kind, copy.id), { pictures: picturesWanted(kind, setup) }), prepared.choices);
+  const before = await calls.readFile(kind, copy.id);
+  const picked = chosen(scanFile(kind, before, { pictures: picturesWanted(kind, setup) }), prepared.choices);
   const saved = picked.pictures.length
     ? (step('Saving pictures…'), await savePictures(calls, { prepared, pictures: picked.pictures, setup, shared, name }))
     : { placed: [], images: [], failed: [] };
   step('Typing in the placeholders…');
   await calls.changeFile(kind, copy.id, editRequests(kind, picked, saved.placed));
+  const after = await calls.readFile(kind, copy.id);
+  checkChanged(kind, before, after, picked);
   const info = await calls.fileInfo(copy.id);
   return {
     lesson: { fileId: copy.id, mimeType: info.mimeType, modifiedTime: info.modifiedTime ?? null, name, folderId: setup.templateFolder.id, fields: fieldsUsed(kind, picked, saved.placed) },
     images: saved.images, failedPictures: saved.failed, link: openUrl(copy.id, info.mimeType), changes: picked.matches.length,
+    pictures: saved.placed.length, preview: kind === 'slides' ? after.slides?.[0]?.objectId ?? null : null,
   };
+}
+
+/** The copy must now hold a placeholder for every chosen number (else Google didn't take the change). */
+function checkChanged(kind, before, after, picked) {
+  const added = placeholdersIn(kind, after) - placeholdersIn(kind, before);
+  if (added < picked.matches.length) throw new GoogleError('not_changed');
+}
+
+/** The template a teacher keeps: from now on it's a normal file in the templates folder. */
+export function keepTemplate(calls, made) {
+  return calls.renameFile(made.lesson.fileId, { name: made.lesson.name, label: 'template' });
+}
+
+/** A picture of the template's first slide (Slides only; null when Google can't draw it). */
+export async function previewPicture(calls, made) {
+  if (!made.preview) return null;
+  try { return await calls.slideThumbnail(made.lesson.fileId, made.preview); } catch { return null; }
 }
 
 /** The file as a PowerPoint/Word zip (Google's files are exported; Office files are already one). */
@@ -79,6 +103,7 @@ async function packageOrNull(calls, prepared) {
 
 async function savePictures(calls, { prepared, pictures, setup, shared, name }) {
   const out = { placed: [], images: [], failed: [] };
+  if (!setup.imageFolder) return { ...out, placed: pictures };
   const zip = await packageOrNull(calls, prepared);
   if (!zip) return { ...out, failed: pictures.map((p) => ({ key: p.key, why: 'unreadable' })) };
   const found = prepared.kind === 'slides' ? await slidePictures(zip) : await documentPictures(zip);
@@ -113,7 +138,10 @@ export async function fingerprint(bytes) {
   return [...digest].map((b) => b.toString(16).padStart(2, '0')).join('').slice(0, 40);
 }
 
-/** Drafts left behind more than an hour ago (a tab closed halfway): to trash. */
+const HOUR = 60 * 60 * 1000;
+const LEFT_FOR = { draft: HOUR, review: 24 * HOUR };
+
+/** Drafts left behind more than an hour ago, and templates nobody kept for a day (a tab closed halfway): to trash. */
 export function staleDrafts(files, now = Date.now()) {
-  return files.filter((f) => f.appProperties?.templateMaker === 'draft' && now - Date.parse(f.modifiedTime ?? 0) > 60 * 60 * 1000);
+  return files.filter((f) => LEFT_FOR[f.appProperties?.templateMaker] && now - Date.parse(f.modifiedTime ?? 0) > LEFT_FOR[f.appProperties.templateMaker]);
 }

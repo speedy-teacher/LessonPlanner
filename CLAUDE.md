@@ -190,6 +190,15 @@ A browser app for a (non-technical) elementary music teacher to plan a school ye
   `googleApi.js` (retries/slow-down → `copyPace`, `runPool`), `makerDrive.js` (Drive/Slides/Docs/Sheets calls).
   Views: `views/templateMaker.js` (window, own `tm-` classes in `css/templateMaker.css`; work goes on if it's closed),
   `templateMakerFile.js`, `templateMakerBar.js`. One `commit` = one Undo; a view-only library → "will show up by themselves".
+- **Keys are places, never Google ids** (a copy gets new objectIds/sheetIds/header ids — that broke the first real try):
+  Slides `s<slide>e<n>|cell|i` (+ pictures `s1e<n>`), Docs `body|header<n>|footer<n>` + paragraph count (pictures `pic<n>`),
+  Sheets sheet order. The fake Drive renames ids on copy (`renamed` in `fakeGoogle.js`) so tests catch it. After editing,
+  the copy is read again: fewer new `{{…}}` than chosen numbers → `not_changed` (never a silent unchanged copy).
+- **Look, then add**: makeAll → phase `review` (copy labelled `templateMaker=review` + `lessonPlanner=template-maker-draft`, so
+  watched folders skip it; Slides get `slideThumbnail` of slide 1 via `previewPicture`); "Add this one" ticks (`setKeep`) →
+  `addKept` = `keepTemplate` (label `template`, planner label cleared) + `plan.add`; unticked → trashed with pictures only they
+  used. Unkept reviews > 1 day old are trashed on open. Slides pictures become picture spots even with no pictures folder
+  (just not saved); Docs only offer pictures when there is a folder.
 - Tests: `test/tm*.test.js` (fakes in `test/e2e/templateMaker/`), browser `test/e2e/templateMaker.e2e.js`. Tutorial
   `make-templates`. Not by command (`NEEDS_THE_TEACHER`: Google's picker). Not yet tried against real Google
   (needs the Slides/Docs/Sheets APIs on in the Google project).

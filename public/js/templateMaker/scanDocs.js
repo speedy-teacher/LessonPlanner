@@ -16,9 +16,10 @@ const OBJECT = '￼'; // stands for a picture or other non-text part (it takes u
 /** Every paragraph: [{ segmentId, where, start, text }] — `start` = the document position of its first character. */
 export function docsParagraphs(doc) {
   const out = [];
-  collect(doc.body?.content, { segmentId: null, where: 'Text' }, out);
-  for (const [id, header] of Object.entries(doc.headers ?? {})) collect(header.content, { segmentId: id, where: 'Header' }, out);
-  for (const [id, footer] of Object.entries(doc.footers ?? {})) collect(footer.content, { segmentId: id, where: 'Footer' }, out);
+  collect(doc.body?.content, { segmentId: null, part: 'body', where: 'Text' }, out);
+  // `part` names a header/footer by its order: Google may give them new ids in a copy of the file.
+  Object.entries(doc.headers ?? {}).forEach(([id, header], n) => collect(header.content, { segmentId: id, part: `header${n}`, where: 'Header' }, out));
+  Object.entries(doc.footers ?? {}).forEach(([id, footer], n) => collect(footer.content, { segmentId: id, part: `footer${n}`, where: 'Footer' }, out));
   return out;
 }
 
@@ -45,10 +46,10 @@ function paragraphText(paragraph, start) {
 export function docsMatches(doc) {
   const counts = new Map();
   return docsParagraphs(doc).flatMap((p) => {
-    const n = (counts.get(p.segmentId) ?? 0) + 1;
-    counts.set(p.segmentId, n);
+    const n = (counts.get(p.part) ?? 0) + 1;
+    counts.set(p.part, n);
     return findNumbers(p.text).map((m, i) => ({
-      ...m, start: p.start + m.start, end: p.start + m.end, key: `${p.segmentId ?? 'body'}|${n}|${i}`, where: p.where,
+      ...m, start: p.start + m.start, end: p.start + m.end, key: `${p.part}|${n}|${i}`, where: p.where,
       target: { segmentId: p.segmentId },
     }));
   });
@@ -75,7 +76,7 @@ export function docsPictures(doc) {
     chars += p.text.length;
     if (chars > FIRST_PAGE_CHARS || (p.paragraph.elements ?? []).some((el) => el.pageBreak)) break;
   }
-  return ids.map(([kind, id]) => pictureOf(doc, kind, id)).filter(Boolean);
+  return ids.map(([kind, id], n) => pictureOf(doc, kind, id, n)).filter(Boolean);
 }
 
 function embeddedOf(doc, kind, id) {
@@ -83,12 +84,12 @@ function embeddedOf(doc, kind, id) {
   return doc.positionedObjects?.[id]?.positionedObjectProperties?.embeddedObject;
 }
 
-function pictureOf(doc, kind, id) {
+function pictureOf(doc, kind, id, n) {
   const embedded = embeddedOf(doc, kind, id);
   if (!embedded?.imageProperties) return null;
   const { width, height } = embedded.size ?? {};
   return {
-    key: id, objectId: id, url: embedded.imageProperties.contentUri ?? null, title: embedded.title || embedded.description || '',
+    key: `pic${n}`, objectId: id, url: embedded.imageProperties.contentUri ?? null, title: embedded.title || embedded.description || '',
     box: { x: null, y: null, width: toEmu(width), height: toEmu(height) },
   };
 }

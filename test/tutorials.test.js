@@ -295,6 +295,7 @@ test('goTo uses the tab, or Setup ▾ for Setup pages', () => {
 test('“Turn your lessons into templates” opens the Template Maker window from Lesson Templates → + Add', () => {
   const t = TUTORIALS.find((x) => x.id === 'make-templates');
   assert.ok(t.steps.some((s) => targetNames(s).includes('tm-open')), 'lights up the menu item');
+  assert.ok(t.steps.some((s) => targetNames(s).includes('tm-add')), 'shows the look-then-add step');
   assert.match(t.ready({ hasPlan: true, driveConnected: false }), /Google Drive/);
   assert.equal(t.ready({ hasPlan: true, driveConnected: true }), null);
 });

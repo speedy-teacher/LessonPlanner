@@ -25,13 +25,18 @@ const shape = (id, words) => ({
   shape: { text: { textElements: [{ startIndex: 0, endIndex: words.length + 1, textRun: { content: `${words}\n` } }] } },
 });
 
+const BITMOJI = {
+  objectId: 'pic1', size: { width: emu(300000), height: emu(400000) }, transform: { scaleX: 1, scaleY: 1, translateX: 5000, translateY: 6000, unit: 'EMU' },
+  image: { contentUrl: `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="80">🧑‍🎤</text></svg>')}` },
+};
+
 /** A pretend Drive with a templates folder and one made-up slide deck; Google addresses go to it. */
 function pretendDrive() {
   const g = fakeGoogle();
   g.add({ id: 'tplFolder', name: 'My Templates', mimeType: FOLDER });
   g.add({
     id: 'deck1', name: 'Week 2 - Rhythm Tree Lesson 3', mimeType: SLIDES,
-    content: { slides: [{ objectId: 'slide1', pageElements: [shape('t1', 'Rhythm Tree'), shape('t2', 'Lesson 3 · Week 2')] }] },
+    content: { slides: [{ objectId: 'slide1', pageElements: [shape('t1', 'Rhythm Tree'), shape('t2', 'Lesson 3 · Week 2'), BITMOJI] }] },
   });
   const realFetch = window.fetch;
   window.fetch = (input, init) => {
@@ -72,8 +77,17 @@ export async function run() {
     const card = await waitFor(() => tm.querySelector('.tm-file.ready'), 6000, 'the lesson to be read');
     check(card.querySelector('.tm-name-input').value === 'Rhythm Tree', 'the template name should leave out the numbers');
     check(card.querySelectorAll('.tm-match input:checked').length === 2, 'the lesson and week numbers should both be ticked');
+    check(card.querySelectorAll('.tm-picture input:checked').length === 1, 'the bitmoji should be offered, even with no pictures folder');
     await click('[data-tour="tm-make"]');
-    await waitFor(() => find('Show me'), 6000, 'the templates to be made');
+    await waitFor(() => tm.querySelector('[data-tour="tm-add"]'), 6000, 'the templates to be made');
+    check(!store.state.lessons.some((l) => l.name === 'Rhythm Tree'), 'nothing is added before the teacher has looked');
+    await waitFor(() => tm.querySelector('.tm-look img'), 4000, 'a picture of the template');
+    const made = [...drive.g.files.values()].find((f) => f.name === 'Rhythm Tree');
+    const words = made.content.slides[0].pageElements.map((el) => el.shape?.text?.textElements?.map((t) => t.textRun?.content).join('') ?? '');
+    check(words.includes('Lesson {{lesson_number}} · Week {{week_number}}\n'), `the copy should have the placeholders, has ${JSON.stringify(words)}`);
+    check(!made.content.slides[0].pageElements.some((el) => el.image), 'the bitmoji should be taken out of the copy');
+    await click('[data-tour="tm-add"]');
+    await waitFor(() => find('Show me'), 6000, 'the templates to be added');
 
     const lesson = store.state.lessons.find((l) => l.name === 'Rhythm Tree');
     check(lesson?.isNew && lesson.yearId === yearId, 'the template should be in Lesson Templates, marked new');
@@ -96,7 +110,7 @@ export async function run() {
 }
 
 /** Open the window with one lesson read, and leave it open (to look at it). Reload the page afterwards. */
-export async function preview() {
+export async function preview({ made = false } = {}) {
   guardHost();
   pretendDrive();
   window.PLANNER_CONFIG = { googleClientId: '123-pretend.apps.googleusercontent.com', googleApiKey: 'pretend-key' };
@@ -109,5 +123,9 @@ export async function preview() {
   await waitFor(() => tm.querySelector('[data-tour="tm-folders"]'), 6000, 'the folders to be checked');
   await click('Choose lessons from Google Drive');
   await waitFor(() => tm.querySelector('.tm-file.ready'), 6000, 'the lesson to be read');
+  if (made) {
+    await click('[data-tour="tm-make"]');
+    await waitFor(() => tm.querySelector('.tm-look img'), 6000, 'the template to be made');
+  }
   return 'Open. Reload the page when done.';
 }

@@ -5,16 +5,16 @@
 //
 // Pure logic, shared by the browser and the Node tests.
 
-import { docsMatches, docsPictures, docsTextRequests } from './scanDocs.js';
-import { sheetsMatches, sheetsTextRequests } from './scanSheets.js';
-import { slidesAnchorRequests, slidesMatches, slidesPictures, slidesTextRequests } from './scanSlides.js';
+import { docsMatches, docsParagraphs, docsPictures, docsTextRequests } from './scanDocs.js';
+import { sheetCells, sheetsMatches, sheetsTextRequests } from './scanSheets.js';
+import { slidesAnchorRequests, slidesMatches, slidesPictures, slidesTextRequests, slidesTexts } from './scanSlides.js';
 
 const none = () => [];
 
 export const SCANNERS = {
-  slides: { matches: slidesMatches, pictures: slidesPictures, textRequests: slidesTextRequests, pictureRequests: slidesAnchorRequests, picturesStay: false },
-  docs: { matches: docsMatches, pictures: docsPictures, textRequests: docsTextRequests, pictureRequests: none, picturesStay: true },
-  sheets: { matches: sheetsMatches, pictures: none, textRequests: sheetsTextRequests, pictureRequests: none, picturesStay: false },
+  slides: { texts: slidesTexts, matches: slidesMatches, pictures: slidesPictures, textRequests: slidesTextRequests, pictureRequests: slidesAnchorRequests, picturesStay: false },
+  docs: { texts: docsParagraphs, matches: docsMatches, pictures: docsPictures, textRequests: docsTextRequests, pictureRequests: none, picturesStay: true },
+  sheets: { texts: sheetCells, matches: sheetsMatches, pictures: none, textRequests: sheetsTextRequests, pictureRequests: none, picturesStay: false },
 };
 
 /** What a file holds: { matches, pictures } (pictures only when the teacher has a pictures folder). */
@@ -50,4 +50,9 @@ export function fieldsUsed(kind, picked, placedPictures) {
 export function editRequests(kind, picked, placedPictures) {
   const s = SCANNERS[kind];
   return [...s.textRequests(picked.matches), ...s.pictureRequests(placedPictures)];
+}
+
+/** How many of the planner's placeholders ({{…}}) a file's text holds. */
+export function placeholdersIn(kind, json) {
+  return SCANNERS[kind].texts(json).reduce((n, t) => n + (t.text.match(/\{\{[a-z_]+\}\}/g) ?? []).length, 0);
 }

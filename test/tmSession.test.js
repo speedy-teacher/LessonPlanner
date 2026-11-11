@@ -41,6 +41,9 @@ test('pick several files, untick one number, make them all: the templates are in
   session.tickMatch(sheet.uid, sheet.prepared.scan.matches[0].key, false);
   session.rename(sheet.uid, 'Checklist');
   await session.makeAll();
+  assert.equal(session.state.phase, 'review', 'the teacher looks before anything is added');
+  assert.equal(plan.adds, 0);
+  await session.addKept();
   assert.equal(session.state.phase, 'done');
   assert.equal(session.state.save.status, 'saved');
   assert.equal(session.state.save.count, 3);
@@ -56,6 +59,34 @@ test('pick several files, untick one number, make them all: the templates are in
   assert.equal(plan.now.images.length, 1, 'the same picture in two files is saved once');
   assert.equal(plan.now.images[0].folderId, 'ifld_pics');
   assert.equal(g.get(sheet.made.lesson.fileId).content.sheets[0].data[0].rowData[0].values[0].userEnteredValue.stringValue, 'Week 4', 'unticked stays');
+});
+
+test('looking first: an unticked template is thrown away (with its picture), only the kept one is added', async () => {
+  const { g, session, files, plan } = await visit();
+  await session.addFiles([files.slides, files.spreadsheet]);
+  await session.makeAll();
+  const [deck, sheet] = session.state.files;
+  await new Promise((r) => { setTimeout(r, 10); });
+  assert.match(deck.picture, /^data:image/, 'a picture of the first slide to look at');
+  session.setKeep(deck.uid, false);
+  await session.addKept();
+  assert.deepEqual(plan.now.lessons.map((l) => l.name), ['Old Song', sheet.made.lesson.name]);
+  assert.equal(g.get(deck.made.lesson.fileId).trashed, true);
+  assert.equal(g.get(deck.made.images[0].fileId).trashed, true, 'its picture was only for it');
+  assert.equal(plan.now.images.length, 0);
+  assert.equal(g.get(sheet.made.lesson.fileId).properties.lessonPlanner, undefined, 'the kept one is a normal file now');
+});
+
+test('“Throw them all away” while looking leaves nothing behind', async () => {
+  const { g, session, files, plan } = await visit();
+  await session.addFiles([files.slides]);
+  await session.makeAll();
+  const { made } = session.state.files[0];
+  session.startOver();
+  await new Promise((r) => { setTimeout(r, 20); });
+  assert.equal(g.get(made.lesson.fileId).trashed, true);
+  assert.equal(plan.adds, 0);
+  assert.equal(session.state.phase, 'choose');
 });
 
 test('a template already in the plan is updated, never doubled', () => {
@@ -86,6 +117,7 @@ test('a file that can’t be read shows a problem; the others are still made', a
   assert.deepEqual(session.state.files.map((f) => f.status), ['problem', 'ready']);
   assert.match(session.state.files[0].error, /can’t change|Editor/);
   await session.makeAll();
+  await session.addKept();
   assert.equal(session.state.save.count, 1);
 });
 
@@ -97,6 +129,7 @@ test('if the plan can’t take them, the teacher is told they will come in from 
   await session.checkSetup();
   await session.addFiles([drive.files.slides]);
   await session.makeAll();
+  await session.addKept();
   assert.equal(session.state.save.status, 'failed');
   assert.match(session.state.save.message, /show up by themselves/);
 });

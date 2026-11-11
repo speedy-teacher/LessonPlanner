@@ -107,6 +107,7 @@ export function problemText(err) {
     no_access: 'Google says you can’t change this file or folder. Ask its owner to share it with you as an Editor.',
     not_found: 'Google couldn’t find this file. It may have been deleted or moved to the trash.',
     slow_down: 'Google is busy right now. Wait a minute and try again.',
+    not_changed: 'Google didn’t take the changes to the copy, so it wasn’t kept. Try again in a minute.',
   };
   return words[err?.message] ?? 'Something went wrong. Try again in a minute.';
 }

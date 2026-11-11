@@ -12,11 +12,15 @@ import { findNumbers, placeholderFor } from './numberMatch.js';
 export const ANCHOR = 'IMAGE_ANCHOR';
 const ANCHOR_PREFIX = 'lpAnchor_';
 
-/** Every piece of text in the presentation: [{ slide, objectId, cell, text }] (cell = { rowIndex, columnIndex } in tables). */
+/**
+ * Every piece of text in the presentation: [{ slide, place, objectId, cell, text }] (cell = { rowIndex, columnIndex }
+ * in tables). `place` = "s<slide>e<n>": where the element is in its slide — the same in a copy of the file, where
+ * Google may give every element a new objectId.
+ */
 export function slidesTexts(presentation) {
   const out = [];
   (presentation.slides ?? []).forEach((slide, i) => {
-    for (const el of flatten(slide.pageElements)) textsOf(el, i + 1, out);
+    flatten(slide.pageElements).forEach((el, n) => textsOf(el, { slide: i + 1, place: `s${i + 1}e${n}` }, out));
   });
   return out;
 }
@@ -25,11 +29,11 @@ function flatten(elements = []) {
   return elements.flatMap((el) => (el.elementGroup ? [el, ...flatten(el.elementGroup.children)] : [el]));
 }
 
-function textsOf(el, slide, out) {
-  if (el.shape?.text) out.push({ slide, objectId: el.objectId, cell: null, text: joined(el.shape.text) });
+function textsOf(el, at, out) {
+  if (el.shape?.text) out.push({ ...at, objectId: el.objectId, cell: null, text: joined(el.shape.text) });
   (el.table?.tableRows ?? []).forEach((row, rowIndex) => {
     (row.tableCells ?? []).forEach((cell, columnIndex) => {
-      if (cell.text) out.push({ slide, objectId: el.objectId, cell: { rowIndex, columnIndex }, text: joined(cell.text) });
+      if (cell.text) out.push({ ...at, objectId: el.objectId, cell: { rowIndex, columnIndex }, text: joined(cell.text) });
     });
   });
 }
@@ -38,8 +42,8 @@ const joined = (text) => (text.textElements ?? []).map((t) => t.textRun?.content
 
 /** The lesson/week numbers: [{ key, where, …match, target }] — `key` stays the same in a copy of the file. */
 export function slidesMatches(presentation) {
-  return slidesTexts(presentation).flatMap(({ slide, objectId, cell, text }) => findNumbers(text).map((m, i) => ({
-    ...m, key: `${objectId}|${cell ? `${cell.rowIndex}:${cell.columnIndex}` : ''}|${i}`, where: `Slide ${slide}`,
+  return slidesTexts(presentation).flatMap(({ slide, place, objectId, cell, text }) => findNumbers(text).map((m, i) => ({
+    ...m, key: `${place}|${cell ? `${cell.rowIndex}:${cell.columnIndex}` : ''}|${i}`, where: `Slide ${slide}`,
     target: { objectId, cell },
   })));
 }
@@ -48,8 +52,8 @@ export function slidesMatches(presentation) {
 export function slidesPictures(presentation) {
   const first = presentation.slides?.[0];
   if (!first) return [];
-  return (first.pageElements ?? []).filter((el) => el.image).map((el) => ({
-    key: el.objectId, objectId: el.objectId, pageObjectId: first.objectId, size: el.size, transform: el.transform,
+  return (first.pageElements ?? []).map((el, n) => ({ el, n })).filter(({ el }) => el.image).map(({ el, n }) => ({
+    key: `s1e${n}`, objectId: el.objectId, pageObjectId: first.objectId, size: el.size, transform: el.transform,
     url: el.image.contentUrl ?? null, title: el.title || el.description || '', box: boxOf(el),
   }));
 }

@@ -157,7 +157,7 @@ function folderPick(s, part, folders, current, locked) {
 
 function picturesPick(s, chosen, locked) {
   const folders = chosen.imageFolders;
-  if (!folders.length) return h('span', { class: 'tm-hint' }, 'No pictures folder yet — pictures won’t be offered. (Bring one in on the Images tab.)');
+  if (!folders.length) return h('span', { class: 'tm-hint' }, 'No pictures folder — a bitmoji on a slide still becomes a picture spot, it just isn’t saved anywhere. (To keep them, bring in a pictures folder on the Images tab.)');
   const options = [...folders.map((f) => [f.id, f.path]), ['none', 'Don’t save pictures']];
   return select(options, chosen.imageFolder?.id ?? 'none', (id) => s.choose('imageFolder', id), locked);
 }
@@ -170,7 +170,7 @@ function filesPart(s) {
     phase === 'choose' ? h('div', { class: 'tm-row' },
       tour('tm-choose', h('button', { class: 'btn', onclick: () => chooseFiles(s) }, files.length ? '📂 Choose more files…' : '📂 Choose lessons from Google Drive…')),
       h('span', { class: 'tm-hint small' }, 'Tip: hold Ctrl to pick several.')) : null,
-    files.length ? h('div', { class: 'tm-files' }, files.map((f) => fileCard(f, s, { editable: phase === 'choose' }))) : null);
+    files.length ? h('div', { class: 'tm-files' }, files.map((f) => fileCard(f, s, { editable: phase === 'choose', savingPictures: Boolean(s.state.setup.chosen?.imageFolder) }))) : null);
 }
 
 async function chooseFiles(s) {

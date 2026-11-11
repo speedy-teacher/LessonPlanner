@@ -269,8 +269,14 @@ const makeTemplates = {
     },
     {
       target: 'tm-make',
-      text: 'Click Make. The templates are saved in your folder and added to your Lesson Templates, marked ❗ new. Your own files are never changed.',
+      text: 'Click Make. A template copy of each lesson is made in your folder. Your own files are never changed.',
       skipIf: (ctx) => !ctx.exists('tm-make'),
+      until: (ctx) => ctx.exists('tm-add') || ctx.exists('tm-show') || !inMaker(ctx),
+    },
+    {
+      target: ['tm-file', 'tm-add'], pick: 'first',
+      text: 'Have a look: click the picture (or “Open it to check”) to see the template in Google. Untick any you don’t want, then click “Add … to my planner”. They show up in your Lesson Templates, marked ❗ new.',
+      skipIf: (ctx) => !ctx.exists('tm-add'),
       until: (ctx) => ctx.exists('tm-show') || !inMaker(ctx),
     },
   ],

@@ -58,6 +58,8 @@ export function fakeGoogle() {
     if (u.origin + path === UPLOAD && method === 'POST') return upload(init);
     const drive = /^\/(upload\/)?drive\/v3\/files\/([^/]+)(\/copy|\/export)?$/.exec(path);
     if (drive) return driveFile(decodeURIComponent(drive[2]), { upload: Boolean(drive[1]), extra: drive[3], method, u, init });
+    const thumb = /^\/v1\/presentations\/([^/]+)\/pages\/([^/]+)\/thumbnail$/.exec(path);
+    if (thumb) return files.get(decodeURIComponent(thumb[1])) ? json({ contentUrl: `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 90"><rect width="160" height="90" fill="#ece4f6"/></svg>')}` }) : missing();
     const api = /^\/(?:v1\/presentations|v1\/documents|v4\/spreadsheets)\/([^/:]+)(:batchUpdate)?$/.exec(path);
     if (api) return editorCall(decodeURIComponent(api[1]), Boolean(api[2]), init);
     return json({ error: { code: 400, message: `fake: no route for ${method} ${u}` } }, 400);
@@ -83,13 +85,23 @@ export function fakeGoogle() {
     return json(meta(file));
   }
 
+  // Like Google, a copy may give slide elements, sheets and headers new ids: code must not rely on them.
+  function renamed(content, stamp) {
+    if (!content) return content;
+    const elements = (list = []) => list.forEach((el) => { el.objectId = `${el.objectId}_c${stamp}`; elements(el.elementGroup?.children); });
+    for (const slide of content.slides ?? []) elements(slide.pageElements);
+    for (const sheet of content.sheets ?? []) if (sheet.properties) sheet.properties.sheetId += 1000 * stamp;
+    if (content.headers) content.headers = Object.fromEntries(Object.entries(content.headers).map(([id, h]) => [`${id}_c${stamp}`, h]));
+    return content;
+  }
+
   function copy(file, body) {
     const converting = body.mimeType && body.mimeType !== file.mimeType;
     if (converting && !file.converted) return json({ error: { code: 400, message: 'cannot convert' } }, 400);
     const made = add({
       name: body.name ?? `Copy of ${file.name}`, mimeType: body.mimeType ?? file.mimeType, parents: body.parents ?? file.parents,
       appProperties: body.appProperties ?? {}, properties: body.properties ?? {},
-      content: structuredClone(converting ? file.converted : file.content), exported: file.exported, text: file.text, bytes: file.bytes,
+      content: renamed(structuredClone(converting ? file.converted : file.content), (n += 1)), exported: file.exported, text: file.text, bytes: file.bytes,
     });
     return json(meta(made));
   }

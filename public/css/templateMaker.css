@@ -68,3 +68,15 @@
 .tm-track { height: 12px; border-radius: 999px; background: var(--card-2); overflow: hidden; margin-top: 4px; }
 .tm-fill { height: 100%; background: linear-gradient(90deg, var(--sage), var(--gold)); border-radius: 999px; transition: width .4s; }
 .tm > :last-child:not(.tm-bar) { margin-bottom: 22px; }
+
+/* ---------- looking at a made template ---------- */
+.tm-made { display: flex; gap: 14px; align-items: flex-start; margin-top: 8px; }
+.tm-look {
+  flex: none; width: 200px; aspect-ratio: 16 / 9; border: 1px solid var(--line); border-radius: 10px; background: var(--card-2);
+  display: grid; place-items: center; overflow: hidden; font-size: 28px; text-decoration: none;
+}
+.tm-look img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.tm-made .tm-status { margin-top: 0; }
+.tm-keep { display: flex; gap: 8px; align-items: center; margin-top: 10px; font-weight: 700; cursor: pointer; }
+.tm-keep input { accent-color: var(--royal); width: 18px; height: 18px; }
+@media (max-width: 560px) { .tm-made { flex-direction: column; } .tm-look { width: 100%; } }

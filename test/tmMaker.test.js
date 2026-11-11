@@ -3,7 +3,7 @@
 // files are never changed. (Adding them to the open plan: tmSession.test.js.)
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { dropFile, makeTemplate, prepareFile, staleDrafts } from '../public/js/templateMaker/maker.js';
+import { dropFile, keepTemplate, makeTemplate, prepareFile, previewPicture, staleDrafts } from '../public/js/templateMaker/maker.js';
 import { KINDS } from '../public/js/templateMaker/fileKinds.js';
 import { renderDoc } from './e2e/templateMaker/fakeDocs.js';
 import { docx, pictureBytes } from './e2e/templateMaker/officeFiles.js';
@@ -65,6 +65,8 @@ test('a PowerPoint file never opened in Google is turned into Google Slides, the
   assert.equal(made.lesson.fileId, prepared.draft.id, 'the draft becomes the template');
   const copy = g.get(made.lesson.fileId);
   assert.equal(copy.mimeType, KINDS.slides.google);
+  assert.equal(copy.appProperties.templateMaker, 'review', 'waits for the teacher to look');
+  await keepTemplate(calls, made);
   assert.equal(copy.appProperties.templateMaker, 'template');
   assert.equal(copy.properties.lessonPlanner, undefined);
   assert.deepEqual(deckTexts(copy.content), ['Beat Buddies', 'Week {{week_number}}']);
@@ -91,7 +93,7 @@ test('a Google Doc: numbers in the text and header become placeholders; its pict
   const doc = renderDoc(g.get(made.lesson.fileId).content);
   const text = (content) => content.flatMap((p) => p.paragraph.elements.map((e) => e.textRun?.content ?? '')).join('');
   assert.equal(text(doc.body.content), 'Lesson {{lesson_number}} notes\nSing \n');
-  assert.equal(text(doc.headers.h1.content), 'Week {{week_number}}\n');
+  assert.equal(text(Object.values(doc.headers)[0].content), 'Week {{week_number}}\n', 'the copy’s header has a new id; still found');
   assert.ok(doc.body.content[1].paragraph.elements.some((e) => e.inlineObjectElement), 'the picture stays');
   assert.equal(made.images.length, 1);
   assert.equal(g.get(made.images[0].fileId).mimeType, 'image/jpeg');
@@ -106,10 +108,45 @@ test('a Google Sheet: typed-in numbers become placeholders, formulas and numbers
   assert.deepEqual(sheetValues(g.get(made.lesson.fileId).content), [['Week {{week_number}}', 'Lesson {{lesson_number}}'], ['=SUM(A1)', 12]]);
 });
 
-test('without a pictures folder, pictures aren’t offered', async () => {
-  const { calls, setup, files } = teacherDrive({ images: false });
+test('without a pictures folder, a bitmoji on a slide still becomes a picture spot (just not saved anywhere)', async () => {
+  const { g, calls, setup, files } = teacherDrive({ images: false });
   const prepared = await prepareFile(calls, files.slides, { setup });
-  assert.deepEqual(prepared.scan.pictures, []);
+  assert.equal(prepared.scan.pictures.length, 1, 'offered');
+  const made = await makeTemplate(calls, prepared, { setup, shared: run() });
+  const copy = g.get(made.lesson.fileId);
+  assert.equal(anchorsIn(copy.content).length, 1, 'the bitmoji is a picture spot now');
+  assert.equal(copy.content.slides[0].pageElements.some((el) => el.image), false, 'the bitmoji is gone');
+  assert.deepEqual(made.images, []);
+  assert.equal(made.pictures, 1);
+  assert.ok(made.lesson.fields.includes('image'));
+  const doc = await prepareFile(calls, files.doc, { setup });
+  assert.deepEqual(doc.scan.pictures, [], 'a document keeps its pictures, so with no folder there is nothing to offer');
+});
+
+test('Google gives the copy new inside names: the ticked numbers are still changed in the copy', async () => {
+  const { g, calls, setup, files } = teacherDrive();
+  const prepared = await prepareFile(calls, files.slides, { setup });
+  const made = await makeTemplate(calls, prepared, { setup, shared: run() });
+  const copy = g.get(made.lesson.fileId);
+  assert.notEqual(copy.content.slides[0].pageElements[1].objectId, files.slides.content.slides[0].pageElements[1].objectId, 'the pretend Drive renamed it');
+  assert.deepEqual(deckTexts(copy.content), ['Rhythm Tree', 'Lesson {{lesson_number}} · Week {{week_number}}', 'Day {{lesson_number}} warm-up']);
+});
+
+test('if Google doesn’t take the changes, the template isn’t made (no silent unchanged copy)', async () => {
+  const { calls, setup, files } = teacherDrive();
+  const prepared = await prepareFile(calls, files.slides, { setup });
+  calls.changeFile = async () => null;
+  await assert.rejects(makeTemplate(calls, prepared, { setup, shared: run() }), /not_changed/);
+});
+
+test('a made template stays hidden from watched folders until it is kept; Slides get a picture to look at', async () => {
+  const { g, calls, setup, files } = teacherDrive();
+  const made = await makeTemplate(calls, await prepareFile(calls, files.slides, { setup }), { setup, shared: run() });
+  assert.equal(g.get(made.lesson.fileId).properties.lessonPlanner, 'template-maker-draft');
+  assert.match(await previewPicture(calls, made), /^data:image/);
+  await keepTemplate(calls, made);
+  assert.equal(g.get(made.lesson.fileId).properties.lessonPlanner, undefined);
+  assert.equal(g.get(made.lesson.fileId).appProperties.templateMaker, 'template');
 });
 
 test('the same picture in two files is saved once', async () => {
