@@ -35,6 +35,8 @@ Hold a bar's end, or anything you're dragging, near the top or bottom edge to sc
 - **Lesson Templates** — the library of lessons (one slide deck each), organized in folders (click to open/close, drag decks
   and folders onto a folder, `⋯` to rename/delete). **+ Add** makes a new deck or folder, or brings in slide files or a whole
   folder (folders inside folders too) from the computer (slide files) or Google Drive (any kind of file: Docs, Sheets, Slides, PDFs…).
+  **✨ Make templates from my lessons…** (also under + Add) turns lessons you already have into templates: their lesson and week
+  numbers become placeholders, a template copy is saved in your Drive templates folder and added here ❗ new (your files are never changed).
   **Filled in automatically** appears only for Google Docs, Sheets and Slides; **Open in …** goes straight to each file's Google editor. Drive folders are watched: decks added there later
   appear with a ❗ (also shown on every folder above them) until you change any of their details.
   Each deck has its instruments, the details it fills in automatically (including week number and the class's lesson number)

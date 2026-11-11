@@ -86,3 +86,10 @@ Keep only one browser tab open on 127.0.0.1:5178 (`reset()` can wait forever if 
 | S2 | The “Looking at” list, opened just before sign-in finishes, stays open and finds colleagues once signed in. |
 | S3 | The new-year window, opened just before sign-in finishes, offers Google Drive once signed in (typed name kept). |
 | C1 | Sharing capsules: “Only you” → “Shared” once I share the School Year, “Shared with you” for a colleague’s, “Just yours” on my own Setup settings. |
+
+## Template Maker window (`templateMaker.e2e.js`)
+Fresh computer (reset + reload), then `const t = await import('/e2e/templateMaker.e2e.js'); await t.run()` → `{ passed, errors }`.
+A pretend Drive (`templateMaker/fakeGoogle.js`) answers every Google address; the planner gets pretend Google codes and a
+pretend file picker (`usePicker`). Proves: + Add → ✨ opens the window, the plan's Drive folder is used, a made-up deck's
+lesson/week numbers are found and ticked, Make saves a template copy in that folder and adds it ❗ new, the original is
+unchanged, "Show me" selects it. `t.preview()` just opens the window with one lesson read (to look at; reload after).

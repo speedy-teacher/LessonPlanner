@@ -16,6 +16,7 @@ import { dismissNotice, showNotice } from '../notices.js';
 import { commit, setUi, store } from '../store.js';
 import { menuItem, popMenu, year } from './common.js';
 import { askName, newFolder, openFolders, targetFolder } from './deckTree.js';
+import { openTemplateMaker } from './templateMaker.js';
 
 const WATCH_EVERY_MS = 10 * 60 * 1000;
 const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
@@ -43,7 +44,8 @@ export function addMenu() {
     menuItem('Slide files…', () => pickLocal(false), { icon: '📄', tip: 'Pick one or more slide decks' }),
     menuItem('A folder of slides…', () => pickLocal(true), { icon: '🗂️', tip: 'Brings in every deck, including folders inside folders' }),
     h('div', { class: 'menu-group' }, 'From Google Drive'),
-    menuItem('Files or folders…', () => importFromDrive(LESSON_KIND), { icon: '☁️', tip: 'Any kind of Drive file (Docs, Sheets, Slides, PDFs…). Folders are watched: new files added there show up here' }));
+    menuItem('Files or folders…', () => importFromDrive(LESSON_KIND), { icon: '☁️', tip: 'Any kind of Drive file (Docs, Sheets, Slides, PDFs…). Folders are watched: new files added there show up here' }),
+    menuItem('Make templates from my lessons…', () => openTemplateMaker(), { icon: '✨', tip: 'Pick lessons you already have: their lesson and week numbers become placeholders, and a template copy is saved in your templates folder', tour: 'tm-open' }));
 }
 
 function newDeck() {
@@ -91,7 +93,8 @@ function pickLocal(folder) {
 // ---------- from Google Drive ----------
 
 /** Make sure Drive is connected (and can read folders); otherwise explain and offer to sign in. */
-function driveReady({ needFolders }) {
+/** Google Drive is set up and signed in (else a notice says what to do). */
+export function driveReady({ needFolders }) {
   const googleClientId = clientId();
   const googleApiKey = apiKey();
   if (!googleClientId || !googleApiKey) {

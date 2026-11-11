@@ -176,6 +176,24 @@ A browser app for a (non-technical) elementary music teacher to plan a school ye
   Background news redraws via `refreshSoon()` (quietRefresh.js), never `refresh()`, so clicks aren't swallowed.
   Not yet tried against real Google (URL `drive.google.com/uc?export=view&id=`, fallback `lh3.googleusercontent.com/d/`).
 
+## Template Maker window (Lesson Templates → + Add → ✨ Make templates from my lessons…)
+- Brought in from the separate `template-maker` repo (no longer needs publishing on its own). Turns the teacher's existing
+  Slides/Docs/Sheets (and PowerPoint/Word/Excel in Drive) into templates: lesson/week numbers → `{{lesson_number}}` /
+  `{{lesson_number_abs}}` / `{{week_number}}` placeholders, first-page pictures → saved to the pictures folder (Slides: an
+  `IMAGE_ANCHOR` spot). The teacher's own files are never changed; Office files are first copied as a Google "draft"
+  (`appProperties.templateMaker=draft` + `properties.lessonPlanner` so watched folders skip it; drafts > 1 h old trashed on open).
+- `public/js/templateMaker/`: `session.js` (the visit, no DOM; `plan` = { state, yearId, add }), `setup.js` (templates folder
+  = a `deckFolders` record with a Drive location in the active year, pictures = `imageFolders`; checked in Drive; picks in
+  localStorage `lesson-planner-template-maker`), `maker.js` (prepare → make), `addToPlan.js` (`addTemplates` = lessons/images
+  ❗ new with `yearId`, `seenDriveIds` on the top watched folder, never doubled by Drive file), `numberMatch.js` + `scan*.js`
+  (fuzzy finder, ported from lesson-organizer `templatize.py`), `officePackage.js` (picture bytes from the Office zip),
+  `googleApi.js` (retries/slow-down → `copyPace`, `runPool`), `makerDrive.js` (Drive/Slides/Docs/Sheets calls).
+  Views: `views/templateMaker.js` (window, own `tm-` classes in `css/templateMaker.css`; work goes on if it's closed),
+  `templateMakerFile.js`, `templateMakerBar.js`. One `commit` = one Undo; a view-only library → "will show up by themselves".
+- Tests: `test/tm*.test.js` (fakes in `test/e2e/templateMaker/`), browser `test/e2e/templateMaker.e2e.js`. Tutorial
+  `make-templates`. Not by command (`NEEDS_THE_TEACHER`: Google's picker). Not yet tried against real Google
+  (needs the Slides/Docs/Sheets APIs on in the Google project).
+
 ## Reports (Google Sheets: each week's lessons in order, linked to their copies, + instruments that week)
 - Pure: `reportPlan.js` (tested in `test/reports.test.js`): `reportTab` (heading "School · Grade", weeks → `reportWeek`
   { number, dates, instruments ("Drum (all week)" / "Drum (available Sep 8 - Sep 9)"), lessons [{ text, url }] }),

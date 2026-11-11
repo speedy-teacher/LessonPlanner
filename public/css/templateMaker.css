@@ -1,0 +1,70 @@
+/* The Template Maker window (Lesson Templates → + Add → ✨ Make templates from my lessons…) */
+
+.modal-card.tm-card { width: min(860px, 100%); max-height: 90vh; overflow-y: auto; padding-bottom: 0; }
+.tm-title { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+.tm-title h2 { margin: 0; }
+.tm-close { border: 0; background: var(--card-2); border-radius: 50%; width: 32px; height: 32px; cursor: pointer; color: var(--ink-soft); font-size: 18px; flex: none; }
+.tm-close:hover { background: #f7e1da; color: var(--danger); }
+
+.tm { display: flex; flex-direction: column; gap: 12px; }
+.tm .small { font-size: 13px; }
+.tm-hint { color: var(--ink-soft); margin: 2px 0; }
+.tm-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.tm-notice { border-radius: 12px; padding: 10px 14px; margin: 4px 0 8px; }
+.tm-notice.problem { background: #f8e4dd; color: var(--danger); }
+.tm-notice.gold { background: var(--gold-soft); color: #7a5a14; }
+
+.tm-setup { display: grid; gap: 8px; background: var(--card-2); border-radius: 12px; padding: 10px 14px; }
+.tm-setup-row { display: grid; grid-template-columns: 26px 140px 1fr; align-items: center; gap: 8px; }
+.tm-what { font-weight: 700; }
+.tm-setup-row select { border: 1px solid var(--line); border-radius: 10px; padding: 5px 8px; background: #fff; max-width: 100%; }
+.tm-several { grid-column: 3; color: #7a5a14; font-size: 13px; }
+@media (max-width: 560px) { .tm-setup-row { grid-template-columns: 26px 1fr; } .tm-setup-row > :nth-child(3), .tm-several { grid-column: 1 / -1; } }
+
+.tm-files { display: grid; gap: 12px; }
+.tm-file { border: 1px solid var(--line); border-radius: var(--radius); background: #fff; padding: 14px 16px; }
+.tm-file.problem, .tm-file.failed { border-color: #e7b9aa; background: #fffaf8; }
+.tm-file.made { border-color: #bcd3b1; background: #fbfdf9; }
+.tm-file-head { display: flex; gap: 10px; align-items: flex-start; }
+.tm-file-icon { font-size: 26px; line-height: 1; }
+.tm-file-title { flex: 1; min-width: 0; }
+.tm-name-input { width: 100%; border: 1px solid var(--line); border-radius: 10px; padding: 6px 10px; font-weight: 800; font-size: 16px; background: var(--card); }
+.tm-name-input:focus { outline: 2px solid var(--royal-soft); border-color: var(--royal); }
+.tm-from { color: var(--ink-soft); font-size: 13px; margin-top: 3px; overflow-wrap: anywhere; }
+.tm-remove { border: 0; background: var(--card-2); border-radius: 50%; width: 28px; height: 28px; cursor: pointer; color: var(--ink-soft); font-size: 16px; flex: none; }
+.tm-remove:hover { background: #f7e1da; color: var(--danger); }
+.tm-status { margin-top: 8px; font-weight: 700; color: var(--ink-soft); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.tm-status.good { color: var(--sage); }
+.tm-status.bad { color: var(--danger); }
+.tm-spinner { width: 16px; height: 16px; border: 3px solid var(--royal-soft); border-top-color: var(--royal); border-radius: 50%; animation: tm-spin 1s linear infinite; flex: none; }
+@keyframes tm-spin { to { transform: rotate(360deg); } }
+
+.tm-section-title { font-weight: 800; margin: 12px 0 6px; font-size: 14px; color: var(--navy); }
+.tm-matches { display: grid; gap: 6px; }
+.tm-match { display: grid; grid-template-columns: 22px auto 1fr; gap: 8px; align-items: start; padding: 6px 8px; border-radius: 10px; background: var(--card); cursor: pointer; }
+.tm-match.off { opacity: .55; }
+.tm-match input { margin-top: 3px; accent-color: var(--royal); }
+.tm-where { font-size: 12px; font-weight: 800; color: var(--royal); background: var(--royal-soft); border-radius: 999px; padding: 1px 8px; margin-top: 2px; white-space: nowrap; }
+.tm-change { min-width: 0; overflow-wrap: anywhere; }
+.tm-before { color: var(--ink-soft); }
+.tm-arrow { color: var(--gold); font-weight: 800; margin: 0 4px; }
+.tm-placeholder { background: var(--gold-soft); color: #7a5a14; border-radius: 6px; padding: 0 4px; font-weight: 800; font-family: ui-monospace, Consolas, monospace; font-size: 13px; }
+.tm-field-pick { margin-left: 8px; border: 1px solid var(--line); border-radius: 8px; padding: 1px 4px; font-size: 13px; background: #fff; }
+
+.tm-pictures { display: flex; flex-wrap: wrap; gap: 10px; }
+.tm-picture { position: relative; width: 120px; border: 2px solid var(--line); border-radius: 12px; background: var(--card); padding: 6px; cursor: pointer; text-align: center; }
+.tm-picture.on { border-color: var(--royal); }
+.tm-picture img { width: 100%; height: 90px; object-fit: contain; display: block; }
+.tm-picture input { position: absolute; top: 6px; left: 6px; accent-color: var(--royal); width: 18px; height: 18px; }
+.tm-caption { font-size: 12px; color: var(--ink-soft); margin-top: 4px; overflow-wrap: anywhere; }
+
+.tm-bar {
+  position: sticky; bottom: 0; margin: 0 -22px; padding: 12px 22px; background: var(--card); border-top: 1px solid var(--line);
+  display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; justify-content: space-between;
+  box-shadow: 0 -6px 18px rgba(90, 64, 40, .08); border-radius: 0 0 18px 18px;
+}
+.tm-make { font-size: 16px; padding: 10px 20px; }
+.tm-progress { flex: 1; min-width: 200px; }
+.tm-track { height: 12px; border-radius: 999px; background: var(--card-2); overflow: hidden; margin-top: 4px; }
+.tm-fill { height: 100%; background: linear-gradient(90deg, var(--sage), var(--gold)); border-radius: 999px; transition: width .4s; }
+.tm > :last-child:not(.tm-bar) { margin-bottom: 22px; }

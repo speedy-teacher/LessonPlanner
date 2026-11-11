@@ -30,6 +30,7 @@ export { CommandError };
 export const NEEDS_THE_TEACHER = [
   'Signing in to Google Drive',
   'Bringing in lesson decks or pictures from Google Drive or the computer (the Add button)',
+  'Making templates from existing lessons (Lesson Templates → + Add → ✨ Make templates from my lessons…: Google’s file picker needs the teacher’s click)',
   'Choosing the folder for lesson copies, or moving the plan to another folder',
   'Making a report in Google Drive (the Make button on the Reports tab) or choosing the folder it goes in',
   'Starting a new school year (it becomes a new plan file) or opening another plan',

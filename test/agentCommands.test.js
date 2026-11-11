@@ -105,3 +105,8 @@ test('a list of commands is all or nothing', () => {
   assert.deepEqual(lessonsIn(ok.state, 1), ['Alpha', 'Bravo']);
   assert.equal(runCommands(s, [{ command: 'overview', args: {} }]).changed, false);
 });
+
+test('the assistant is told making templates from lessons needs the teacher (Google’s file picker)', () => {
+  const o = runCommand(setup(), 'overview');
+  assert.ok(o.onlyTheTeacherCanDo.some((what) => /Make templates from my lessons/.test(what)));
+});

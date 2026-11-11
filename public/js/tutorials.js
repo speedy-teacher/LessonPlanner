@@ -232,6 +232,50 @@ const lessonTemplates = {
   ],
 };
 
+const inMaker = (ctx) => ctx.exists('template-maker');
+
+const makeTemplates = {
+  id: 'make-templates',
+  icon: '✨',
+  title: 'Turn your lessons into templates',
+  about: 'Pick lessons you already have: their lesson and week numbers become placeholders.',
+  ready: (ctx) => needsPlan(ctx) ?? (ctx.driveConnected ? null : 'First sign in to Google Drive — the “Google Drive” tutorial shows how.'),
+  steps: [
+    ...goTo('lessons'),
+    {
+      target: ['deck-add', 'tm-open'],
+      text: 'Click “+ Add”, then “✨ Make templates from my lessons…” (under Google Drive).',
+      skipIf: inMaker,
+      until: inMaker,
+    },
+    {
+      target: 'tm-folders',
+      text: 'Your new templates are saved in this Google Drive folder, and pictures in your pictures folder. Pick another one here if you like.',
+      skipIf: (ctx) => !ctx.exists('tm-folders'),
+      backIf: (ctx) => !inMaker(ctx),
+    },
+    {
+      target: 'tm-choose',
+      text: 'Click here and pick one or more of your lessons — Slides, Docs or Sheets, or PowerPoint, Word and Excel files (hold Ctrl to pick several).',
+      skipIf: (ctx) => !ctx.exists('tm-choose') || ctx.exists('tm-file'),
+      until: (ctx) => ctx.exists('tm-file'),
+      backIf: (ctx) => !inMaker(ctx),
+    },
+    {
+      target: 'tm-file', pick: 'first',
+      text: 'Every lesson and week number found is ticked: it becomes a placeholder, so each lesson copy gets the right number typed in. Untick any that should stay as they are, and check the template’s name.',
+      skipIf: (ctx) => !ctx.exists('tm-file'),
+      backIf: (ctx) => !inMaker(ctx),
+    },
+    {
+      target: 'tm-make',
+      text: 'Click Make. The templates are saved in your folder and added to your Lesson Templates, marked ❗ new. Your own files are never changed.',
+      skipIf: (ctx) => !ctx.exists('tm-make'),
+      until: (ctx) => ctx.exists('tm-show') || !inMaker(ctx),
+    },
+  ],
+};
+
 const outcomes = {
   id: 'outcomes',
   icon: '🌱',
@@ -619,6 +663,6 @@ const sharing = {
 };
 
 export const TUTORIALS = [
-  welcome, googleDrive, schoolYear, lessonTemplates, outcomes, instrumentSchedule, evalCalendar,
+  welcome, googleDrive, schoolYear, lessonTemplates, makeTemplates, outcomes, instrumentSchedule, evalCalendar,
   lessonSchedule, images, lessonCopies, reports, plans, sharing,
 ];

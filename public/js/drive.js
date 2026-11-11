@@ -110,6 +110,11 @@ export function pickFromDrive({ token, apiKey, clientId }, { title = 'Pick lesso
   });
 }
 
+/** Open Google's picker for several files of the given kinds (Template Maker: lessons to turn into templates). */
+export function pickFilesFromDrive({ token, apiKey, clientId }, { mimeTypes, title }) {
+  return openPicker({ token, apiKey, clientId }, { mimeTypes, multiple: true, title });
+}
+
 /** Open Google's picker for one plan file (also gives the planner permission to save it). */
 export function pickPlanFromDrive({ token, apiKey, clientId }) {
   return openPicker({ token, apiKey, clientId }, { mimeTypes: ['application/json'], title: 'Pick a plan file' });

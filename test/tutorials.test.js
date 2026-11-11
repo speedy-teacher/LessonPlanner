@@ -44,6 +44,8 @@ test('tutorials go in the order a teacher sets up a year, and cover every page',
   const before = (a, b) => assert.ok(ids.indexOf(a) < ids.indexOf(b), `${a} comes before ${b}`);
   before('school-year', 'lesson-templates');
   before('lesson-templates', 'outcomes');
+  before('lesson-templates', 'make-templates');
+  before('make-templates', 'outcomes');
   before('outcomes', 'eval-calendar');
   before('instrument-schedule', 'eval-calendar');
   before('eval-calendar', 'lesson-schedule');
@@ -288,4 +290,11 @@ test('lit-up parts on top of each other stay lit (one hole around both)', () => 
 test('goTo uses the tab, or Setup ▾ for Setup pages', () => {
   assert.equal(goTo('reports')[0].target, 'tab-reports');
   assert.deepEqual(goTo('outcomes')[0].target, ['setup-menu', 'menu-outcomes']);
+});
+
+test('“Turn your lessons into templates” opens the Template Maker window from Lesson Templates → + Add', () => {
+  const t = TUTORIALS.find((x) => x.id === 'make-templates');
+  assert.ok(t.steps.some((s) => targetNames(s).includes('tm-open')), 'lights up the menu item');
+  assert.match(t.ready({ hasPlan: true, driveConnected: false }), /Google Drive/);
+  assert.equal(t.ready({ hasPlan: true, driveConnected: true }), null);
 });
