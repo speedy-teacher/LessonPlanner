@@ -210,14 +210,20 @@ export function importLocalFiles(state, { yearId, parentId = null, files, seenAt
  * remembers them, and folders brought in aren't watched on their own (its watching covers them).
  * Returns { added, folders, skipped }.
  */
-export function importDriveItems(state, { yearId, parentId = null, nodes, markNew = false, seenAt = now(), shelf = LESSON_SHELF, seenBy = null }) {
-  const ctx = { state, yearId, markNew, seenAt, shelf, seen: seenBy ? new Set(seenBy.seenDriveIds ?? []) : null, picked: Boolean(seenBy), result: { added: [], folders: [], skipped: [] } };
+export function importDriveItems(state, options) {
+  const { parentId = null, nodes, seenBy = null } = options;
+  const ctx = driveContext(state, options);
   for (const node of nodes) {
     if (node.mimeType === DRIVE_FOLDER) addDriveFolder(ctx, node, parentId, !seenBy);
     else addDriveDeck(ctx, node, parentId);
   }
   if (seenBy) seenBy.seenDriveIds = [...ctx.seen];
   return ctx.result;
+}
+
+function driveContext(state, { yearId, markNew = false, seenAt = now(), shelf = LESSON_SHELF, seenBy = null }) {
+  const seen = seenBy ? new Set(seenBy.seenDriveIds ?? []) : null;
+  return { state, yearId, markNew, seenAt, shelf, seen, picked: Boolean(seenBy), result: { added: [], folders: [], skipped: [] } };
 }
 
 function driveRecord(ctx, collection, fileId) {
