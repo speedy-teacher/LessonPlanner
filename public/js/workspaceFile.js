@@ -49,9 +49,9 @@ export function splitYears(state) {
   return state.years.map((y) => ({ name: planName(y), state: yearOnly(state, y.id) }));
 }
 
-/** The file name a year's plan gets, e.g. "Music Plans 2026–27". */
+/** The file name a year's plan gets, e.g. "Lesson Plans 2026–27". */
 export function planName(year) {
-  return `Music Plans ${year?.name || ''}`.trim();
+  return `Lesson Plans ${year?.name || ''}`.trim();
 }
 
 /**

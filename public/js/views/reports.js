@@ -74,7 +74,7 @@ function formCard(files) {
   const { manual } = settings();
   return h('section', { class: 'card reports-card', 'data-tour': 'report-form' },
     h('h3', {}, '📊 Make a report'),
-    h('p', { class: 'hint' }, 'A Google Sheet with each week’s lessons in order (each one links to its lesson copy) and the instruments at the school that week. Choose one file per school, per grade, or all grades on one sheet.'),
+    h('p', { class: 'hint' }, 'A Google Sheet with each week’s lessons in order (each one links to its lesson copy) and the materials at the school that week. Choose one file per school, per grade, or all grades on one sheet.'),
     weekPickers(manual),
     chooser('Schools', current('schools'), manual.schoolIds, (schoolIds) => saveSettings({ manual: { schoolIds } })),
     chooser('Grades', current('grades'), manual.gradeIds, (gradeIds) => saveSettings({ manual: { gradeIds } }), { colors: true }),
@@ -234,7 +234,7 @@ function keepStatus() {
   const problem = keepProblem();
   if (problem) return problem;
   const state = copyStatus().state;
-  if (state === 'ready') return '✓ Kept up to date about a minute after you change the Lesson Schedule or Instrument Schedule.';
+  if (state === 'ready') return '✓ Kept up to date about a minute after you change the Lesson Schedule or Materials Schedule.';
   return state === 'other-keeper' || state === 'other-computer'
     ? 'They’re updated by the computer that keeps the lesson copies.'
     : 'They’re updated once Google Drive is connected and the lesson copies are checked.';

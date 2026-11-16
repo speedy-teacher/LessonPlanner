@@ -1,6 +1,6 @@
 # Lesson Planner
 
-Organize music lesson slides by academic year, school, grade and instrument schedule.
+Organize lesson slides by academic year, school, grade and materials schedule.
 
 **To open it:** go to the planner's website (see `docs/hosting.md`), or on this computer double-click
 `Start Lesson Planner.bat`.
@@ -18,16 +18,16 @@ Hold a bar's end, or anything you're dragging, near the top or bottom edge to sc
 - **Outcome & Eval Calendar** — pick a school and grade, then drag eval criteria (grouped and colored by
   essential outcome) onto a day, and drag either end of the bar to stretch it over several days
   (or click an eval, then click days). Switching school/grade keeps the same month so you can compare.
-  ⚠ marks an eval whose lesson needs an instrument that isn't at that school on some of its days — hover to read why.
+  ⚠ marks an eval whose lesson needs a material that isn't at that school on some of its days — hover to read why.
   Shortcuts: `[` `]` school, `0`–`5` grade, `←` `→` month, `Shift`+`←` `→` shorten/lengthen the selected bar,
   `Esc` stop placing, `Ctrl+Z` undo.
-- **Instrument Schedule** — drag an instrument for a school onto its first day, then drag the end of the bar
-  to its last day. Bars are colored by instrument and labeled `Instrument@School`; "Show" narrows to one school.
+- **Materials Schedule** — drag a material for a school onto its first day, then drag the end of the bar
+  to its last day. Bars are colored by material and labeled `Material@School`; "Show" narrows to one school.
   Same moves as the Outcome & Eval Calendar (Ctrl to copy, `Shift`+`←` `→`, `Delete`).
 - **Lesson Schedule** — every school week as a row (week number + dates) for a school + grade. Drag lesson decks
   (with first-slide previews; search and filter by grade, outcome, eval, category) from the right into a week; drag
   to reorder, move to another week, or back to the list to take off. Rows show that week's evals (outcome colors)
-  and instruments (dashed = part of the week); ⚠ = a deck's instrument isn't there that week.
+  and materials (dashed = part of the week); ⚠ = a deck's material isn't there that week.
   "✨ Fill from Outcome & Eval Calendar" spreads each eval's lessons, in order, over the weeks it's on the calendar.
   The ✨ at the top right of a week fills just that week.
 - **Outcomes, Evals & Lesson Order** — essential outcomes → eval criteria → grades and the lesson decks for each eval, in teaching order
@@ -39,14 +39,14 @@ Hold a bar's end, or anything you're dragging, near the top or bottom edge to sc
   numbers become placeholders, a template copy is saved in your Drive templates folder and added here ❗ new (your files are never changed).
   **Filled in automatically** appears only for Google Docs, Sheets and Slides; **Open in …** goes straight to each file's Google editor. Drive folders are watched: decks added there later
   appear with a ❗ (also shown on every folder above them) until you change any of their details.
-  Each deck has its instruments, the details it fills in automatically (including week number and the class's lesson number)
+  Each deck has its materials, the details it fills in automatically (including week number and the class's lesson number)
   with the `{{…}}` text to type in the slides for each (click to copy), and which evals teach it (**+ Add to an eval** right there).
 
-Click any instrument (a bar on the Instrument Schedule, the colored stripe on the Outcome & Eval Calendar, or a tag) for a menu: **Lessons that use …** opens Lesson Templates
+Click any material (a bar on the Materials Schedule, the colored stripe on the Outcome & Eval Calendar, or a tag) for a menu: **Lessons that use …** opens Lesson Templates
 showing only those lessons (**× Show all** to clear). Clicking an eval on the Outcome & Eval Calendar offers its lessons'
 instruments, **Open this eval in Outcomes, Evals & Lesson Order** (its lesson list opened) and **Remove from calendar**. `↑` `↓` move through the list.
 - **Setup ▾** — a menu of three pages: **School Year**, **Outcomes, Evals & Lesson Order** and **Lesson Templates**.
-- **School Year** — the year's dates, schools, grades and instruments; start a new year
+- **School Year** — the year's dates, schools, grades and materials; start a new year
   (copies last year's lists, lesson decks, outcomes, criteria and lesson order; calendars start empty).
   The **Google Drive** card connects to Drive — see `docs/google-drive-setup.md`.
 
@@ -55,7 +55,7 @@ up the button to press or the box to fill in, waits for you to do it, and offers
 means there's a tutorial you haven't seen yet.
 
 **🤝 Sharing with a department** — a plan can be three files, shared separately: the **School Year** (calendars, schools,
-grades, instruments, events, outcomes & evals — share it with your department), your **Lesson Schedule** (weekly lessons,
+grades, materials, events, outcomes & evals — share it with your department), your **Lesson Schedule** (weekly lessons,
 lesson order, reports, your colors) and your **Teacher Resources** (lesson templates and pictures, kept across years).
 New plans (first plan, new school year, opening a file) start out shareable; "Share with your department…" moves an older plan over (the old file is kept). Each of the three files can be shared on its own.
 **👀 Looking at** is per tab and lists only people who shared that tab's part with you (Lesson Schedule, Reports and

@@ -1,4 +1,4 @@
-// "Instrument Schedule": drag an instrument for a school onto a day, then
+// "Materials Schedule": drag a material (stored as an instrument) for a school onto a day, then
 // stretch it over the dates it's there. Bars are colored by instrument and
 // labeled "Instrument@School".
 
@@ -31,7 +31,7 @@ const blockName = (b) => `${instrumentOf(b)?.name}@${schoolOf(b)?.name}`;
 export function renderSchedule() {
   const ctx = context();
   if (!ctx.schools.length || !ctx.instruments.length) {
-    return emptyNote('Add at least one school and one instrument under Setup › School Year first.');
+    return emptyNote('Add at least one school and one material under Setup › School Year first.');
   }
   // Order by school so each school's bars sit in the same row week to week.
   const schoolOrder = new Map(ctx.shownSchools.map((s, i) => [s.id, i]));
@@ -79,7 +79,7 @@ function sidebar(ctx) {
   return h('aside', { class: 'side card', 'data-tour': 'schedule-side' },
     h('h3', {}, 'Show'),
     pills([{ id: ALL, name: 'All schools' }, ...ctx.schools], ctx.filter, (id) => setUi({ scheduleFilter: id })),
-    h('h3', {}, 'Instruments'),
+    h('h3', {}, 'Materials'),
     h('p', { class: 'hint' }, 'Drag onto the first day, then drag the end of the bar to the last day. Or click one, then click days.'),
     ctx.shownSchools.map((school) => h('section', { class: 'palette-school' },
       h('div', { class: 'palette-school-name' }, school.name),

@@ -331,7 +331,7 @@ function reportParts(tab) {
   ];
   const weeks = tab.weeks.map((week) => [
     [{ text: `Week ${week.number}`, style: 'week' }, rest(week.dates, 'week')],
-    [{ text: 'Instruments', style: 'label' }, rest(instrumentsLine(week.instruments), 'instruments')],
+    [{ text: 'Materials', style: 'label' }, rest(instrumentsLine(week.instruments), 'instruments')],
     ...(week.lessons.length ? [] : [[{ text: '', style: 'number' }, rest('No lessons on the schedule', 'empty')]]),
     ...week.lessons.flatMap((l, i) => lessonRows(tab, l, i)),
     [],

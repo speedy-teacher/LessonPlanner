@@ -87,7 +87,7 @@ function caption(lesson, number, warn) {
     number ? h('span', { class: 'slide-num' }, number) : null,
     h('span', { class: 'slide-title' }, lesson?.name),
     instrumentTags(lesson),
-    warn ? h('span', { class: 'warn', title: 'An instrument isn’t at the school that day' }, '⚠') : null);
+    warn ? h('span', { class: 'warn', title: 'A material isn’t at the school that day' }, '⚠') : null);
 }
 
 /** Little colored tags for the instruments a lesson uses. */

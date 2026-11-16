@@ -164,7 +164,7 @@ const schoolYear = {
   id: 'school-year',
   icon: '🧺',
   title: 'Set up your school year',
-  about: 'Dates, schools, grades, instruments and school events.',
+  about: 'Dates, schools, grades, materials and school events.',
   ready: needsPlan,
   steps: [
     ...goTo('setup'),
@@ -185,7 +185,7 @@ const schoolYear = {
     },
     {
       target: 'list-instruments',
-      text: (ctx) => `Add each instrument your lessons use (like “Ukulele”), and pick a color for each.${soFar(ctx, 'instruments', 'instrument')}`,
+      text: (ctx) => `Add each material your lessons use (like “iPads” or “Ukuleles”), and pick a color for each.${soFar(ctx, 'instruments', 'material')}`,
       ...addSome('instruments'),
     },
     {
@@ -224,7 +224,7 @@ const lessonTemplates = {
     },
     {
       target: 'deck-instruments',
-      text: 'Click the instruments this lesson uses. The calendars warn you when one isn’t at the school that week.',
+      text: 'Click the materials this lesson uses. The calendars warn you when one isn’t at the school that week.',
       skipIf: (ctx) => !ctx.exists('deck-instruments'),
     },
     {
@@ -346,28 +346,28 @@ const outcomes = {
 
 const instrumentSchedule = {
   id: 'instrument-schedule',
-  icon: '🎶',
-  title: 'The Instrument Schedule',
-  about: 'Mark when each instrument is at each school.',
+  icon: '📦',
+  title: 'The Materials Schedule',
+  about: 'Mark when each material is at each school.',
   ready: (ctx) => needsPlan(ctx)
-    ?? (ctx.count('schools') && ctx.count('instruments') ? null : 'First add a school and an instrument — the “Set up your school year” tutorial shows how.'),
+    ?? (ctx.count('schools') && ctx.count('instruments') ? null : 'First add a school and a material — the “Set up your school year” tutorial shows how.'),
   steps: [
     ...goTo('schedule'),
     {
       target: 'schedule-side',
-      text: 'Click an instrument under a school.',
+      text: 'Click a material under a school.',
       until: (ctx) => Boolean(ctx.ui.armedBlock),
       nextWhen: () => true,
     },
     {
       target: 'calendar',
-      text: 'Now click each day the instrument is at that school (the month buttons at the top jump around). Click “Done” when you’ve clicked them all.',
+      text: 'Now click each day the material is at that school (the month buttons at the top jump around). Click “Done” when you’ve clicked them all.',
       ...placeDays('instrumentBlocks', 'armedBlock'),
     },
     {
       target: 'calendar',
       title: 'Handy moves',
-      text: 'Drag either end of a bar to stretch it over more days, drag the bar to move it (hold Ctrl to copy), and click a bar for its menu. You can also drag an instrument straight onto a day.',
+      text: 'Drag either end of a bar to stretch it over more days, drag the bar to move it (hold Ctrl to copy), and click a bar for its menu. You can also drag a material straight onto a day.',
     },
   ],
 };
@@ -398,7 +398,7 @@ const evalCalendar = {
     },
     {
       target: 'calendar',
-      text: 'Click a bar on the calendar to see its lessons. Drag its ends to stretch it. ⚠ means a lesson needs an instrument that isn’t at the school that day — hover it to see why.',
+      text: 'Click a bar on the calendar to see its lessons. Drag its ends to stretch it. ⚠ means a lesson needs a material that isn’t at the school that day — hover it to see why.',
       until: (ctx) => Boolean(ctx.ui.placementId),
       nextWhen: () => true,
     },
@@ -456,7 +456,7 @@ const lessonSchedule = {
     },
     {
       target: 'ls-weeks',
-      text: 'Each week shows its evals and the instruments at the school. The ✨ at a week’s top right fills just that week. Click a lesson for its menu.',
+      text: 'Each week shows its evals and the materials at the school. The ✨ at a week’s top right fills just that week. Click a lesson for its menu.',
     },
   ],
 };
@@ -481,7 +481,7 @@ const images = {
     },
     {
       target: 'image-details',
-      text: 'Give it tags, instruments and a time it fits (like around Halloween, or “OK any time”). Each week’s lesson copy gets the picture that fits best — lessons need the picture spot from “Filled in automatically”.',
+      text: 'Give it tags, materials and a time it fits (like around Halloween, or “OK any time”). Each week’s lesson copy gets the picture that fits best — lessons need the picture spot from “Filled in automatically”.',
       skipIf: (ctx) => !ctx.count('images'),
     },
   ],
@@ -521,29 +521,29 @@ function instrumentColumn() {
   return [
     {
       target: 'report-add-after',
-      title: 'Add an Instrument column',
-      text: 'Let’s add a column that shows the instruments each lesson uses. Click “+ Column after”.',
+      title: 'Add a Materials column',
+      text: 'Let’s add a column that shows the materials each lesson uses. Click “+ Column after”.',
       skipIf: hasInstrumentColumn,
       remember: (ctx) => columnsAfter(ctx).length,
       until: (ctx, before) => columnsAfter(ctx).length > before,
     },
     {
       target: 'report-column-name', pick: 'last',
-      text: 'Type Instrument as the column’s name, then press Enter.',
+      text: 'Type Materials as the column’s name, then press Enter.',
       skipIf: (ctx) => hasInstrumentColumn(ctx) || !lastColumn(ctx),
       until: (ctx) => Boolean(lastColumn(ctx)?.name),
       nextWhen: () => true,
     },
     {
       selector: `[data-tour="report-words"] [data-word="${INSTRUMENT_WORD}"]`,
-      text: `Now click ${INSTRUMENT_WORD}. In the report, it becomes the lesson’s instruments (like “Drum, Ukulele”).`,
+      text: `Now click ${INSTRUMENT_WORD}. In the report, it becomes the lesson’s materials (like “iPads, Ukuleles”).`,
       skipIf: (ctx) => hasInstrumentColumn(ctx) || !lastColumn(ctx),
       until: hasInstrumentColumn,
       nextWhen: () => true,
     },
     {
       target: 'report-label',
-      text: 'That’s it: “Instrument” : {{instrument}}. Add other columns the same way (like the essential outcome), and take one out with ✕.',
+      text: 'That’s it: “Materials” : {{instrument}}. Add other columns the same way (like the essential outcome), and take one out with ✕.',
       skipIf: (ctx) => !hasInstrumentColumn(ctx),
     },
   ];
@@ -572,7 +572,7 @@ const reports = {
     },
     {
       target: 'report-preview',
-      text: (ctx) => `The preview shows the report as it will look${hasInstrumentColumn(ctx) ? ' — with your Instrument column next to each lesson' : ''}.`,
+      text: (ctx) => `The preview shows the report as it will look${hasInstrumentColumn(ctx) ? ' — with your Materials column next to each lesson' : ''}.`,
     },
     {
       target: 'report-make',

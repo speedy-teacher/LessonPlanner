@@ -128,8 +128,8 @@ function instrumentSection(image) {
   const instruments = current('instruments');
   if (!instruments.length) return null;
   return h('section', { class: 'image-section' },
-    h('h3', {}, 'Instruments it shows'),
-    h('p', { class: 'hint' }, 'When pictures fit a week equally well, one showing an instrument the lesson uses is chosen first.'),
+    h('h3', {}, 'Materials it shows'),
+    h('p', { class: 'hint' }, 'When pictures fit a week equally well, one showing a material the lesson uses is chosen first.'),
     h('div', { class: 'grade-toggles' }, instruments.map((i) => {
       const on = image.instrumentIds.includes(i.id);
       return h('button', {

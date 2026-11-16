@@ -58,7 +58,7 @@ function placementLabel(p, all) {
   const outcome = outcomeOf(store.state, p.criterionId);
   const warnings = placementWarnings(store.state, p);
   return [
-    warnings.length ? h('span', { class: 'warn', 'data-tip': warningText(p, warnings), 'aria-label': 'Instrument warning' }, '⚠') : null,
+    warnings.length ? h('span', { class: 'warn', 'data-tip': warningText(p, warnings), 'aria-label': 'Material warning' }, '⚠') : null,
     all ? gradeTag(find(store.state, 'grades', p.gradeId)) : null,
     h('span', { class: 'chip-code', style: { '--chip': outcomeColor(outcome?.id) } }, outcome?.code || '•'),
     h('span', { class: 'chip-title' }, find(store.state, 'criteria', p.criterionId)?.title),
@@ -83,7 +83,7 @@ function instrumentStripe(ctx, date) {
   const ids = instrumentsAt(store.state, ctx.yearId, ctx.schoolId, date);
   if (!ids.length) return h('div', { class: 'ins-stripe empty' });
   const instruments = ids.map((id) => find(store.state, 'instruments', id)).filter(Boolean);
-  return h('div', { class: 'ins-stripe', 'data-tip': `Instruments here: ${instruments.map((i) => i.name).join(', ')}` },
+  return h('div', { class: 'ins-stripe', 'data-tip': `Materials here: ${instruments.map((i) => i.name).join(', ')}` },
     instruments.map((i) => h('span', {
       style: { background: i.color }, class: 'ins-stripe-item', role: 'button',
       onclick: (e) => instrumentMenu(e, i),

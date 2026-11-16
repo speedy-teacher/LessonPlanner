@@ -177,7 +177,7 @@ export function warningText(placement, warnings) {
   const byInstrument = Map.groupBy(warnings, (w) => w.instrument?.id);
   const parts = [...byInstrument.values()].map((group) => {
     const { instrument, blocks, missingDates } = group[0];
-    const name = instrument?.name || 'An instrument';
+    const name = instrument?.name || 'A material';
     const lessons = group.map((w) => `“${w.lesson.name}”`).join(', ');
     const missing = toRanges(missingDates).map(([a, b]) => formatRange(a, b)).join(', ');
     const when = blocks.length
@@ -185,7 +185,7 @@ export function warningText(placement, warnings) {
       : `${name} isn’t scheduled at ${school} at all this year.`;
     return `${name} isn’t at ${school} on ${missing}, but these lessons use it: ${lessons}.\n${when}`;
   });
-  return `⚠ Instrument not available\n${parts.join('\n\n')}`;
+  return `⚠ Material not available\n${parts.join('\n\n')}`;
 }
 
 // ---------- right side: lesson details ----------

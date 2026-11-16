@@ -39,7 +39,7 @@ export const NEEDS_THE_TEACHER = [
 
 const GENERAL_COMMANDS = {
   overview: {
-    summary: 'Start here: the open school year, its dates and weeks, schools, grades, instruments, outcomes, and how many lessons and pictures it has.',
+    summary: 'Start here: the open school year, its dates and weeks, schools, grades, materials (called instruments in commands), outcomes, and how many lessons and pictures it has.',
     params: {},
     run: (state) => {
       const y = year(state);
@@ -67,7 +67,7 @@ const GENERAL_COMMANDS = {
 
 const AREAS = {
   'Getting started': GENERAL_COMMANDS,
-  'Lesson Schedule, Outcome & Eval Calendar, Instrument Schedule': SCHEDULE_COMMANDS,
+  'Lesson Schedule, Outcome & Eval Calendar, Materials Schedule': SCHEDULE_COMMANDS,
   'School Year setup': SETUP_COMMANDS,
   'Outcomes, evals & lesson order': OUTCOME_COMMANDS,
   'Lesson templates & folders': LESSON_COMMANDS,

@@ -6,8 +6,8 @@
 
 /** How each part is called on the page, and what's in it (the capsule's tip). */
 export const PART_WORDS = {
-  schoolYear: { icon: '🧺', label: 'School Year', holds: 'Schools, grades, instruments, events, outcomes, evals and both calendars.' },
-  schedule: { icon: '📖', label: 'Lesson Schedule', holds: 'Weekly lessons, lesson order, grade and instrument colors, the lesson-copies folder and report settings.' },
+  schoolYear: { icon: '🧺', label: 'School Year', holds: 'Schools, grades, materials, events, outcomes, evals and both calendars.' },
+  schedule: { icon: '📖', label: 'Lesson Schedule', holds: 'Weekly lessons, lesson order, grade and material colors, the lesson-copies folder and report settings.' },
   resources: { icon: '🖼️', label: 'Teacher Resources', holds: 'Lesson templates and pictures (with their folders and tags), kept from year to year.' },
 };
 

@@ -146,14 +146,14 @@ test('Reports tab: one file per school with a tab per grade, or one file per gra
   assert.notEqual(shifted[0].name, perGrade[0].name);
 });
 
-test('a tab shows the school and grade at the top, then each week, its instruments and its lessons', () => {
+test('a tab shows the school and grade at the top, then each week, its materials and its lessons', () => {
   const t = setup();
   lessonAt(t, t.beat);
   const [file] = manualReports(t.s, t.year.id, { manual: { ...reportSettings(t.year).manual, fromWeek: 3, schoolIds: [t.schoolA.id], gradeIds: [t.k.id] }, label: '', copyOf: () => ({ name: 'Copy', url: 'https://example.test/c' }) });
   const rows = reportRows(file.tabs[0]).map((r) => r.map((c) => c.text));
   assert.deepEqual(rows, [
     ['School A · Kindergarten'], ['Week 3 · Sep 7 – Sep 11'], [],
-    ['Week 3', 'Sep 7 – Sep 11'], ['Instruments', 'Required: none / Also available: none'], ['1', 'Copy'], [],
+    ['Week 3', 'Sep 7 – Sep 11'], ['Materials', 'Required: none / Also available: none'], ['1', 'Copy'], [],
     ['Automatically maintained by Lesson Planner'],
   ]);
 });

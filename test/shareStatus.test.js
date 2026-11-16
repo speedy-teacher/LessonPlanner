@@ -32,7 +32,7 @@ test('kept on this computer only, or missing', () => {
 test('the capsule names the part (and whose it is) and its tip says what is in that file', () => {
   const c = partCapsule('schedule', mine(false));
   assert.equal(c.label, 'Lesson Schedule');
-  assert.match(c.tip, /grade and instrument colors/);
+  assert.match(c.tip, /grade and material colors/);
   assert.equal(partCapsule('resources', mine(true), { whose: 'Lee Placeholder' }).label, 'Lee Placeholder’s Teacher Resources');
   assert.match(partCapsule('schoolYear', mine(true)).tip, /calendars/);
 });

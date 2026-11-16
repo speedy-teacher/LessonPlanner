@@ -21,7 +21,7 @@ function twoYears() {
 test('a planner file with several years becomes one plan per year, each complete on its own', () => {
   const { s, first, second } = twoYears();
   const plans = splitYears(s);
-  assert.deepEqual(plans.map((p) => p.name), [`Music Plans ${first.name}`, `Music Plans ${second.name}`]);
+  assert.deepEqual(plans.map((p) => p.name), [`Lesson Plans ${first.name}`, `Lesson Plans ${second.name}`]);
   for (const [i, year] of [first, second].entries()) {
     const plan = plans[i].state;
     assert.deepEqual(plan.years.map((y) => y.id), [year.id]);
@@ -51,7 +51,7 @@ test('a new school year is a new plan: lists, decks and outcomes come along, cal
   const old = s.years[0];
   const fields = { name: '2027–2028', startDate: '2027-08-23', endDate: '2028-06-09' };
   const { name, state } = newYearPlan(s, fields);
-  assert.equal(name, 'Music Plans 2027–2028');
+  assert.equal(name, 'Lesson Plans 2027–2028');
   assert.equal(state.years.length, 1);
   const year = state.years[0];
   assert.notEqual(year.id, old.id);
@@ -113,7 +113,7 @@ test('Google Drive is asked to keep one version per day', () => {
 });
 
 test('plan names come from the school year', () => {
-  assert.equal(planName({ name: '2026–2027' }), 'Music Plans 2026–2027');
-  assert.equal(planName(null), 'Music Plans');
+  assert.equal(planName({ name: '2026–2027' }), 'Lesson Plans 2026–2027');
+  assert.equal(planName(null), 'Lesson Plans');
   assert.deepEqual(splitYears(emptyState()), []);
 });

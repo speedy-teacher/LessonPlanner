@@ -1,9 +1,9 @@
 {
   "name": "lesson-planner",
-  "version": "0.15.0",
+  "version": "0.16.0",
   "private": true,
   "type": "module",
-  "description": "Organize music lesson slides by academic year, school, grade and instrument schedule.",
+  "description": "Organize lesson slides by academic year, school, grade and materials schedule.",
   "scripts": {
     "start": "node scripts/write-config.js && node server.js",
     "config": "node scripts/write-config.js",

@@ -78,7 +78,7 @@ function lessonEditor(l) {
     h('div', { class: 'template-body' },
       h('div', { class: 'template-preview' }, lessonPreview(l.id, { fields })),
       h('div', {},
-        h('h3', {}, 'Instruments this lesson uses'),
+        h('h3', {}, 'Materials this lesson uses'),
         h('p', { class: 'hint' }, 'The Outcome & Eval Calendar warns you if one isn’t at the school that week.'),
         instrumentToggles(l),
         fillable ? autoFieldsSection() : h('p', { class: 'hint fill-note' }, `Filled in automatically: ${fillInProblem(l)}`))),
@@ -131,7 +131,7 @@ function locationLabel(loc) {
 
 function instrumentToggles(l) {
   const instruments = current('instruments');
-  if (!instruments.length) return emptyNote('Add instruments under Setup › School Year.');
+  if (!instruments.length) return emptyNote('Add materials under Setup › School Year.');
   return h('div', { class: 'grade-toggles', 'data-tour': 'deck-instruments' }, instruments.map((i) => {
     const on = l.instrumentIds.includes(i.id);
     return h('button', {

@@ -159,7 +159,7 @@ test('stopping placing with no days goes back to picking an eval', () => {
   assert.equal(runner.view().step.target, 'eval-palette');
 });
 
-test('the Reports tutorial shows how to add an Instrument column', () => {
+test('the Reports tutorial shows how to add a Materials column', () => {
   const year = { reports: { right: [] } };
   const ctx = fakePage({ tab: 'reports', year });
   const { runner } = runnerFor(TUTORIALS, ctx);
@@ -171,7 +171,7 @@ test('the Reports tutorial shows how to add an Instrument column', () => {
   year.reports.right = [{ name: '', value: '' }];
   runner.check();
   assert.equal(runner.view().step.target, 'report-column-name');
-  assert.match(runner.view().text, /Instrument/);
+  assert.match(runner.view().text, /Materials/);
   year.reports.right = [{ name: 'Instrument', value: '' }];
   runner.check();
   assert.match(runner.view().step.selector, /data-word="\{\{instrument\}\}"/);
@@ -185,14 +185,14 @@ test('the Reports tutorial shows how to add an Instrument column', () => {
   assert.equal(runner.view().step.target, 'report-preview');
 });
 
-test('with an Instrument column already there, the Reports tutorial only points it out', () => {
+test('with a Materials column already there, the Reports tutorial only points it out', () => {
   const ctx = fakePage({ tab: 'reports', year: { reports: { right: [{ name: 'Instrument', value: '{{instrument}}' }] } } });
   const { runner } = runnerFor(TUTORIALS, ctx);
   runner.start('reports');
   runner.next();
   runner.next();
   assert.equal(runner.view().step.target, 'report-label');
-  assert.match(runner.view().text, /Instrument/);
+  assert.match(runner.view().text, /Materials/);
 });
 
 test('a teacher who already has schools can go on with Next instead of adding more', () => {

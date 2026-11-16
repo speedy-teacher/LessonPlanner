@@ -248,7 +248,7 @@ export async function moveCurrentPlan(folderId) {
 /** Save this plan as a file on this computer. */
 export function downloadCopy() {
   const blob = new Blob([toWorkspaceFile(store.state)], { type: 'application/json' });
-  const link = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: `${current?.name || 'Music Plans'}.json` });
+  const link = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: `${current?.name || 'Lesson Plans'}.json` });
   link.click();
   setTimeout(() => URL.revokeObjectURL(link.href), 1000);
 }

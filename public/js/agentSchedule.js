@@ -136,7 +136,7 @@ export const SCHEDULE_COMMANDS = {
     },
   },
   getCalendar: {
-    summary: 'The Outcome & Eval Calendar for one class: each eval placed on it with its dates and any instrument warnings.',
+    summary: 'The Outcome & Eval Calendar for one class: each eval placed on it with its dates and any material warnings.',
     params: CLASS,
     run: (state, a) => {
       const cls = classOf(state, a);
@@ -179,7 +179,7 @@ export const SCHEDULE_COMMANDS = {
     },
   },
   getInstrumentSchedule: {
-    summary: 'The Instrument Schedule for one school: the date ranges each instrument is there.',
+    summary: 'The Materials Schedule for one school: the date ranges each material (instrument) is there.',
     params: { school: ['School name', true] },
     run: (state, a) => {
       const s = school(state, a.school);
@@ -190,10 +190,10 @@ export const SCHEDULE_COMMANDS = {
     },
   },
   setInstrumentDays: {
-    summary: 'Mark an instrument as at a school (or not, with present: false) on every school day from one date to another.',
+    summary: 'Mark a material (instrument) as at a school (or not, with present: false) on every school day from one date to another.',
     changes: true,
     params: {
-      school: ['School name', true], instrument: ['Instrument name', true],
+      school: ['School name', true], instrument: ['Material name', true],
       startDate: ['First day', true], endDate: ['Last day; default the first day'], present: ['true (default) or false'],
     },
     run: (state, a) => {

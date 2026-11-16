@@ -77,7 +77,7 @@ function intro(step, close, showIntro) {
   return [
     h('p', {}, 'Your plan becomes three files in your Google Drive, so each part can be shared on its own:'),
     h('ul', { class: 'share-pieces' },
-      h('li', {}, h('strong', {}, '🧺 School Year'), ' — schools, grades, instruments, events, outcomes & evals, and both calendars. ', h('em', {}, 'Share this with your department.')),
+      h('li', {}, h('strong', {}, '🧺 School Year'), ' — schools, grades, materials, events, outcomes & evals, and both calendars. ', h('em', {}, 'Share this with your department.')),
       h('li', {}, h('strong', {}, '📖 Lesson Schedule'), ' — your lessons each week, your lesson order, reports and colors. Yours.'),
       h('li', {}, h('strong', {}, '🖼️ Teacher Resources'), ' — your lesson templates and pictures, kept from year to year. Yours. ',
         'If you already moved another year’s plan, its templates and pictures go into the same one (nothing is doubled).')),

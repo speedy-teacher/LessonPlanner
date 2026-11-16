@@ -11,9 +11,9 @@ import { yoursCapsule } from './capsules.js';
 import { openNewYear } from './plans.js';
 
 const LISTS = [
-  { collection: 'schools', tour: 'list-schools', title: 'Schools', placeholder: 'New school…', note: 'Removing a school also removes its calendar entries and instrument schedule.' },
+  { collection: 'schools', tour: 'list-schools', title: 'Schools', placeholder: 'New school…', note: 'Removing a school also removes its calendar entries and materials schedule.' },
   { collection: 'grades', tour: 'list-grades', title: 'Grades', placeholder: 'New grade…', note: 'The short label shows on buttons (K, 1, 2…). The color marks the grade on buttons and on the calendar’s “All” view.' },
-  { collection: 'instruments', tour: 'list-instruments', title: 'Instruments', placeholder: 'New instrument…', note: 'Pick a color for the schedule calendar.' },
+  { collection: 'instruments', tour: 'list-instruments', title: 'Materials', placeholder: 'New material…', note: 'Pick a color for the schedule calendar.' },
 ];
 
 export function renderSetup() {

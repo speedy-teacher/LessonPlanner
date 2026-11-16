@@ -141,7 +141,7 @@ function evalTag(p) {
 
 function instrumentTags(ctx, week) {
   const list = instrumentsInWeek(store.state, ctx.cls, week);
-  if (!list.length) return h('span', { class: 'ls-no-ins', 'data-tip': 'No instruments at this school this week' }, 'no instruments');
+  if (!list.length) return h('span', { class: 'ls-no-ins', 'data-tip': 'No materials at this school this week' }, 'no materials');
   return list.map(({ instrumentId, days, allWeek }) => {
     const ins = find(store.state, 'instruments', instrumentId);
     const tip = allWeek ? `${ins?.name} is here all week` : `${ins?.name} is here only ${days.map(dayName).join(', ')}`;
@@ -182,7 +182,7 @@ function entryCard(entry, index, week, placements) {
   h('div', { class: 'ls-thumb' }, copyCanvas(lesson, copyFileOfEntry(entry.id), gone)),
   h('div', { class: 'ls-card-caption' },
     h('span', { class: 'slide-num' }, index + 1),
-    missing.length ? h('span', { class: 'warn', 'aria-label': 'Instrument warning' }, '⚠') : null,
+    missing.length ? h('span', { class: 'warn', 'aria-label': 'Material warning' }, '⚠') : null,
     sharedMark(lesson),
     h('span', { class: 'chip-title' }, lesson?.name)),
   iconButton('×', 'Take off this week', () => takeOff(entry), 'ls-x'));

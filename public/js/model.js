@@ -76,7 +76,7 @@ export const AUTO_FIELDS = {
   week: 'Week number',
   lessonNumber: 'Lesson number (in the week)',
   lessonNumberAbs: 'Lesson number (in the year)',
-  instrument: 'Instrument',
+  instrument: 'Material',
   outcome: 'Essential outcome',
   criterion: 'Eval criterion',
   image: 'Picture',
