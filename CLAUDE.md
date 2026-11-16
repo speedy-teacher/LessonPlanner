@@ -136,6 +136,13 @@ A browser app for a (non-technical) elementary music teacher to plan a school ye
   folder becomes a new folder there (folders inside too). Copies carry `appProperties.lpCopiedFrom` = original id, so picking
   again reuses them; files already in the templates folder are used as they are. `importDriveItems(…, { seenBy })` = the
   watched folder above them remembers them. The Images tab still links pictures directly (they're never edited).
+- **Look before adding** (`copyReview.js` pure + tested in `test/copyReview.test.js`, window `views/copyReview.js`, Template
+  Maker card styles): copies are made with `review: true` → `properties.lessonPlanner = copy-review` (files and copied
+  folders), so watched folders (`isDriveLessonFile`, `listFolderTree`) skip them. Every copied file — each one inside a
+  picked folder too (`reviewList`, path "Unit › Week 3") — gets Drive's `thumbnailLink` picture (retried, 🔄, redrawn on
+  window focus), an open link, a name box and "Add this one". `keepCopies`: kept = label cleared (+ new name), new copies not
+  kept and copied folders with nothing kept → trash, files that were already there are only left out. Closing the window
+  adds nothing (notice "Look at them"); `staleReviews` > 1 day are trashed on the next "Files or folders…".
 - Deck import (`library.js` pure + tested, `drive.js` browser-only Drive calls, `views/deckImport.js`, `views/deckTree.js`):
   all reading of files/Drive happens in the browser; only deck details are saved, never file contents.
   Watched Drive folders are re-listed every 10 min while connected; `seenDriveIds` stops deleted decks returning.

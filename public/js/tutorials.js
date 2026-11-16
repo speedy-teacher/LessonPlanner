@@ -195,6 +195,8 @@ const schoolYear = {
   ],
 };
 
+const inCopyReview = (ctx) => ctx.exists('copy-review');
+
 const lessonTemplates = {
   id: 'lesson-templates',
   icon: '🖼️',
@@ -207,6 +209,13 @@ const lessonTemplates = {
       target: 'deck-add',
       text: (ctx) => `Click “+ Add”. Choose “New lesson deck” to type one in, or “From Google Drive › Files or folders…” to bring in your slides — the planner makes its own copies in your templates folder, so the files you pick (even a colleague’s) are never changed.${already(ctx, 'lessons', 'lesson')}`,
       ...addOne('lessons'),
+      until: (ctx, before) => ctx.count('lessons') > before || inCopyReview(ctx),
+    },
+    {
+      target: ['cr-file', 'cr-add'], pick: 'first',
+      text: 'Have a look at each copy first: click its picture (or “Open it to check or change it”) to see it in Google and change anything you like — the picture here updates when you come back. Rename it here if you like, untick any you don’t want, then click “Add …”. Unticked copies are thrown away.',
+      skipIf: (ctx) => !inCopyReview(ctx),
+      until: (ctx) => !inCopyReview(ctx),
     },
     {
       target: 'deck-side',

@@ -157,14 +157,10 @@ export async function importFromDrive(kind) {
   }
 }
 
-/** Lesson decks: the planner's own copies in the templates folder are brought in, never the picked files. */
+/** Lesson decks: the planner's own copies in the templates folder are brought in (after a look), never the picked files. */
+// The "Copying…" notice is replaced by the result (or by the problem, in importFromDrive).
 async function importCopies(kind, picked) {
-  try {
-    const copies = await copyLessonsIn(picked, { targetId: kind.target()?.id ?? null });
-    showResult(copies.result, 'From Google Drive', kind, copies);
-  } finally {
-    dismissNotice('drive-import');
-  }
+  await copyLessonsIn(picked, { targetId: kind.target()?.id ?? null, done: (copies) => showResult(copies.result, 'From Google Drive', kind, copies) });
 }
 
 function driveProblem(err) {

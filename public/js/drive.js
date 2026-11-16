@@ -42,12 +42,13 @@ async function listChildren(token, folderId, fetchFn) {
 
 /**
  * A folder's contents as a tree: [{ id, name, mimeType, …, children? }].
- * Folders inside folders are read too. Folders and lesson files are kept (not shortcuts or plan files).
+ * Folders inside folders are read too. Folders and lesson files are kept (not shortcuts, plan files, or copied
+ * folders still waiting to be looked at).
  */
 export async function listFolderTree(token, folderId, { fetchFn = fetch, depth = 0, visited = new Set() } = {}) {
   visited.add(folderId);
   const items = (await listChildren(token, folderId, fetchFn))
-    .filter((f) => f.mimeType === DRIVE_FOLDER || isDriveLessonFile(f));
+    .filter((f) => (f.mimeType === DRIVE_FOLDER && !f.properties?.lessonPlanner) || isDriveLessonFile(f));
   for (const item of items) {
     if (item.mimeType !== DRIVE_FOLDER || visited.has(item.id) || depth >= MAX_DEPTH) continue;
     item.children = await listFolderTree(token, item.id, { fetchFn, depth: depth + 1, visited });

@@ -19,6 +19,8 @@ const DRAFT = 'template-maker-draft';
 const PIECE_LABEL = 'lessonPlanner';
 // A copy made by "+ Add" → "Files or folders…" remembers the original (templateCopies.js).
 const COPIED_FROM = 'lpCopiedFrom';
+// …and until the teacher has looked at it and kept it, it carries this planner label (templateCopies.js).
+export const COPY_REVIEW = 'copy-review';
 const FILE_FIELDS = 'id,name,mimeType,parents,modifiedTime,headRevisionId,trashed,ownedByMe,driveId,capabilities(canEdit,canAddChildren),owners(displayName),appProperties,properties';
 
 const q = (text) => text.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
@@ -45,13 +47,21 @@ export function driveCalls(client) {
       name, appProperties: { [LABEL]: label }, properties: { [PIECE_LABEL]: label === 'template' ? null : DRAFT },
     })),
     /** "+ Add" → "Files or folders…": the teacher's own copy of a picked file (labelled with the original's id). */
-    copyTemplate: (fileId, { name, folderId }) => json(`${DRIVE}/${id(fileId)}/copy?fields=${FILE_FIELDS}&${ALL}`, jsonBody('POST', {
-      name, parents: [folderId], appProperties: { [COPIED_FROM]: fileId },
+    // `review` = still waiting for the teacher to look at it: labelled so watched folders skip it until it's kept.
+    copyTemplate: (fileId, { name, folderId, review = false }) => json(`${DRIVE}/${id(fileId)}/copy?fields=${FILE_FIELDS}&${ALL}`, jsonBody('POST', {
+      name, parents: [folderId], appProperties: { [COPIED_FROM]: fileId }, ...(review ? { properties: { [PIECE_LABEL]: COPY_REVIEW } } : {}),
     })),
     /** A new folder (`parentId` null = the top of My Drive); `from` = the folder it's a copy of. */
-    makeFolder: ({ name, parentId, from = null }) => json(`${DRIVE}?fields=${FILE_FIELDS}&${ALL}`, jsonBody('POST', {
+    makeFolder: ({ name, parentId, from = null, review = false }) => json(`${DRIVE}?fields=${FILE_FIELDS}&${ALL}`, jsonBody('POST', {
       name, mimeType: FOLDER_MIME, ...(parentId ? { parents: [parentId] } : {}), ...(from ? { appProperties: { [COPIED_FROM]: from } } : {}),
+      ...(review ? { properties: { [PIECE_LABEL]: COPY_REVIEW } } : {}),
     })),
+    /** The teacher kept a copy after looking at it: its (maybe new) name, and watched folders may bring it in now. */
+    keepCopy: (fileId, { name = null } = {}) => json(`${DRIVE}/${id(fileId)}?fields=${FILE_FIELDS}&${ALL}`, jsonBody('PATCH', {
+      ...(name ? { name } : {}), properties: { [PIECE_LABEL]: null },
+    })),
+    /** Copies (and copied folders) still waiting to be looked at — to tidy away the ones left behind. */
+    listCopyReviews: () => list(`properties has { key='${PIECE_LABEL}' and value='${COPY_REVIEW}' }`),
     /** The copy of `sourceId` made before in that folder (null = none). */
     findCopy: async (folderId, sourceId) => (await list(`appProperties has { key='${COPIED_FROM}' and value='${q(sourceId)}' } and '${q(folderId)}' in parents`))[0] ?? null,
     /** Move a file from one folder to another. */
