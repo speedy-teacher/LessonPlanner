@@ -4,7 +4,7 @@
 
 export const TAB_INFO = [
   { id: 'plan', label: 'Outcome & Eval Calendar', icon: '📅' },
-  { id: 'schedule', label: 'Materials Schedule', icon: '📦' },
+  { id: 'schedule', label: 'Materials Schedule', icon: '✏️' },
   { id: 'lessonSchedule', label: 'Lesson Schedule', icon: '📖' },
   { id: 'images', label: 'Images', icon: '🌄' },
   { id: 'reports', label: 'Reports', icon: '📊' },

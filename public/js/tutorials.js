@@ -346,7 +346,7 @@ const outcomes = {
 
 const instrumentSchedule = {
   id: 'instrument-schedule',
-  icon: '📦',
+  icon: '✏️',
   title: 'The Materials Schedule',
   about: 'Mark when each material is at each school.',
   ready: (ctx) => needsPlan(ctx)

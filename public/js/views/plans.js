@@ -78,7 +78,7 @@ export function refreshPlansMenu() {
 /** Shown in place of the planner when no plan is open yet (the first visit on a computer). */
 export function welcome() {
   return h('section', { class: 'card welcome-card' },
-    h('h2', {}, '🌿 Welcome to the Lesson Planner'),
+    h('h2', {}, '🌻 Welcome to the Lesson Planner'),
     h('p', {}, 'Each school year is one plan. Keep it in your Google Drive to use it on any computer (and share it), or keep it on this computer only.'),
     plansPanel(() => {}));
 }

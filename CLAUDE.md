@@ -4,7 +4,7 @@ A browser app for a (non-technical) elementary music teacher to plan a school ye
 **Teachers see "materials", the code says "instruments"**: the Materials Schedule tab (id `schedule`), Setup's
 "Materials" list and every on-screen word say material(s) so the app suits any subject, but collections/fields
 (`instruments`, `instrumentIds`, `instrumentBlocks`), data-tour names, command names/args and the `{{instrument}}`
-placeholder in templates keep the old name — renaming them would break saved plans and teachers' templates. Logo = 🌿 (nature, any subject).
+placeholder in templates keep the old name — renaming them would break saved plans and teachers' templates. Logo = 🌻 (nature, any subject); Materials Schedule icon = ✏️.
 `README.md` has the screens and developer commands; this file holds the design decisions and working agreements.
 
 ## Run, test, check
