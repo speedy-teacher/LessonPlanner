@@ -199,6 +199,12 @@ A browser app for a (non-technical) elementary music teacher to plan a school ye
   `addKept` = `keepTemplate` (label `template`, planner label cleared) + `plan.add`; unticked → trashed with pictures only they
   used. Unkept reviews > 1 day old are trashed on open. Slides pictures become picture spots even with no pictures folder
   (just not saved); Docs only offer pictures when there is a folder.
+- **Whole folders**: the picker (`pickFilesOrFoldersFromDrive`) takes files and folders; `folderFiles.js` `filesFromPicks`
+  lists every lesson inside (subfolders too, `calls.listFolder` pages through), `fromFolder` = "Unit › Week 3" on the card,
+  non-lessons/planner files skipped and counted (`state.folderNote`), at most `MAX_FROM_FOLDERS`.
+- **A folder per template**: `file.folderId` (null = the window's templates folder; `setFolder`, `pickFolder(folder, uid)`),
+  `folderFor(file)` is used when making and on `addKept`. "Goes in" on each card (`tm-goes-in`) until added.
+  Coming back to the tab (window focus) redraws the review pictures (`refreshPictures`), for edits made in Google.
 - **Templates folder changes until Add** (`canChoose`: templates in phases choose/review, pictures only before files are read):
   made copies are moved on `addKept` (`moveTemplate`, Drive addParents/removeParents), an Office draft read before the change
   is moved when made (`copyInto`). "📂 Another folder in Drive…" (`pickFolder` → Google's folder picker) offers a folder not in

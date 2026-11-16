@@ -8,7 +8,7 @@
 import { h, tour } from '../dom.js';
 import { canReadFolders, google } from '../google.js';
 import { apiKey, clientId } from '../deviceSettings.js';
-import { pickFilesFromDrive, pickFolderFromDrive } from '../drive.js';
+import { pickFilesOrFoldersFromDrive, pickFolderFromDrive } from '../drive.js';
 import { copyPace } from '../copyPace.js';
 import { showNotice } from '../notices.js';
 import { commit, setUi, store } from '../store.js';
@@ -25,12 +25,12 @@ import { fileCard } from './templateMakerFile.js';
 let session = null;
 let body = null;
 let openFor = null; // the school year the session was made for
-let pickFiles = pickFilesFromDrive; // Google's file picker (the browser test hands in a pretend one)
+let pickFiles = pickFilesOrFoldersFromDrive; // Google's file picker (the browser test hands in a pretend one)
 let pickFolder = pickFolderFromDrive;
 
 /** For the browser test (test/e2e/templateMaker.e2e.js) only: choose files and folders without Google's picker. */
 export function usePicker(fn, folderFn = null) {
-  pickFiles = fn ?? pickFilesFromDrive;
+  pickFiles = fn ?? pickFilesOrFoldersFromDrive;
   pickFolder = folderFn ?? pickFolderFromDrive;
 }
 
@@ -71,6 +71,9 @@ export function openTemplateMaker() {
   if (s.state.setup.status !== 'ready' && s.state.setup.status !== 'checking') s.checkSetup();
   draw();
 }
+
+// Coming back from editing a template in Google (another tab): its picture is drawn again.
+window.addEventListener('focus', () => { if (body?.isConnected) session?.refreshPictures(); });
 
 function openModalWide(title, content) {
   const layer = document.getElementById('modal');
@@ -116,7 +119,7 @@ function keepFocus() {
 function page(s) {
   const ready = s.state.setup.status === 'ready';
   return [
-    h('p', { class: 'tm-hint' }, 'Pick lessons you already have — Google Slides, Docs or Sheets, or PowerPoint, Word and Excel files in your Drive. The planner finds the lesson and week numbers, swaps them for placeholders, saves a template copy in your templates folder and adds it to your Lesson Templates. Your own files are never changed.'),
+    h('p', { class: 'tm-hint' }, 'Pick lessons you already have — Google Slides, Docs or Sheets, or PowerPoint, Word and Excel files in your Drive — or whole folders of them. The planner finds the lesson and week numbers, swaps them for placeholders and makes a template copy of each. You look at every template (and can open it to change it) before choosing which ones to add and where they go. Your own files are never changed.'),
     setupPart(s),
     ready ? filesPart(s) : null,
     makeBar(s, { onShow: showMade }),
@@ -139,8 +142,21 @@ function setupPart(s) {
     setupRow('📁', 'Templates go in', templatesPick(s, chosen), chosen.several.templateFolder),
     setupRow('🖼️', 'Pictures go in', picturesPick(s, chosen, picturesLocked), chosen.several.imageFolder),
     files.length ? h('p', { class: 'tm-hint small' }, s.state.phase === 'review'
-      ? 'You can still change the templates folder: the templates are moved there when you add them.'
-      : 'You can change the templates folder until you add the templates. To change the pictures folder, take the files below out first.') : null);
+      ? 'You can still change where templates go — here for all of them, or “Goes in” on one template: they are moved there when you add them.'
+      : 'Each template can also have a folder of its own (“Goes in” on its card). You can change where templates go until you add them. To change the pictures folder, take the files below out first.') : null);
+}
+
+/** "Goes in" for one template: the folder chosen for all, or one of its own (or another Drive folder). */
+function fileFolderPick(s, file) {
+  const { chosen } = s.state.setup;
+  if (!chosen || !s.canChoose('templateFolder') || ['making', 'failed', 'problem'].includes(file.status)) return null;
+  const options = [
+    ['', `Same as above (${chosen.templateFolder?.path ?? '—'})`],
+    ...chosen.templateFolders.filter((f) => f.id !== chosen.templateFolder?.id).map((f) => [f.id, f.path]),
+    [ANOTHER, '📂 Another folder in Drive…'],
+  ];
+  const onPick = (id) => (id === ANOTHER ? pickAnotherFolder(s, file.uid) : s.setFolder(file.uid, id || null));
+  return h('label', { class: 'tm-goes', 'data-tour': 'tm-goes-in' }, h('span', {}, '📁 Goes in'), select(options, file.folderId ?? '', onPick, false));
 }
 
 function setupRow(icon, what, control, several) {
@@ -163,10 +179,10 @@ function templatesPick(s, chosen) {
   return tour('tm-template-folder', select(options, chosen.templateFolder?.id, onPick, !s.canChoose('templateFolder')));
 }
 
-async function pickAnotherFolder(s) {
+async function pickAnotherFolder(s, forFile = null) {
   try {
-    const [folder] = await pickFolder({ token: google.token, apiKey: apiKey(), clientId: clientId() }, { title: 'Pick the folder for your templates' });
-    if (folder) s.pickFolder(folder);
+    const [folder] = await pickFolder({ token: google.token, apiKey: apiKey(), clientId: clientId() }, { title: forFile ? 'Pick the folder for this template' : 'Pick the folder for your templates' });
+    if (folder) s.pickFolder(folder, forFile);
   } catch {
     showNotice({ id: 'template-maker', tone: 'error', title: 'Google Drive', message: 'Google’s folder picker didn’t open. Check the internet connection and try again.' });
   }
@@ -183,19 +199,23 @@ function picturesPick(s, chosen, locked) {
 // ---------- the files ----------
 
 function filesPart(s) {
-  const { files, phase } = s.state;
+  const { files, phase, looking, folderNote } = s.state;
   return h('div', {},
     phase === 'choose' ? h('div', { class: 'tm-row' },
-      tour('tm-choose', h('button', { class: 'btn', onclick: () => chooseFiles(s) }, files.length ? '📂 Choose more files…' : '📂 Choose lessons from Google Drive…')),
-      h('span', { class: 'tm-hint small' }, 'Tip: hold Ctrl to pick several.')) : null,
-    files.length ? h('div', { class: 'tm-files' }, files.map((f) => fileCard(f, s, { editable: phase === 'choose', savingPictures: Boolean(s.state.setup.chosen?.imageFolder) }))) : null);
+      tour('tm-choose', h('button', { class: 'btn', disabled: looking, onclick: () => chooseFiles(s) }, files.length ? '📂 Choose more lessons or folders…' : '📂 Choose lessons or folders from Google Drive…')),
+      h('span', { class: 'tm-hint small' }, 'Tip: hold Ctrl to pick several. Picking a folder brings in every lesson inside it.')) : null,
+    looking ? h('div', { class: 'tm-status' }, h('span', { class: 'tm-spinner' }), 'Looking inside the folders…') : null,
+    folderNote ? h('div', { class: 'tm-notice gold small' }, folderNote) : null,
+    files.length ? h('div', { class: 'tm-files' }, files.map((f) => fileCard(f, s, {
+      editable: phase === 'choose', savingPictures: Boolean(s.state.setup.chosen?.imageFolder), goesIn: fileFolderPick(s, f),
+    }))) : null);
 }
 
 async function chooseFiles(s) {
-  if (!driveReady({ needFolders: false })) return;
+  if (!driveReady({ needFolders: true })) return;
   try {
     const picked = await pickFiles({ token: google.token, apiKey: apiKey(), clientId: clientId() },
-      { mimeTypes: pickableTypes(), title: 'Choose the lessons to make into templates' });
+      { mimeTypes: pickableTypes(), title: 'Choose lessons or whole folders to make into templates' });
     if (picked.length) await s.addFiles(picked);
   } catch {
     showNotice({ id: 'template-maker', tone: 'error', title: 'Google Drive', message: 'Google’s file picker didn’t open. Check the internet connection and try again.' });

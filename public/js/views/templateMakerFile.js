@@ -9,18 +9,26 @@ import { AUTO_FIELD_PLACEHOLDERS } from '../model.js';
 
 const LESSON_FIELDS = [['lessonNumber', 'lesson in the week'], ['lessonNumberAbs', 'lesson in the year']];
 
-export function fileCard(file, session, { editable, savingPictures }) {
+export function fileCard(file, session, { editable, savingPictures, goesIn = null }) {
   const kind = file.prepared?.kind;
   return h('article', { class: `tm-file ${file.status}`, 'data-tour': 'tm-file' },
     h('div', { class: 'tm-file-head' },
       h('span', { class: 'tm-file-icon' }, kind ? KINDS[kind].icon : '📄'),
       h('div', { class: 'tm-file-title' },
         file.prepared ? nameInput(file, session, editable) : h('div', { class: 'tm-name-input' }, file.source.name),
-        h('div', { class: 'tm-from' }, `from “${file.source.name}”${file.prepared?.draft ? ' · turned into Google’s kind of file' : ''}`)),
+        h('div', { class: 'tm-from' }, fromLine(file))),
       editable ? h('button', { class: 'tm-remove', title: 'Take this file out', 'aria-label': 'Take this file out', onclick: () => session.removeFile(file.uid) }, '×') : null),
     statusLine(file, session),
+    goesIn,
     file.prepared && file.status !== 'made' ? choicesOf(file, session, { editable, savingPictures }) : null,
   );
+}
+
+/** Which file it's made from (and the picked folder it was found in). */
+function fromLine(file) {
+  const where = file.source.fromFolder ? ` in 📁 ${file.source.fromFolder}` : '';
+  const turned = file.prepared?.draft ? ' · turned into Google’s kind of file' : '';
+  return `from “${file.source.name}”${where}${turned}`;
 }
 
 function nameInput(file, session, editable) {
@@ -50,7 +58,7 @@ function madeLine(file, session) {
         file.picture ? h('img', { src: file.picture, alt: `The first slide of ${made.lesson.name}`, referrerpolicy: 'no-referrer' }) : h('span', {}, made.preview ? '…' : '📄')),
       h('div', {},
         h('div', { class: 'tm-status good' }, `✓ Template made · ${plural(made.changes, 'placeholder')}${spots}`),
-        h('a', { href: made.link, target: '_blank', rel: 'noopener' }, '👀 Open it to check'),
+        h('a', { href: made.link, target: '_blank', rel: 'noopener', 'data-tip': 'Opens in a new tab. Change anything you like there; when you come back, the picture here shows your changes.' }, '👀 Open it to check or change it'),
         reviewing ? h('label', { class: 'tm-keep', 'data-tour': 'tm-keep' },
           h('input', { type: 'checkbox', checked: Boolean(file.keep), onchange: (e) => session.setKeep(file.uid, e.target.checked) }),
           'Add this one to my templates') : null)),

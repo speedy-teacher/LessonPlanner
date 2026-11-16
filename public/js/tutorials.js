@@ -256,7 +256,7 @@ const makeTemplates = {
     },
     {
       target: 'tm-choose',
-      text: 'Click here and pick one or more of your lessons — Slides, Docs or Sheets, or PowerPoint, Word and Excel files (hold Ctrl to pick several).',
+      text: 'Click here and pick one or more of your lessons — Slides, Docs or Sheets, or PowerPoint, Word and Excel files (hold Ctrl to pick several). You can pick a whole folder too: every lesson inside it comes along.',
       skipIf: (ctx) => !ctx.exists('tm-choose') || ctx.exists('tm-file'),
       until: (ctx) => ctx.exists('tm-file'),
       backIf: (ctx) => !inMaker(ctx),
@@ -268,6 +268,12 @@ const makeTemplates = {
       backIf: (ctx) => !inMaker(ctx),
     },
     {
+      target: 'tm-goes-in', pick: 'first',
+      text: 'Each template goes in the folder chosen at the top — or pick a folder of its own here. You can still change it after the templates are made, until you add them.',
+      skipIf: (ctx) => !ctx.exists('tm-goes-in'),
+      backIf: (ctx) => !inMaker(ctx),
+    },
+    {
       target: 'tm-make',
       text: 'Click Make. A template copy of each lesson is made in your folder. Your own files are never changed.',
       skipIf: (ctx) => !ctx.exists('tm-make'),
@@ -275,7 +281,7 @@ const makeTemplates = {
     },
     {
       target: ['tm-file', 'tm-add'], pick: 'first',
-      text: 'Have a look: click the picture (or “Open it to check”) to see the template in Google. Untick any you don’t want, then click “Add … to my planner”. They show up in your Lesson Templates, marked ❗ new.',
+      text: 'Have a look: click the picture (or “Open it to check or change it”) to see the template in Google, and change anything you like there — the picture here updates when you come back. Untick any you don’t want, check where each goes, then click “Add … to my planner”. They show up in your Lesson Templates, marked ❗ new.',
       skipIf: (ctx) => !ctx.exists('tm-add'),
       until: (ctx) => ctx.exists('tm-show') || !inMaker(ctx),
     },

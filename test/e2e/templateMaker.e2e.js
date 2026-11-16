@@ -39,6 +39,11 @@ function pretendDrive() {
     id: 'deck1', name: 'Week 2 - Rhythm Tree Lesson 3', mimeType: SLIDES,
     content: { slides: [{ objectId: 'slide1', pageElements: [shape('t1', 'Rhythm Tree'), shape('t2', 'Lesson 3 · Week 2'), BITMOJI] }] },
   });
+  // A unit folder with two lessons (and a PDF that isn't one) for picking a whole folder.
+  g.add({ id: 'unitFolder', name: 'Winter Unit', mimeType: FOLDER });
+  g.add({ id: 'deck2', name: 'Snow Song Lesson 1', mimeType: SLIDES, parents: ['unitFolder'], content: { slides: [{ objectId: 'slide1', pageElements: [shape('t1', 'Snow Song'), shape('t2', 'Lesson 1 · Week 14')] }] } });
+  g.add({ id: 'deck3', name: 'Ice Beat Lesson 2', mimeType: SLIDES, parents: ['unitFolder'], content: { slides: [{ objectId: 'slide1', pageElements: [shape('t1', 'Ice Beat'), shape('t2', 'Lesson 2 · Week 14')] }] } });
+  g.add({ id: 'pdf1', name: 'Words.pdf', mimeType: 'application/pdf', parents: ['unitFolder'] });
   const realFetch = window.fetch;
   window.fetch = (input, init) => {
     const url = String(input?.url ?? input);
@@ -74,7 +79,7 @@ export async function run() {
     const tm = await openWindow();
     await waitFor(() => tm.querySelector('[data-tour="tm-folders"]'), 6000, 'the folders to be checked');
     check(text(tm.querySelector('[data-tour="tm-folders"]')).includes('My Templates'), 'the templates folder should be the plan’s Drive folder');
-    await click('Choose lessons from Google Drive');
+    await click('Choose lessons or folders');
     const card = await waitFor(() => tm.querySelector('.tm-file.ready'), 6000, 'the lesson to be read');
     check(card.querySelector('.tm-name-input').value === 'Rhythm Tree', 'the template name should leave out the numbers');
     check(card.querySelectorAll('.tm-match input:checked').length === 2, 'the lesson and week numbers should both be ticked');
@@ -118,6 +123,57 @@ export async function run() {
   }
 }
 
+/**
+ * Second case (fresh computer: reset + reload first): pick a whole folder, give one template a folder of its
+ * own, make them, look, add. `await t.runFolders()` → { passed, errors }.
+ */
+export async function runFolders() {
+  guardHost();
+  const stopWatching = watchErrors();
+  const drive = pretendDrive();
+  const signedIn = { ...google };
+  const codes = window.PLANNER_CONFIG;
+  window.PLANNER_CONFIG = { googleClientId: '123-pretend.apps.googleusercontent.com', googleApiKey: 'pretend-key' };
+  try {
+    if (!store.state) await startNewYear({ ...YEAR, copy: false });
+    const yearId = activeYear(store.state).id;
+    commit((s) => { addFolder(s, { yearId, name: 'My Templates', watch: true, locations: [driveLocation({ fileId: 'tplFolder', mimeType: FOLDER })] }); });
+    Object.assign(google, { status: 'connected', token: 'pretend', scope: DRIVE_SCOPE });
+    usePicker(async () => [{ id: 'unitFolder', name: 'Winter Unit', mimeType: FOLDER }], async () => [{ id: 'fallFolder', name: 'Fall Templates', mimeType: FOLDER }]);
+
+    const tm = await openWindow();
+    await waitFor(() => tm.querySelector('[data-tour="tm-folders"]'), 6000, 'the folders to be checked');
+    await click('Choose lessons or folders');
+    await waitFor(() => tm.querySelectorAll('.tm-file.ready').length === 2, 6000, 'both lessons in the folder to be read');
+    const cards = [...tm.querySelectorAll('.tm-file')];
+    check(cards.every((c) => text(c.querySelector('.tm-from')).includes('Winter Unit')), 'each card says the folder it came from');
+    check(text(tm).includes('left out'), 'the PDF in the folder is mentioned as left out');
+    const goesIn = cards[1].querySelector('.tm-goes select');
+    check(goesIn && !goesIn.disabled, 'each template has its own “Goes in”');
+    goesIn.value = 'another-drive-folder';
+    goesIn.dispatchEvent(new Event('change', { bubbles: true }));
+    await waitFor(() => tm.querySelectorAll('.tm-file')[1]?.querySelector('.tm-goes select')?.selectedOptions[0]?.textContent.startsWith('Fall Templates'), 4000, 'its own folder to be chosen');
+    check(tm.querySelector('[data-tour="tm-template-folder"]').selectedOptions[0].textContent.startsWith('My Templates'), 'the folder for all stays as it was');
+    await click('[data-tour="tm-make"]');
+    await waitFor(() => tm.querySelector('[data-tour="tm-add"]'), 6000, 'the templates to be made');
+    check(tm.querySelectorAll('.tm-goes select').length === 2, 'where each goes can still be changed while looking');
+    await click('[data-tour="tm-add"]');
+    await waitFor(() => find('Show me'), 6000, 'the templates to be added');
+    const fileOf = (name) => drive.g.get(store.state.lessons.find((l) => l.name === name).locations[0].fileId);
+    check(fileOf('Snow Song').parents.includes('tplFolder') || fileOf('Ice Beat').parents.includes('tplFolder'), 'one template goes in the folder chosen for all');
+    check(fileOf('Snow Song').parents.includes('fallFolder') || fileOf('Ice Beat').parents.includes('fallFolder'), 'the other goes in its own folder');
+    const errors = stopWatching();
+    return { passed: errors.length === 0, errors };
+  } catch (err) {
+    return { passed: false, errors: [err.message, ...stopWatching()] };
+  } finally {
+    usePicker(null);
+    window.PLANNER_CONFIG = codes;
+    Object.assign(google, signedIn);
+    drive.undo();
+  }
+}
+
 /** Open the window with one lesson read, and leave it open (to look at it). Reload the page afterwards. */
 export async function preview({ made = false } = {}) {
   guardHost();
@@ -130,7 +186,7 @@ export async function preview({ made = false } = {}) {
   usePicker(async () => [{ id: 'deck1', name: 'Week 2 - Rhythm Tree Lesson 3', mimeType: SLIDES }]);
   const tm = await openWindow();
   await waitFor(() => tm.querySelector('[data-tour="tm-folders"]'), 6000, 'the folders to be checked');
-  await click('Choose lessons from Google Drive');
+  await click('Choose lessons or folders');
   await waitFor(() => tm.querySelector('.tm-file.ready'), 6000, 'the lesson to be read');
   if (made) {
     await click('[data-tour="tm-make"]');

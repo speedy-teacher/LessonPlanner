@@ -31,6 +31,9 @@
 .tm-name-input { width: 100%; border: 1px solid var(--line); border-radius: 10px; padding: 6px 10px; font-weight: 800; font-size: 16px; background: var(--card); }
 .tm-name-input:focus { outline: 2px solid var(--royal-soft); border-color: var(--royal); }
 .tm-from { color: var(--ink-soft); font-size: 13px; margin-top: 3px; overflow-wrap: anywhere; }
+/* Where one template goes (its own folder, or the one chosen for all) */
+.tm-goes { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; font-size: 14px; font-weight: 700; }
+.tm-goes select { border: 1px solid var(--line); border-radius: 10px; padding: 4px 8px; background: #fff; max-width: 100%; font-weight: 400; }
 .tm-remove { border: 0; background: var(--card-2); border-radius: 50%; width: 28px; height: 28px; cursor: pointer; color: var(--ink-soft); font-size: 16px; flex: none; }
 .tm-remove:hover { background: #f7e1da; color: var(--danger); }
 .tm-status { margin-top: 8px; font-weight: 700; color: var(--ink-soft); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }

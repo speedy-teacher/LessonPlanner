@@ -115,6 +115,11 @@ export function pickFilesFromDrive({ token, apiKey, clientId }, { mimeTypes, tit
   return openPicker({ token, apiKey, clientId }, { mimeTypes, multiple: true, title });
 }
 
+/** Open Google's picker for several files of these kinds and/or whole folders (the Template Maker window). */
+export function pickFilesOrFoldersFromDrive({ token, apiKey, clientId }, { mimeTypes, title }) {
+  return openPicker({ token, apiKey, clientId }, { mimeTypes: [...mimeTypes, DRIVE_FOLDER], folders: true, multiple: true, title });
+}
+
 /** Open Google's picker for one plan file (also gives the planner permission to save it). */
 export function pickPlanFromDrive({ token, apiKey, clientId }) {
   return openPicker({ token, apiKey, clientId }, { mimeTypes: ['application/json'], title: 'Pick a plan file' });

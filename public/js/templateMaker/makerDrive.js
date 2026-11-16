@@ -17,7 +17,7 @@ export const HASH_LABEL = 'tmHash';
 const DRAFT = 'template-maker-draft';
 // Lesson Planner's own Drive label: a file carrying it is never brought in from a watched folder (library.js).
 const PIECE_LABEL = 'lessonPlanner';
-const FILE_FIELDS = 'id,name,mimeType,parents,modifiedTime,headRevisionId,trashed,ownedByMe,capabilities(canEdit,canAddChildren),owners(displayName),appProperties';
+const FILE_FIELDS = 'id,name,mimeType,parents,modifiedTime,headRevisionId,trashed,ownedByMe,capabilities(canEdit,canAddChildren),owners(displayName),appProperties,properties';
 
 const q = (text) => text.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
 const id = encodeURIComponent;
@@ -50,6 +50,21 @@ export function driveCalls(client) {
       ...await list(`appProperties has { key='${LABEL}' and value='draft' }`),
       ...await list(`appProperties has { key='${LABEL}' and value='review' }`),
     ],
+    /** Everything directly inside a folder (files and folders), every page of it. */
+    listFolder: async (folderId) => {
+      const all = [];
+      let pageToken = '';
+      do {
+        const params = new URLSearchParams({
+          q: `'${q(folderId)}' in parents and trashed = false`, fields: `nextPageToken,files(${FILE_FIELDS})`, orderBy: 'name',
+          pageSize: '200', supportsAllDrives: 'true', includeItemsFromAllDrives: 'true', ...(pageToken ? { pageToken } : {}),
+        });
+        const page = await json(`${DRIVE}?${params}`);
+        all.push(...(page.files ?? []));
+        pageToken = page.nextPageToken ?? '';
+      } while (pageToken);
+      return all;
+    },
     /** A picture of one slide, drawn by Google now (Drive's own thumbnails can be minutes behind). */
     slideThumbnail: async (fileId, pageId) => (await json(`https://slides.googleapis.com/v1/presentations/${id(fileId)}/pages/${id(pageId)}/thumbnail?thumbnailProperties.thumbnailSize=MEDIUM`)).contentUrl ?? null,
     /** A picture saved before with the same fingerprint, in that folder. */
