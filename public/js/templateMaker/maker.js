@@ -102,10 +102,19 @@ export function keepTemplate(calls, made) {
   return calls.renameFile(made.lesson.fileId, { name: made.lesson.name, label: 'template' });
 }
 
-/** A picture of the template's first slide (Slides only; null when Google can't draw it). */
+/**
+ * A picture of the template's first page: for Slides drawn by Google right now; for Docs and Sheets (or when
+ * that fails) Drive's own picture of the file, which can take a minute to appear for a new file.
+ * null when there's none yet (try again a little later).
+ */
 export async function previewPicture(calls, made) {
-  if (!made.preview) return null;
-  try { return await calls.slideThumbnail(made.lesson.fileId, made.preview); } catch { return null; }
+  if (made.preview) {
+    try {
+      const url = await calls.slideThumbnail(made.lesson.fileId, made.preview);
+      if (url) return url;
+    } catch { /* Drive's picture below */ }
+  }
+  try { return await calls.thumbnailLink(made.lesson.fileId); } catch { return null; }
 }
 
 /** The file as a PowerPoint/Word zip (Google's files are exported; Office files are already one). */

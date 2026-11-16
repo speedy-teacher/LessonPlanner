@@ -23,8 +23,11 @@ function store(storage) {
   };
 }
 
+// A template's picture that isn't there yet (Google busy, or Drive still making it) is asked for again after these waits.
+const PICTURE_RETRIES_MS = [5000, 15000, 30000, 60000];
+
 /** `calls` = driveCalls, `pace` = copyPace(), `storage` = localStorage (or a stand-in), `plan` = the open plan. */
-export function createSession({ calls, pace, storage, plan }) {
+export function createSession({ calls, pace, storage, plan, pictureRetries = PICTURE_RETRIES_MS }) {
   const kept = store(storage);
   const state = { setup: { status: 'idle' }, files: [], phase: 'choose', save: { status: 'idle' }, looking: false, folderNote: null };
   const listeners = new Set();
@@ -154,7 +157,7 @@ export function createSession({ calls, pace, storage, plan }) {
         const setup = { ...setupNow(), templateFolder: folderFor(file) };
         const made = await makeTemplate(calls, file.prepared, { setup, shared, step: (step) => patchFile(file, { step }) });
         patchFile(file, { status: 'made', made, keep: true, step: '' });
-        previewPicture(calls, made).then((picture) => patchFile(file, { picture }));
+        loadPicture(file);
       } catch (err) {
         patchFile(file, { status: 'failed', error: problemFor(err), step: '' });
       }
@@ -163,12 +166,29 @@ export function createSession({ calls, pace, storage, plan }) {
     changed();
   }
 
+  // Pictures are asked for one at a time (Google only draws so many a minute); one not there yet is asked again later.
+  let pictureLine = Promise.resolve();
+  function loadPicture(file, attempt = 0) {
+    if (file.pictureState !== 'loading') patchFile(file, { pictureState: 'loading' });
+    pictureLine = pictureLine.then(async () => {
+      if (!state.files.includes(file) || file.status !== 'made') return;
+      const picture = await previewPicture(calls, file.made);
+      if (picture) patchFile(file, { picture, pictureState: 'ready' });
+      else if (attempt < pictureRetries.length) setTimeout(() => loadPicture(file, attempt + 1), pictureRetries[attempt]);
+      else patchFile(file, { pictureState: file.picture ? 'ready' : 'none' });
+    });
+  }
+
   /** Draw the made templates' pictures again (the teacher may have changed them in Google meanwhile). */
   function refreshPictures() {
     if (state.phase !== 'review') return;
-    for (const file of state.files.filter((f) => f.status === 'made' && f.made.preview)) {
-      previewPicture(calls, file.made).then((picture) => { if (picture) patchFile(file, { picture }); });
-    }
+    state.files.filter((f) => f.status === 'made' && f.pictureState !== 'loading').forEach((f) => loadPicture(f));
+  }
+
+  /** "🔄" on one template: draw its picture again now. */
+  function reloadPicture(id) {
+    const file = fileOf(id);
+    if (file?.status === 'made' && file.pictureState !== 'loading') loadPicture(file);
   }
 
   /** While looking: keep this template (add it to the planner) or not (thrown away). */
@@ -225,7 +245,7 @@ export function createSession({ calls, pace, storage, plan }) {
 
   return {
     state, checkSetup, choose, canChoose, pickFolder, setFolder, folderFor, addFiles, removeFile, makeAll, setKeep, addKept, startOver, busy,
-    refreshPictures,
+    refreshPictures, reloadPicture,
     onChange: (fn) => { listeners.add(fn); return () => listeners.delete(fn); },
     rename: (id, name) => edit(id, (p) => { p.name = name; }),
     tickMatch: (id, key, field) => edit(id, (p) => { p.choices.matches[key] = field; }),

@@ -65,6 +65,11 @@ export function driveCalls(client) {
       } while (pageToken);
       return all;
     },
+    /** Drive's own picture of a file (any kind), large; null until Drive has made one. */
+    thumbnailLink: async (fileId) => {
+      const link = (await json(`${DRIVE}/${id(fileId)}?fields=thumbnailLink&${ALL}`)).thumbnailLink;
+      return link ? link.replace(/=s\d+$/, '=s640') : null;
+    },
     /** A picture of one slide, drawn by Google now (Drive's own thumbnails can be minutes behind). */
     slideThumbnail: async (fileId, pageId) => (await json(`https://slides.googleapis.com/v1/presentations/${id(fileId)}/pages/${id(pageId)}/thumbnail?thumbnailProperties.thumbnailSize=MEDIUM`)).contentUrl ?? null,
     /** A picture saved before with the same fingerprint, in that folder. */

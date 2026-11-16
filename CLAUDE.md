@@ -205,6 +205,10 @@ A browser app for a (non-technical) elementary music teacher to plan a school ye
 - **A folder per template**: `file.folderId` (null = the window's templates folder; `setFolder`, `pickFolder(folder, uid)`),
   `folderFor(file)` is used when making and on `addKept`. "Goes in" on each card (`tm-goes-in`) until added.
   Coming back to the tab (window focus) redraws the review pictures (`refreshPictures`), for edits made in Google.
+- **Review pictures for every kind** (`previewPicture`): Slides = Slides API thumbnail, else (Docs, Sheets, or Slides
+  refused) Drive `thumbnailLink` (=s640; a new file may not have one for a minute). Asked one at a time (`loadPicture`
+  queue), retried after `PICTURE_RETRIES_MS`; `pictureState` loading | ready | none, "🔄" on each card (`reloadPicture`).
+  Browser cases: `run`, `runFolders`, `runPreview` (close other 127.0.0.1 tabs first, or `reset` hangs).
 - **Templates folder changes until Add** (`canChoose`: templates in phases choose/review, pictures only before files are read):
   made copies are moved on `addKept` (`moveTemplate`, Drive addParents/removeParents), an Office draft read before the change
   is moved when made (`copyInto`). "📂 Another folder in Drive…" (`pickFolder` → Google's folder picker) offers a folder not in

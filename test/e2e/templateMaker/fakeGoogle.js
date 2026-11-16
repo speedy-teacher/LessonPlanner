@@ -33,9 +33,13 @@ export function fakeGoogle() {
   }
 
   const touch = (file) => { file.headRevisionId = `rev${(rev += 1)}`; file.modifiedTime = new Date(Date.UTC(2026, 9, 2, 8, 0, rev)).toISOString(); };
+  // Drive's own picture of a Slides/Docs/Sheets file (like Google, only once it has made one: `noThumbnail` = not yet).
+  const thumbnail = (f) => (f.content && !f.noThumbnail
+    ? { thumbnailLink: `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 120"><rect width="160" height="120" fill="#f4eedd"/><text x="10" y="60" font-size="14">${f.name.replace(/[<&>]/g, '')}</text></svg>`)}` }
+    : {});
   const meta = (f) => {
-    const { content: _c, text: _t, bytes: _b, converted: _v, exported: _e, ...rest } = f;
-    return structuredClone(rest);
+    const { content: _c, text: _t, bytes: _b, converted: _v, exported: _e, noThumbnail: _n, ...rest } = f;
+    return { ...structuredClone(rest), ...thumbnail(f) };
   };
   const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
   const missing = () => json({ error: { code: 404, message: 'File not found' } }, 404);

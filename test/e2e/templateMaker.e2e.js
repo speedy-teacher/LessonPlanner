@@ -10,6 +10,7 @@ import { activeYear } from '/js/model.js';
 import { commit, setUi, store } from '/js/store.js';
 import { usePicker } from '/js/views/templateMaker.js';
 import { fakeGoogle } from './templateMaker/fakeGoogle.js';
+import { fakeDoc } from './templateMaker/fakeDocs.js';
 import { check, click, find, guardHost, modal, sleep, startNewYear, text, waitFor, watchErrors } from './helpers.js';
 
 export { reset } from './helpers.js';
@@ -17,6 +18,8 @@ export { reset } from './helpers.js';
 const YEAR = { name: 'Test Year 2030–31', start: '2030-08-26', end: '2031-06-13' };
 const SLIDES = 'application/vnd.google-apps.presentation';
 const FOLDER = 'application/vnd.google-apps.folder';
+const DOCS = 'application/vnd.google-apps.document';
+const SHEETS = 'application/vnd.google-apps.spreadsheet';
 const GOOGLE = /(^|\.)(googleapis\.com|google\.com)$/;
 
 const emu = (magnitude) => ({ magnitude, unit: 'EMU' });
@@ -44,6 +47,9 @@ function pretendDrive() {
   g.add({ id: 'deck2', name: 'Snow Song Lesson 1', mimeType: SLIDES, parents: ['unitFolder'], content: { slides: [{ objectId: 'slide1', pageElements: [shape('t1', 'Snow Song'), shape('t2', 'Lesson 1 · Week 14')] }] } });
   g.add({ id: 'deck3', name: 'Ice Beat Lesson 2', mimeType: SLIDES, parents: ['unitFolder'], content: { slides: [{ objectId: 'slide1', pageElements: [shape('t1', 'Ice Beat'), shape('t2', 'Lesson 2 · Week 14')] }] } });
   g.add({ id: 'pdf1', name: 'Words.pdf', mimeType: 'application/pdf', parents: ['unitFolder'] });
+  // A Google Doc and a Google Sheet (previews of every kind of file).
+  g.add({ id: 'doc1', name: 'Week 5 plan Lesson 2', mimeType: DOCS, content: fakeDoc({ body: [['Lesson 2 plan\n'], ['Week 5 songs\n']] }) });
+  g.add({ id: 'sheet1', name: 'Week 6 checklist', mimeType: SHEETS, content: { sheets: [{ properties: { sheetId: 0, title: 'Plan' }, data: [{ rowData: [{ values: [{ userEnteredValue: { stringValue: 'Week 6' } }, { userEnteredValue: { stringValue: 'Lesson 1' } }] }] }] }] } });
   const realFetch = window.fetch;
   window.fetch = (input, init) => {
     const url = String(input?.url ?? input);
@@ -162,6 +168,66 @@ export async function runFolders() {
     const fileOf = (name) => drive.g.get(store.state.lessons.find((l) => l.name === name).locations[0].fileId);
     check(fileOf('Snow Song').parents.includes('tplFolder') || fileOf('Ice Beat').parents.includes('tplFolder'), 'one template goes in the folder chosen for all');
     check(fileOf('Snow Song').parents.includes('fallFolder') || fileOf('Ice Beat').parents.includes('fallFolder'), 'the other goes in its own folder');
+    const errors = stopWatching();
+    return { passed: errors.length === 0, errors };
+  } catch (err) {
+    return { passed: false, errors: [err.message, ...stopWatching()] };
+  } finally {
+    usePicker(null);
+    window.PLANNER_CONFIG = codes;
+    Object.assign(google, signedIn);
+    drive.undo();
+  }
+}
+
+/**
+ * Third case (fresh computer: reset + reload first): a Slides deck, a Doc, a Sheet and a folder of two decks picked
+ * at once — every template gets a picture and an "Open it" link to its Google editor before anything is added; a
+ * change made "in Google" is kept, and its picture is drawn again on coming back. `await t.runPreview()`.
+ */
+export async function runPreview() {
+  guardHost();
+  const stopWatching = watchErrors();
+  const drive = pretendDrive();
+  const signedIn = { ...google };
+  const codes = window.PLANNER_CONFIG;
+  window.PLANNER_CONFIG = { googleClientId: '123-pretend.apps.googleusercontent.com', googleApiKey: 'pretend-key' };
+  try {
+    if (!store.state) await startNewYear({ ...YEAR, copy: false });
+    const yearId = activeYear(store.state).id;
+    commit((s) => { addFolder(s, { yearId, name: 'My Templates', watch: true, locations: [driveLocation({ fileId: 'tplFolder', mimeType: FOLDER })] }); });
+    Object.assign(google, { status: 'connected', token: 'pretend', scope: DRIVE_SCOPE });
+    usePicker(async () => [
+      { id: 'deck1', name: 'Week 2 - Rhythm Tree Lesson 3', mimeType: SLIDES }, { id: 'doc1', name: 'Week 5 plan Lesson 2', mimeType: DOCS },
+      { id: 'sheet1', name: 'Week 6 checklist', mimeType: SHEETS }, { id: 'unitFolder', name: 'Winter Unit', mimeType: FOLDER },
+    ]);
+
+    const tm = await openWindow();
+    await waitFor(() => tm.querySelector('[data-tour="tm-folders"]'), 6000, 'the folders to be checked');
+    await click('Choose lessons or folders');
+    await waitFor(() => tm.querySelectorAll('.tm-file.ready').length === 5, 8000, 'all five lessons to be read');
+    await click('[data-tour="tm-make"]');
+    await waitFor(() => tm.querySelector('[data-tour="tm-add"]'), 8000, 'the templates to be made');
+    await waitFor(() => tm.querySelectorAll('.tm-file.made .tm-look img').length === 5, 8000, 'a picture of every template');
+    check(!store.state.lessons.some((l) => l.isNew), 'nothing is added before the teacher has looked');
+    const links = [...tm.querySelectorAll('.tm-file.made .tm-look')].map((a) => a.href);
+    const editors = ['presentation', 'document', 'spreadsheets', 'presentation', 'presentation'];
+    check(links.every((href, i) => href.includes(`docs.google.com/${editors[i]}/d/`) && href.endsWith('/edit')), `each opens in its Google editor: ${links.join(' ')}`);
+    check([...tm.querySelectorAll('.tm-file.made')].every((c) => text(c).includes('Open it to check or change it')), 'each says it can be opened to change it');
+
+    // The teacher changes the Doc in Google, then comes back to the planner tab.
+    const docCard = tm.querySelectorAll('.tm-file.made')[1];
+    const docCopy = [...drive.g.files.values()].find((f) => f.mimeType === DOCS && f.id !== 'doc1');
+    docCopy.content.body.push(['My own note\n']);
+    docCard.querySelector('.tm-look img').remove();
+    window.dispatchEvent(new Event('focus'));
+    await waitFor(() => tm.querySelectorAll('.tm-file.made')[1].querySelector('.tm-look img'), 4000, 'the changed template’s picture to be drawn again');
+
+    await click('[data-tour="tm-add"]');
+    await waitFor(() => find('Show me'), 6000, 'the templates to be added');
+    check(store.state.lessons.filter((l) => l.isNew).length === 5, 'all five are in Lesson Templates');
+    const kept = drive.g.get(docCopy.id);
+    check(JSON.stringify(kept.content).includes('My own note'), 'the change made in Google is kept');
     const errors = stopWatching();
     return { passed: errors.length === 0, errors };
   } catch (err) {

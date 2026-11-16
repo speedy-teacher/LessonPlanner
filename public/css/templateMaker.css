@@ -78,8 +78,12 @@
   flex: none; width: 200px; aspect-ratio: 16 / 9; border: 1px solid var(--line); border-radius: 10px; background: var(--card-2);
   display: grid; place-items: center; overflow: hidden; font-size: 28px; text-decoration: none;
 }
-.tm-look img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.tm-look img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.tm-look-wrap { position: relative; flex: none; }
+.tm-look-note { font-size: 13px; color: var(--ink-soft); padding: 8px; text-align: center; display: flex; gap: 6px; align-items: center; }
+.tm-repicture { position: absolute; right: 6px; bottom: 6px; border: 1px solid var(--line); background: #fff; border-radius: 50%; width: 28px; height: 28px; cursor: pointer; font-size: 13px; }
+.tm-repicture:disabled { opacity: .5; cursor: default; }
 .tm-made .tm-status { margin-top: 0; }
 .tm-keep { display: flex; gap: 8px; align-items: center; margin-top: 10px; font-weight: 700; cursor: pointer; }
 .tm-keep input { accent-color: var(--royal); width: 18px; height: 18px; }
-@media (max-width: 560px) { .tm-made { flex-direction: column; } .tm-look { width: 100%; } }
+@media (max-width: 560px) { .tm-made { flex-direction: column; } .tm-look-wrap, .tm-look { width: 100%; } }

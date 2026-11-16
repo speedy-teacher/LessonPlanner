@@ -54,8 +54,12 @@ function madeLine(file, session) {
   const reviewing = session.state.phase === 'review';
   return h('div', {},
     h('div', { class: 'tm-made' },
-      h('a', { class: 'tm-look', href: made.link, target: '_blank', rel: 'noopener', title: 'Open it in Google' },
-        file.picture ? h('img', { src: file.picture, alt: `The first slide of ${made.lesson.name}`, referrerpolicy: 'no-referrer' }) : h('span', {}, made.preview ? '…' : '📄')),
+      h('div', { class: 'tm-look-wrap' },
+        h('a', { class: 'tm-look', href: made.link, target: '_blank', rel: 'noopener', title: 'Open it in Google', 'data-tour': 'tm-preview' }, lookInside(file)),
+        h('button', {
+          class: 'tm-repicture', title: 'Draw the picture again', 'aria-label': `Draw the picture of ${made.lesson.name} again`,
+          disabled: file.pictureState === 'loading', onclick: () => session.reloadPicture(file.uid),
+        }, '🔄')),
       h('div', {},
         h('div', { class: 'tm-status good' }, `✓ Template made · ${plural(made.changes, 'placeholder')}${spots}`),
         h('a', { href: made.link, target: '_blank', rel: 'noopener', 'data-tip': 'Opens in a new tab. Change anything you like there; when you come back, the picture here shows your changes.' }, '👀 Open it to check or change it'),
@@ -63,6 +67,13 @@ function madeLine(file, session) {
           h('input', { type: 'checkbox', checked: Boolean(file.keep), onchange: (e) => session.setKeep(file.uid, e.target.checked) }),
           'Add this one to my templates') : null)),
     missed ? h('div', { class: 'tm-notice gold small' }, `${missed} picture${missed === 1 ? '' : 's'} couldn’t be saved (that kind of picture can’t be copied), so ${missed === 1 ? 'it stays' : 'they stay'} in the template as ${missed === 1 ? 'it is' : 'they are'}.`) : null);
+}
+
+/** The template's picture, or what's happening with it. */
+function lookInside(file) {
+  if (file.picture) return h('img', { src: file.picture, alt: `The first page of ${file.made.lesson.name}`, referrerpolicy: 'no-referrer' });
+  if (file.pictureState === 'none') return h('span', { class: 'tm-look-note' }, '📄 No picture from Google yet — click to open it');
+  return h('span', { class: 'tm-look-note' }, h('span', { class: 'tm-spinner' }), 'Getting a picture…');
 }
 
 function choicesOf(file, session, { editable, savingPictures }) {
