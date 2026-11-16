@@ -129,6 +129,13 @@ A browser app for a (non-technical) elementary music teacher to plan a school ye
 - Sign-in is browser-only: GIS **token** flow (`google.js`), 1-hour token in memory, no client secret. GIS popups need a user
   click, so on open and ~10 min before expiry the next click anywhere renews (`renewOnNextClick`); expired → notice + pill.
   Colleagues using a shared plan must be test users while the project is in testing mode.
+- **Lesson files picked in Drive are always copied** ("+ Add" → "Files or folders…", `templateCopies.js` tested in
+  `test/templateCopies.test.js`, UI `views/deckCopies.js`): copies go in the teacher's own templates folder (`templatesHome`:
+  the "Adds to" folder, else the Template Maker's pick, else the top watched one; only `isOwnFolder` = hers or a shared drive,
+  never a colleague's; none → a new "Lesson Templates" folder in My Drive) and the copies become the templates. A picked
+  folder becomes a new folder there (folders inside too). Copies carry `appProperties.lpCopiedFrom` = original id, so picking
+  again reuses them; files already in the templates folder are used as they are. `importDriveItems(…, { seenBy })` = the
+  watched folder above them remembers them. The Images tab still links pictures directly (they're never edited).
 - Deck import (`library.js` pure + tested, `drive.js` browser-only Drive calls, `views/deckImport.js`, `views/deckTree.js`):
   all reading of files/Drive happens in the browser; only deck details are saved, never file contents.
   Watched Drive folders are re-listed every 10 min while connected; `seenDriveIds` stops deleted decks returning.

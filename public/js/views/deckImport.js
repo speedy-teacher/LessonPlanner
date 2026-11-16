@@ -17,13 +17,14 @@ import { commit, setUi, store } from '../store.js';
 import { menuItem, popMenu, year } from './common.js';
 import { askName, newFolder, openFolders, targetFolder } from './deckTree.js';
 import { openTemplateMaker } from './templateMaker.js';
+import { copyLessonsIn } from './deckCopies.js';
 
 const WATCH_EVERY_MS = 10 * 60 * 1000;
 const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
 /** What's being brought in: lesson decks, or pictures for the Images tab. */
 export const LESSON_KIND = {
-  shelf: LESSON_SHELF, noun: 'lesson deck', tab: 'lessons', pickTitle: 'Pick lesson files or folders', where: 'Lesson Templates',
+  shelf: LESSON_SHELF, noun: 'lesson deck', tab: 'lessons', copies: true, pickTitle: 'Pick lesson files or folders', where: 'Lesson Templates',
   target: () => targetFolder(), open: (ids) => openFolders(ids), select: (item) => setUi({ lessonId: item.id, lessonSearch: '' }),
 };
 let IMAGE_KIND = null;
@@ -44,7 +45,7 @@ export function addMenu() {
     menuItem('Slide files…', () => pickLocal(false), { icon: '📄', tip: 'Pick one or more slide decks' }),
     menuItem('A folder of slides…', () => pickLocal(true), { icon: '🗂️', tip: 'Brings in every deck, including folders inside folders' }),
     h('div', { class: 'menu-group' }, 'From Google Drive'),
-    menuItem('Files or folders…', () => importFromDrive(LESSON_KIND), { icon: '☁️', tip: 'Any kind of Drive file (Docs, Sheets, Slides, PDFs…). Folders are watched: new files added there show up here' }),
+    menuItem('Files or folders…', () => importFromDrive(LESSON_KIND), { icon: '☁️', tip: 'Any kind of Drive file (Docs, Sheets, Slides, PDFs…). The planner makes its own copies in your templates folder — the files you pick are never changed' }),
     menuItem('Make templates from my lessons…', () => openTemplateMaker(), { icon: '✨', tip: 'Pick lessons you already have: their lesson and week numbers become placeholders, and a template copy is saved in your templates folder', tour: 'tm-open' }));
 }
 
@@ -56,19 +57,37 @@ function newDeck() {
   }, 'e.g. Steady beat warm-up');
 }
 
+const someNames = (names) => `${names.slice(0, 3).join(', ')}${names.length > 3 ? '…' : ''}`;
+
 /** After bringing decks in: open their folders, select the first new deck, say what happened. */
-function showResult(result, where, kind = LESSON_KIND) {
-  const { added, folders, skipped } = result;
+function showResult(result, where, kind = LESSON_KIND, copies = null) {
+  const { added, folders } = result;
   kind.open([...folders.map((f) => f.id), ...added.map((l) => l.folderId).filter(Boolean)]);
   if (added[0]) kind.select(added[0]);
-  const parts = [`Added ${plural(added.length, kind.noun)}`];
+  const parts = [copies ? `Copied ${plural(added.length, kind.noun)} into 📁 ${copies.home}` : `Added ${plural(added.length, kind.noun)}`];
   if (folders.length) parts.push(`and ${plural(folders.length, 'folder')}`);
-  const skippedNote = skipped.length ? ` Skipped ${plural(skipped.length, 'file')} of a kind the planner doesn’t add (${skipped.slice(0, 3).join(', ')}${skipped.length > 3 ? '…' : ''}).` : '';
+  const notes = resultNotes(result, copies);
   const nothing = !added.length && !folders.length;
+  const trouble = Boolean(copies?.failed.length);
   showNotice({
-    id: 'deck-import', tone: nothing ? 'info' : 'success', title: where,
-    message: nothing ? `Nothing new to add — those are already here.${skippedNote}` : `${parts.join(' ')}.${skippedNote}`,
+    id: 'deck-import', tone: resultTone(trouble, nothing), title: where,
+    message: nothing ? `Nothing new to add — those are already here.${notes}` : `${parts.join(' ')}.${notes}`,
+    ...(trouble ? { seconds: null } : {}),
   });
+}
+
+const resultTone = (trouble, nothing) => {
+  if (trouble) return 'warn';
+  return nothing ? 'info' : 'success';
+};
+
+/** Files left out, files that couldn't be copied, too many at once. */
+function resultNotes({ skipped }, copies) {
+  const notes = [];
+  if (skipped.length) notes.push(` Skipped ${plural(skipped.length, 'file')} of a kind the planner doesn’t add (${someNames(skipped)}).`);
+  if (copies?.failed.length) notes.push(` Couldn’t copy ${plural(copies.failed.length, 'file')} (${someNames(copies.failed)}) — the owner may not allow copies, or it’s no longer shared with you.`);
+  if (copies?.tooMany) notes.push(' That was a lot of files: only the first ones were copied — pick fewer at a time for the rest.');
+  return notes.join('');
 }
 
 // ---------- from the computer ----------
@@ -128,12 +147,23 @@ export async function importFromDrive(kind) {
     if (!picked.length) return;
     const hasFolder = picked.some((p) => p.mimeType === DRIVE_FOLDER);
     if (hasFolder && !canReadFolders()) { askForFolderAccess(); return; }
+    if (kind.copies) { await importCopies(kind, picked); return; }
     if (hasFolder) showNotice({ id: 'drive-import', tone: 'info', title: 'Google Drive', message: 'Reading your folders…', seconds: null });
     const nodes = await Promise.all(picked.map(async (p) => (p.mimeType === DRIVE_FOLDER ? { ...p, children: await listFolderTree(google.token, p.id) } : p)));
     const parentId = kind.target()?.id ?? null;
     showResult(commit((s) => importDriveItems(s, { yearId: year().id, parentId, nodes, shelf: kind.shelf })), 'From Google Drive', kind);
   } catch (err) {
     showNotice({ id: 'drive-import', tone: 'error', title: 'Google Drive', message: driveProblem(err) });
+  }
+}
+
+/** Lesson decks: the planner's own copies in the templates folder are brought in, never the picked files. */
+async function importCopies(kind, picked) {
+  try {
+    const copies = await copyLessonsIn(picked, { targetId: kind.target()?.id ?? null });
+    showResult(copies.result, 'From Google Drive', kind, copies);
+  } finally {
+    dismissNotice('drive-import');
   }
 }
 

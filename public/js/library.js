@@ -206,14 +206,17 @@ export function importLocalFiles(state, { yearId, parentId = null, files, seenAt
  * children? } (children = what's inside a folder, already read from Drive).
  * Folders become library folders (top ones are watched); decks become lessons.
  * `markNew` flags decks as newly added (used when checking watched folders).
+ * `seenBy` = a watched folder these items are inside in Drive (copies made in the templates folder): it
+ * remembers them, and folders brought in aren't watched on their own (its watching covers them).
  * Returns { added, folders, skipped }.
  */
-export function importDriveItems(state, { yearId, parentId = null, nodes, markNew = false, seenAt = now(), shelf = LESSON_SHELF }) {
-  const ctx = { state, yearId, markNew, seenAt, shelf, seen: null, result: { added: [], folders: [], skipped: [] } };
+export function importDriveItems(state, { yearId, parentId = null, nodes, markNew = false, seenAt = now(), shelf = LESSON_SHELF, seenBy = null }) {
+  const ctx = { state, yearId, markNew, seenAt, shelf, seen: seenBy ? new Set(seenBy.seenDriveIds ?? []) : null, picked: Boolean(seenBy), result: { added: [], folders: [], skipped: [] } };
   for (const node of nodes) {
-    if (node.mimeType === DRIVE_FOLDER) addDriveFolder(ctx, node, parentId, true);
+    if (node.mimeType === DRIVE_FOLDER) addDriveFolder(ctx, node, parentId, !seenBy);
     else addDriveDeck(ctx, node, parentId);
   }
+  if (seenBy) seenBy.seenDriveIds = [...ctx.seen];
   return ctx.result;
 }
 
@@ -252,7 +255,7 @@ function addDriveDeck(ctx, node, folderId) {
   ctx.seen?.add(node.id);
   const existing = driveRecord(ctx, shelf.items, node.id);
   if (existing) seeDrive(ctx, existing, node.id);
-  if (seenBefore || existing) return;
+  if ((seenBefore && !ctx.picked) || existing) return;
   const location = driveLocation({ fileId: node.id, mimeType: node.mimeType, modifiedTime: node.modifiedTime }, ctx.seenAt);
   ctx.result.added.push(shelf.newItem(ctx.state, {
     yearId: ctx.yearId, name: shelf.itemName(node.name), folderId, locations: [location], isNew: ctx.markNew,

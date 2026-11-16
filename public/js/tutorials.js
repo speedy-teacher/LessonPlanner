@@ -205,7 +205,7 @@ const lessonTemplates = {
     ...goTo('lessons'),
     {
       target: 'deck-add',
-      text: (ctx) => `Click “+ Add”. Choose “New lesson deck” to type one in, or “From Google Drive › Files or folders…” to bring in your slides.${already(ctx, 'lessons', 'lesson')}`,
+      text: (ctx) => `Click “+ Add”. Choose “New lesson deck” to type one in, or “From Google Drive › Files or folders…” to bring in your slides — the planner makes its own copies in your templates folder, so the files you pick (even a colleague’s) are never changed.${already(ctx, 'lessons', 'lesson')}`,
       ...addOne('lessons'),
     },
     {

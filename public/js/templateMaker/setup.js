@@ -1,6 +1,6 @@
 // Where the Template Maker window puts what it makes: a templates folder (a Lesson Templates folder that
 // came from Google Drive) and — if the teacher keeps pictures — a pictures folder (from the Images tab).
-// Both come from the open plan and are checked in Drive (still there, can take new files). When there are
+// Both come from the open plan and are checked in Drive (still there, can take new files, the teacher's own). When there are
 // several, the teacher picks; the pick is remembered in this browser only.
 //
 // findSetup talks to Google; driveFolders / describeSetup / setupProblemText are pure (tested).
@@ -34,11 +34,21 @@ export async function findSetup(calls, state, yearId, { pace }) {
   const pictures = driveFolders(state, yearId, 'imageFolders');
   const all = [...templates, ...pictures];
   const checked = await runPool(all, (folder) => calls.fileInfo(folder.driveId), { pace });
-  const usable = new Set(all.filter((f, i) => folderOk(checked[i], calls)).map((f) => f.driveId));
+  const usable = new Set(all.filter((f, i) => folderOk(checked[i])).map((f) => f.driveId));
   return { templateFolders: templates.filter((f) => usable.has(f.driveId)), imageFolders: pictures.filter((f) => usable.has(f.driveId)) };
 }
 
-const folderOk = (result, calls) => result.ok && !result.value.trashed && calls.isFolder(result.value) && result.value.capabilities?.canAddChildren !== false;
+const folderOk = (result) => result.ok && isOwnFolder(result.value);
+
+/**
+ * A Drive folder templates can go in: still there, can take new files, and the teacher's own (or on a shared
+ * drive) — never a colleague's folder brought into the plan, so her files are never added to or changed.
+ */
+export function isOwnFolder(info) {
+  return Boolean(info) && info.mimeType === FOLDER && !info.trashed && info.capabilities?.canAddChildren !== false
+    && (info.ownedByMe !== false || Boolean(info.driveId));
+}
+const FOLDER = 'application/vnd.google-apps.folder';
 
 /**
  * What to use, from what was found and what the teacher picked before (`saved` = { templateFolderId, imageFolderId }).
@@ -63,6 +73,6 @@ function folderPick(folders, savedId) {
 /** What's wrong, in the teacher's words (null = nothing). */
 export function setupProblemText(problem) {
   return {
-    no_templates: 'Your templates need a home in Google Drive first. Close this window, click “+ Add ▾” → “Files or folders…” under Google Drive and bring in the folder where you keep your lesson templates — then open this window again.',
+    no_templates: 'Your templates need a home in a Google Drive folder of your own first. Close this window, click “+ Add ▾” → “Files or folders…” under Google Drive and pick any lesson — the planner makes a “Lesson Templates” folder in your Drive with a copy of it — then open this window again.',
   }[problem] ?? null;
 }

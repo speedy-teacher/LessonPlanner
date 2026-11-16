@@ -17,7 +17,9 @@ export const HASH_LABEL = 'tmHash';
 const DRAFT = 'template-maker-draft';
 // Lesson Planner's own Drive label: a file carrying it is never brought in from a watched folder (library.js).
 const PIECE_LABEL = 'lessonPlanner';
-const FILE_FIELDS = 'id,name,mimeType,parents,modifiedTime,headRevisionId,trashed,ownedByMe,capabilities(canEdit,canAddChildren),owners(displayName),appProperties,properties';
+// A copy made by "+ Add" → "Files or folders…" remembers the original (templateCopies.js).
+const COPIED_FROM = 'lpCopiedFrom';
+const FILE_FIELDS = 'id,name,mimeType,parents,modifiedTime,headRevisionId,trashed,ownedByMe,driveId,capabilities(canEdit,canAddChildren),owners(displayName),appProperties,properties';
 
 const q = (text) => text.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
 const id = encodeURIComponent;
@@ -42,6 +44,16 @@ export function driveCalls(client) {
     renameFile: (fileId, { name, label }) => json(`${DRIVE}/${id(fileId)}?fields=${FILE_FIELDS}&${ALL}`, jsonBody('PATCH', {
       name, appProperties: { [LABEL]: label }, properties: { [PIECE_LABEL]: label === 'template' ? null : DRAFT },
     })),
+    /** "+ Add" → "Files or folders…": the teacher's own copy of a picked file (labelled with the original's id). */
+    copyTemplate: (fileId, { name, folderId }) => json(`${DRIVE}/${id(fileId)}/copy?fields=${FILE_FIELDS}&${ALL}`, jsonBody('POST', {
+      name, parents: [folderId], appProperties: { [COPIED_FROM]: fileId },
+    })),
+    /** A new folder (`parentId` null = the top of My Drive); `from` = the folder it's a copy of. */
+    makeFolder: ({ name, parentId, from = null }) => json(`${DRIVE}?fields=${FILE_FIELDS}&${ALL}`, jsonBody('POST', {
+      name, mimeType: FOLDER_MIME, ...(parentId ? { parents: [parentId] } : {}), ...(from ? { appProperties: { [COPIED_FROM]: from } } : {}),
+    })),
+    /** The copy of `sourceId` made before in that folder (null = none). */
+    findCopy: async (folderId, sourceId) => (await list(`appProperties has { key='${COPIED_FROM}' and value='${q(sourceId)}' } and '${q(folderId)}' in parents`))[0] ?? null,
     /** Move a file from one folder to another. */
     moveFile: (fileId, { from, to }) => json(`${DRIVE}/${id(fileId)}?addParents=${id(to)}&removeParents=${id(from)}&fields=${FILE_FIELDS}&${ALL}`, jsonBody('PATCH', {})),
     trashFile: (fileId) => json(`${DRIVE}/${id(fileId)}?fields=id&${ALL}`, jsonBody('PATCH', { trashed: true })),

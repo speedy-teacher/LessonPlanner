@@ -59,6 +59,7 @@ export function fakeGoogle() {
   async function route(u, method, init) {
     const path = u.pathname;
     if (u.origin + path === DRIVE && method === 'GET') return json({ files: search(u.searchParams.get('q')).map(meta) });
+    if (u.origin + path === DRIVE && method === 'POST') return json(meta(add({ appProperties: {}, ...JSON.parse(init.body) })));
     if (u.origin + path === UPLOAD && method === 'POST') return upload(init);
     const drive = /^\/(upload\/)?drive\/v3\/files\/([^/]+)(\/copy|\/export)?$/.exec(path);
     if (drive) return driveFile(decodeURIComponent(drive[2]), { upload: Boolean(drive[1]), extra: drive[3], method, u, init });
