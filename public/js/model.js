@@ -477,6 +477,13 @@ export function addStep(state, criterionId, lessonId, gradeId) {
   }))[0];
 }
 
+/** Take a lesson out of one grade's order of an eval (null = the order of an eval with no grades yet); the lesson itself stays. */
+export function takeOutOfEval(state, criterionId, lessonId, gradeId) {
+  const steps = gradeSteps(state, criterionId, gradeId ?? null).filter((s) => s.lessonId === lessonId);
+  steps.forEach((s) => remove(state, 'criterionLessons', s.id));
+  return steps.length;
+}
+
 /** Move a step to a new place (0-based) in its grade's order. */
 export function moveStep(state, stepId, newIndex) {
   const step = find(state, 'criterionLessons', stepId);

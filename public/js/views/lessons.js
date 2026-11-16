@@ -1,9 +1,9 @@
 // "Lesson Templates": the library of lessons. Each lesson is one slide deck.
 // Built for dozens of decks: search, categories, and which evals use each one.
 
-import { editable, h, toast } from '../dom.js';
+import { editable, h, iconButton, toast } from '../dom.js';
 import {
-  addStep, AUTO_FIELD_PLACEHOLDERS, AUTO_FIELDS, criteriaFor, PICTURE_FIELDS, TEXT_FIELDS, duplicateLesson, editLesson, find, lessonEvals, lessonUsageByGrade, outcomeLabel, remove,
+  addStep, AUTO_FIELD_PLACEHOLDERS, AUTO_FIELDS, criteriaFor, PICTURE_FIELDS, TEXT_FIELDS, duplicateLesson, editLesson, find, lessonEvals, lessonUsageByGrade, outcomeLabel, remove, takeOutOfEval,
 } from '../model.js';
 import { addDeck, foldersIn, moveDeck } from '../library.js';
 import { canFillIn, driveOpenLabel, driveOpenUrl, fillInProblem } from '../locations.js';
@@ -195,10 +195,22 @@ function usedIn(l) {
             title: grade ? `Open this eval, with ${grade.name}’s lesson order` : 'Open this eval',
             onclick: () => showEval(criterion, grade?.id),
           }, criterion.title),
-          h('span', { class: 'hint' }, ` — lesson ${positions.join(' & ')}`))))))))),
+          h('span', { class: 'hint' }, ` — lesson ${positions.join(' & ')}`),
+          removeFromEvalButton(l, criterion, grade))))))))),
     addToEval(l),
     lessonPictureList(l),
     lessonCopies(l));
+}
+
+/** × beside an eval in "Used in": takes this lesson out of that grade's lesson order (Undo puts it back). */
+function removeFromEvalButton(l, criterion, grade) {
+  const where = grade ? ` for ${grade.name}` : '';
+  const button = iconButton('×', `Take out of “${criterion.title}”${where} (the lesson stays in your library)`, () => {
+    commit((s) => takeOutOfEval(s, criterion.id, l.id, grade?.id ?? null));
+    toast(`Took “${l.name}” out of “${criterion.title}”${where}.`, { label: 'Undo', run: undo });
+  }, 'usage-remove');
+  button.dataset.edit = 'hide';
+  return button;
 }
 
 /** The picture each time this lesson is on the schedule — with a warning for ones Google can't place. */

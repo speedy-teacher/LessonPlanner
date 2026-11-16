@@ -235,7 +235,7 @@ const lessonTemplates = {
     },
     {
       target: 'used-in',
-      text: 'This shows which evals teach this lesson. You can add it to an eval right here, too.',
+      text: 'This shows which evals teach this lesson. You can add it to an eval right here, too — and the × beside an eval takes it back out.',
       skipIf: (ctx) => !ctx.exists('used-in'),
     },
   ],

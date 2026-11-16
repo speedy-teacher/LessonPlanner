@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   add, addStep, copyOrder, createYear, emptyState, find, inYear, lessonNumber, lessonUsageByGrade, moveStep,
-  normalize, placeCriterion, remove, setGrades, stepsFor, toggleGrade,
+  normalize, placeCriterion, remove, setGrades, stepsFor, takeOutOfEval, toggleGrade,
 } from '../public/js/model.js';
 import { runCommand } from '../public/js/agentCommands.js';
 
@@ -71,6 +71,26 @@ test('lesson numbers and the lesson template\'s "used in" follow each grade\'s o
   const usage = lessonUsageByGrade(s, c.id).map(({ grade, outcomes }) => [grade.name, outcomes[0].evals[0].positions]);
   assert.deepEqual(usage, [['Kindergarten', [3]], ['Grade 1', [1]]]);
   assert.ok(k);
+});
+
+test('a lesson added to an eval by accident can be taken back out of one grade from the lesson template', () => {
+  const { s, k, g1, b, crit } = setup();
+  assert.equal(takeOutOfEval(s, crit.id, b.id, k.id), 1);
+  assert.deepEqual(names(s, crit, k.id), ['Alpha', 'Charlie']);
+  assert.deepEqual(stepsFor(s, crit.id, k.id).map((x) => x.position), [0, 1], 'the rest close up');
+  assert.deepEqual(names(s, crit, g1.id), ['Alpha', 'Bravo', 'Charlie'], 'other grades keep it');
+  assert.ok(find(s, 'lessons', b.id), 'the lesson itself stays');
+  const usage = lessonUsageByGrade(s, b.id).map(({ grade }) => grade.name);
+  assert.deepEqual(usage, ['Grade 1']);
+  assert.equal(takeOutOfEval(s, crit.id, b.id, k.id), 0, 'nothing left to take out');
+});
+
+test('an eval with no grades yet can lose a lesson too', () => {
+  const { s, a, crit } = setup();
+  setGrades(s, crit.id, []);
+  takeOutOfEval(s, crit.id, a.id, null);
+  assert.deepEqual(names(s, crit, null), ['Bravo', 'Charlie']);
+  assert.deepEqual(lessonUsageByGrade(s, a.id), []);
 });
 
 test('saved plans from before get the same lesson order for every grade of an eval', () => {
