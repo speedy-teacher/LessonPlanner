@@ -529,7 +529,7 @@ input:focus, select:focus, button:focus-visible { outline: 3px solid #cdb8ea; ou
 .drive-pill.warn .drive-dot { background: #fff8ec; }
 @keyframes pulse { from { opacity: .4; } to { opacity: 1; } }
 
-/* Narrower windows: the ✏️ alone stands for the name, so everything fits on one row for longer. */
+/* Narrower windows: the 🌿 alone stands for the name, so everything fits on one row for longer. */
 @media (max-width: 1100px) {
   .brand-name { display: none; }
 }
