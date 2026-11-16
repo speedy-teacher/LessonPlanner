@@ -67,11 +67,23 @@ function redraw() {
 function draw() {
   const body = open?.body;
   if (!body?.isConnected) return;
-  const active = document.activeElement?.dataset?.focus;
-  const [start, end] = [document.activeElement?.selectionStart, document.activeElement?.selectionEnd];
+  const focus = keepFocus(body);
   body.replaceChildren(...page(open.review, open.home));
-  const again = active && body.querySelector(`[data-focus="${active}"]`);
-  if (again) { again.focus(); again.setSelectionRange?.(start, end); }
+  focus();
+}
+
+/** Typing in a name box must survive the window being drawn again. */
+function keepFocus(body) {
+  const el = document.activeElement;
+  const key = el?.dataset?.focus;
+  if (!key) return () => {};
+  const [start, end] = [el.selectionStart, el.selectionEnd];
+  return () => {
+    const again = body.querySelector(`[data-focus="${key}"]`);
+    if (!again) return;
+    again.focus();
+    again.setSelectionRange?.(start, end);
+  };
 }
 
 function page(review, home) {
