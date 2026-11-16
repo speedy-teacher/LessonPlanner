@@ -3,7 +3,7 @@
 // Google Drive) is up to workspace.js, which hands in `persist`.
 
 import { normalize } from './model.js';
-import { quietRedraw, watchHands } from './quietRefresh.js';
+import { quietRedraw, watchHands, watchMenus } from './quietRefresh.js';
 
 const SAVE_DELAY_MS = 400;
 const UNDO_LIMIT = 100;
@@ -131,7 +131,15 @@ export function refresh() {
   notify();
 }
 
+// A redraw asked for while a dropdown list is open waits until it closes (a redraw would close it).
+let heldRedraw = false;
+const menuOpen = watchMenus(document, () => {
+  if (heldRedraw) setTimeout(() => { if (heldRedraw) notify(); }, 0); // a pick's own redraw may come first
+});
+
 function notify() {
+  if (menuOpen()) { heldRedraw = true; return; }
+  heldRedraw = false;
   store.listeners.forEach((fn) => fn());
 }
 
