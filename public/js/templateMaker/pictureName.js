@@ -1,6 +1,6 @@
 // What a picture saved from a lesson is called in the pictures folder (and on the Images tab).
 // Pictures pasted in from Bitmoji and the like often carry a computer-made name as their alt text
-// ("d83f1b55-fb28-…-v1.png"), which says nothing about the picture: those are not used. The teacher can type
+// ("0a1b2c3d-1234-…-v1.png"), which says nothing about the picture: those are not used. The teacher can type
 // a name for each picture in the Template Maker window; otherwise it is named after its template.
 //
 // Pure logic, shared by the browser and the Node tests.

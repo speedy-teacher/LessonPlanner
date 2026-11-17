@@ -134,6 +134,9 @@ function picturesOf(file, session, { kind, editable, savingPictures }) {
   );
 }
 
+/** Google's picture address only works when the browser itself is signed in to Google: else a stand-in. */
+const noPicture = () => h('div', { class: 'tm-picture-none', title: 'Google didn’t show this picture here — open the lesson to see it' }, '🖼️');
+
 /** One picture: ticked or not, and (when it's saved) a box for what it's called in the pictures folder. */
 function pictureCard(file, session, p, { i, count, editable, savingPictures }) {
   const { choices, name } = file.prepared;
@@ -142,7 +145,7 @@ function pictureCard(file, session, p, { i, count, editable, savingPictures }) {
   return h('div', { class: `tm-picture${on ? ' on' : ''}`, 'data-tour': 'tm-picture' },
     h('label', { class: 'tm-picture-pick' },
       h('input', { type: 'checkbox', checked: on, disabled: !editable, 'aria-label': `Take out picture ${i + 1}`, onchange: (e) => session.tickPicture(file.uid, p.key, e.target.checked) }),
-      p.url ? h('img', { src: p.url, alt: `Picture ${i + 1}`, referrerpolicy: 'no-referrer', loading: 'lazy' }) : h('div', { class: 'tm-hint' }, '🖼️')),
+      p.url ? h('img', { src: p.url, alt: `Picture ${i + 1}`, referrerpolicy: 'no-referrer', loading: 'lazy', onerror: (e) => e.target.replaceWith(noPicture()) }) : noPicture()),
     savingPictures && on
       ? h('input', {
         class: 'tm-picture-name', type: 'text', value: choices.pictureNames?.[p.key] ?? '', placeholder: guess, disabled: !editable,

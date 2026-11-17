@@ -15,7 +15,7 @@ const imagesIn = (presentation) => presentation.slides[0].pageElements.filter((e
 
 /** A colleague's deck: "Week 10, Day 2" title, an "I can" box, a bitmoji with a computer-made name, several slides. */
 function colleagueDeck(g, { flipped = false, exportSlidesAtMost = Infinity } = {}) {
-  const bitmoji = { id: 'bm', x: 990000, y: 1170000, w: 3470000, h: 3470000, flipped, title: 'd83f1b55-fb28-413f-a6dd-9c4f51cf5037-v1.png' };
+  const bitmoji = { id: 'bm', x: 990000, y: 1170000, w: 3470000, h: 3470000, flipped, title: '0a1b2c3d-1234-4abc-9def-0123456789ab-v1.png' };
   return g.add({
     id: 'colleague', name: '2nd Week 10 Day 1', mimeType: KINDS.slides.google, parents: ['theirs'],
     content: deck([
@@ -80,7 +80,7 @@ test('the saved bitmoji is named what the teacher typed — else after the templ
 });
 
 test('which alt texts say something about the picture', () => {
-  for (const junk of ['', 'd83f1b55-fb28-413f-a6dd-9c4f51cf5037-v1.png', 'image.png', 'Picture 3', 'IMG_2041', 'bitmoji', '1f2e3d4c5b6a']) {
+  for (const junk of ['', '0a1b2c3d-1234-4abc-9def-0123456789ab-v1.png', 'image.png', 'Picture 3', 'IMG_2041', 'bitmoji', '1f2e3d4c5b6a']) {
     assert.equal(isUsefulTitle(junk), false, junk);
   }
   for (const good of ['Arms up, cheering', 'Thumbs up with a guitar']) assert.equal(isUsefulTitle(good), true, good);
