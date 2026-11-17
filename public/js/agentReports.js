@@ -52,7 +52,7 @@ export const REPORT_COMMANDS = {
     run: (state) => describe(state, reportSettings(year(state))),
   },
   setReportOptions: {
-    summary: 'Change what each lesson shows in reports: its text (words like {{copy_name}}, {{template_name}}, {{week_number}}; "" = {{copy_name}}; {{copy_thumbnail}} or {{template_thumbnail}} make that cell a small picture of the file), extra rows above or below it (e.g. ["{{essential_outcome}}"]; [] = none), columns before or after it ([{ name, value }]) and whether column names show. Or turn the weekly reports in each week folder on or off.',
+    summary: 'Change what each lesson shows in reports: its text (words like {{copy_name}}, {{template_name}}, {{week_number}}; "" = {{copy_name}}), extra rows above or below it (e.g. ["{{essential_outcome}}"]; [] = none), columns before or after it ([{ name, value }]) and whether column names show. Or turn the weekly reports in each week folder on or off.',
     changes: true,
     params: {
       lessonText: ['e.g. "{{copy_name}} / {{template_name}}"'], rowsAbove: ['List of row texts above each lesson'],

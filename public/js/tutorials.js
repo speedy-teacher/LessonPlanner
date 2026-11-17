@@ -563,7 +563,7 @@ const reports = {
     },
     {
       target: 'report-label',
-      text: 'Choose what each lesson shows, and add columns before or after it (like its essential outcome). {{copy_thumbnail}} or {{template_thumbnail}} puts a small picture of the slide in that spot.',
+      text: 'Choose what each lesson shows, and add columns before or after it (like its essential outcome). Hovering over a lesson’s link in the Sheet shows a preview of its slides.',
     },
     ...instrumentColumn(),
     {

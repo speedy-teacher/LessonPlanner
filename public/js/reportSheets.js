@@ -15,7 +15,6 @@ const NUMBER_WIDTH = 90;
 const LESSON_WIDTH = 420;
 const COLUMN_WIDTH = 220; // an extra column
 const GAP_WIDTH = 24; // between grades side by side
-const PICTURE_HEIGHT = 120; // a row with a picture in it
 
 /** Column widths (pixels): lesson number, extra columns left, the lesson, extra columns right (each grade, side by side). */
 function columnWidths(tab) {
@@ -24,15 +23,6 @@ function columnWidths(tab) {
   if (!tab.parts) return one(tab);
   if (tab.direction !== 'across') return one(tab.parts[0]);
   return tab.parts.flatMap((part, i) => [...(i ? [GAP_WIDTH] : []), ...one(part)]);
-}
-
-/** A formula's text in quotes ("" for a quote inside). */
-const formulaText = (value) => `"${String(value).replace(/"/g, '""')}"`;
-
-/** A picture cell's formula: the picture, linked to its file when there's a link. */
-function pictureFormula({ image, url }) {
-  const picture = `IMAGE(${formulaText(image)})`;
-  return url ? `=HYPERLINK(${formulaText(url)}, ${picture})` : `=${picture}`;
 }
 
 /** '#5b3f8c' → Google's { red, green, blue } (0–1). */
@@ -79,12 +69,6 @@ const linkFormat = (format, uri) => ({ ...format, underline: true, foregroundCol
  */
 export function sheetCell(cell) {
   const style = withColors(STYLES[cell.style] ?? {}, cell);
-  if (cell.image) {
-    return {
-      userEnteredValue: { formulaValue: pictureFormula(cell) },
-      userEnteredFormat: { verticalAlignment: 'MIDDLE', horizontalAlignment: 'CENTER', ...style },
-    };
-  }
   const text = cell.text ?? '';
   // Google only keeps a link that's in a text run (a link in the cell's own format is ignored).
   const linkAt = cell.url ? text.indexOf(cell.linkText ?? text) : -1;
@@ -143,12 +127,9 @@ function tabRequests(sheetId, title, { tab, rows }) {
   ];
 }
 
-/** Taller rows: [row, pixels] for every title row and every row with a picture. */
+/** Taller rows: [row, pixels] for every title row. */
 function rowHeights(rows) {
-  return rows.flatMap((row, r) => {
-    if (row.some((cell) => cell.image)) return [[r, PICTURE_HEIGHT]];
-    return row.some((cell) => cell.style === 'heading') ? [[r, 44]] : [];
-  });
+  return rows.flatMap((row, r) => (row.some((cell) => cell.style === 'heading') ? [[r, 44]] : []));
 }
 
 /**

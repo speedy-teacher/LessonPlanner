@@ -254,11 +254,8 @@ placeholder in templates keep the old name — renaming them would break saved p
   grade on it; `direction` 'down' or 'across' = side by side, each week on the same row, gap column, one footer). A together tab is
   `{ title, heading, direction, footer, parts: [classTab] }` (`reportParts`/`combinedRows`, `frozenRows`). `perGrade` stays in step
   (older planners read it); apart from 'together' it decides. Watched 'together' entries keep layout/direction/schoolIds (empty = all).
-- Picture words `{{copy_thumbnail}}`/`{{template_thumbnail}}` (`PICTURE_WORDS`, `thumbnailUrl` = drive.google.com/thumbnail?id=):
-  in the label, a column or a row the cell becomes `{ image, link }` (Sheet: `=HYPERLINK(link, IMAGE(url))`, rows 120 px); no Drive
-  file = the words as usual. Google fetches IMAGE() without the teacher's sign-in, so private files may show blank in the Sheet
-  (the Reports preview gets pictures through `thumbnails.js` `fileThumbnail(imageId)` = the planner's Drive sign-in, since the
-  thumbnail address needs the browser itself signed in to Google) — not yet tried against real Google.
+- No slide pictures in reports (hovering a lesson's link in the Sheet already previews it): the old picture words
+  `{{copy_thumbnail}}`/`{{template_thumbnail}}` are no longer offered and read as `{{copy_name}}`/`{{template_name}}` (`OLD_PICTURE_WORDS`).
 - Sheets: `reportSheets.js` `driveReports` (labels `lessonPlannerReport`=yearId, `reportKind` weekly|manual, `reportKey`, `hash`,
   `place`); a rewrite adds fresh tabs, deletes the old ones and fills the new in one batchUpdate (`sheetRequests`); only when `hash` changed.
 - Weekly: `reportBridge.js`, run by `exportBridge.js` after the copy queue is empty (same lock, Drive output only): one

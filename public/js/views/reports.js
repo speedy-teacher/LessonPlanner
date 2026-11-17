@@ -21,7 +21,6 @@ import { listDriveCopies, makeReports } from '../reportMaker.js';
 import { copyStatus, keptReportFiles, knownCopies, recheckCopies, weeklyReportFiles } from '../exportBridge.js';
 import { current, emptyNote, year } from './common.js';
 import { pieces } from '../workspace.js';
-import { fileThumbnail, fileThumbnailFailed, onThumbnail, requestFileThumbnail } from '../thumbnails.js';
 
 // Copies looked up for the preview when this computer doesn't keep them (this visit only).
 const looked = { key: null, copies: null, busy: false };
@@ -420,28 +419,7 @@ function sheetTable(tab) {
       : h('td', { colspan: width, class: 'cell-blank' }))));
 }
 
-// A picture arriving from Drive redraws the preview (quietly, so clicks aren't lost).
-onThumbnail(() => { if (store.ui.tab === 'reports') refreshSoon(); });
-
-/**
- * A picture cell in the preview: the small picture (linked to its file), asked for through the planner's
- * Google Drive connection (the address in the Sheet needs the browser itself signed in to Google).
- */
-function cellPicture(cell) {
-  const thumb = fileThumbnail(cell.imageId);
-  if (thumb.status === 'waiting') requestFileThumbnail(cell.imageId);
-  const picture = thumb.status === 'ready'
-    ? h('img', {
-      class: 'sheet-thumb', src: thumb.url, alt: cell.text || 'Picture', loading: 'lazy', referrerpolicy: 'no-referrer',
-      onerror: () => fileThumbnailFailed(cell.imageId),
-    })
-    : h('span', { class: 'sheet-thumb-note hint', 'data-tip': thumb.reason ?? 'Getting the picture from Google Drive…' },
-      thumb.status === 'none' ? `🖼️ ${thumb.reason}` : '🖼️ Loading…');
-  return cell.url ? h('a', { href: cell.url, target: '_blank', rel: 'noopener' }, picture) : picture;
-}
-
 function cellText(cell) {
-  if (cell.image) return cellPicture(cell);
   const linkAt = cell.url && cell.linkText ? cell.text.indexOf(cell.linkText) : -1;
   if (linkAt >= 0) {
     const end = linkAt + cell.linkText.length;

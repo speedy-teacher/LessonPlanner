@@ -33,7 +33,7 @@ import { formatRange, formatShort } from './dates.js';
 import { AUTO_FIELD_PLACEHOLDERS, AUTO_FIELDS, find, inYear, TEXT_FIELDS, toRanges } from './model.js';
 import { entryValues, fingerprint, lessonNumbers, safeName } from './exportPlan.js';
 import { instrumentsInWeek, schoolWeeks, weekLessonsFor } from './weekPlan.js';
-import { driveFileId, driveOpenUrl } from './locations.js';
+import { driveOpenUrl } from './locations.js';
 import { readableText } from './evalGrade.js';
 
 export const DEFAULT_LABEL = '{{copy_name}}';
@@ -42,15 +42,13 @@ export const DEFAULT_LABEL = '{{copy_name}}';
 export const LABEL_WORDS = {
   '{{copy_name}}': 'The copy’s file name',
   '{{template_name}}': 'The template’s name',
-  '{{copy_thumbnail}}': 'A small picture of the copy’s first slide or page (its cell shows only the picture)',
-  '{{template_thumbnail}}': 'A small picture of the template’s first slide or page (its cell shows only the picture)',
 };
 
-/** Words that become a small picture of a Google file instead of text. */
-export const PICTURE_WORDS = ['{{copy_thumbnail}}', '{{template_thumbnail}}'];
-
-/** The address of a small picture of a Drive file's first slide or page. */
-export const thumbnailUrl = (fileId) => `https://drive.google.com/thumbnail?id=${encodeURIComponent(fileId)}&sz=w400`;
+/**
+ * Picture words from older planners (a small picture of the slide; dropped because hovering over the link in the
+ * Sheet already shows it): they now read as the file's name.
+ */
+const OLD_PICTURE_WORDS = { '{{copy_thumbnail}}': '{{copy_name}}', '{{template_thumbnail}}': '{{template_name}}' };
 
 /** Ways to lay out the files of a report made from the Reports tab. */
 export const LAYOUTS = ['school', 'grade', 'together'];
@@ -111,38 +109,21 @@ export function fillWords(text, words) {
 }
 
 /** An extra row for a lesson, or '' when all its words are empty for it (e.g. "Outcome: {{essential_outcome}}" without an eval). */
-function extraRow(text, words, pictures = {}) {
-  const picture = pictureIn(text, pictures);
-  if (picture) return { text: fillWords(text, words), ...picture };
+function extraRow(text, words) {
   const used = [...String(text ?? '').matchAll(WORD)].map((m) => words[`{{${m[1]}}}`]);
   return used.length && used.every((v) => v === '') ? '' : fillWords(text, words);
-}
-
-/** The first picture word in the text that has a picture for this lesson: { image, link } or null. */
-function pictureIn(text, pictures) {
-  const word = [...String(text ?? '').matchAll(WORD)].map((m) => `{{${m[1]}}}`).find((w) => pictures[w]);
-  return word ? pictures[word] : null;
-}
-
-/**
- * A cell's value: its words filled in — plain text, or { text, image, link } when it names a picture
- * (a Sheet cell holds a picture or text, so the text is only shown where the picture can't be).
- */
-export function fillCell(text, words, pictures = {}) {
-  const picture = pictureIn(text, pictures);
-  return picture ? { text: fillWords(text, words), ...picture } : fillWords(text, words);
 }
 
 /** A column's title: its words named, e.g. "{{essential_outcome}}" → "Essential outcome". */
 export function columnTitle(text) {
   const names = {
-    '{{copy_name}}': 'Copy', '{{template_name}}': 'Template', '{{copy_thumbnail}}': 'Copy picture', '{{template_thumbnail}}': 'Template picture',
+    '{{copy_name}}': 'Copy', '{{template_name}}': 'Template', '{{copy_thumbnail}}': 'Copy', '{{template_thumbnail}}': 'Template',
     ...Object.fromEntries(TEXT_FIELDS.map((key) => [AUTO_FIELD_PLACEHOLDERS[key], AUTO_FIELDS[key]])),
   };
   return fillWords(text, names) || 'Notes';
 }
 
-const extraRows = (texts, words, pictures) => (texts ?? []).map((t) => extraRow(t, words, pictures)).filter(Boolean);
+const extraRows = (texts, words) => (texts ?? []).map((t) => extraRow(t, words)).filter(Boolean);
 
 /** "Drum (all week)" or "Drum (available Oct 6 - Oct 7)" (days apart: "Oct 6, Oct 8 - Oct 9"). */
 export function instrumentText(name, { days, allWeek }) {
@@ -196,37 +177,22 @@ export function reportWeek(state, cls, week, { label, above, below, left = [], r
     const lesson = find(state, 'lessons', entry.lessonId);
     const copy = copyOf(entry.id);
     const words = lessonWords(entryValues(state, entry, week, numbers), entry, lesson, copy);
-    const pictures = lessonPictures(lesson, copy);
-    const column = (c) => fillCell(asColumn(c).value, words, pictures);
-    const picture = pictureIn(label, pictures);
+    const column = (c) => fillWords(asColumn(c).value, words);
     return {
       entryId: entry.id, lessonId: entry.lessonId, text: lessonLabel(label, words), url: copy?.url ?? null,
-      ...(picture ? { image: picture.image, imageId: picture.fileId } : {}),
-      above: extraRows(above, words, pictures), below: extraRows(below, words, pictures), left: left.map(column), right: right.map(column),
+      above: extraRows(above, words), below: extraRows(below, words), left: left.map(column), right: right.map(column),
     };
   });
   return { number: week.number, dates: formatRange(days[0], days.at(-1)), instruments: weekInstruments(state, cls, week, lessons.map((l) => l.lessonId)), lessons };
 }
 
-/** What each word means for a lesson (picture words are '' here: pictures aren't words). */
+/** What each word means for a lesson. */
 function lessonWords(values, entry, lesson, copy) {
   const words = Object.fromEntries(TEXT_FIELDS.map((key) => [AUTO_FIELD_PLACEHOLDERS[key], values[key] ?? '']));
   words['{{copy_name}}'] = copy?.name || `${entry.position + 1} - ${lesson?.name ?? 'Lesson'}`;
   words['{{template_name}}'] = lesson?.name ?? '';
-  PICTURE_WORDS.forEach((w) => { words[w] = ''; });
+  Object.entries(OLD_PICTURE_WORDS).forEach(([old, now]) => { words[old] = words[now]; });
   return words;
-}
-
-/** The pictures a lesson's cells can show: picture word → { image, link } (left out when there's no Drive file). */
-function lessonPictures(lesson, copy) {
-  const templateId = driveFileId(lesson);
-  const pictures = {};
-  if (copy?.id) pictures['{{copy_thumbnail}}'] = { image: thumbnailUrl(copy.id), fileId: copy.id, link: copy.url ?? null };
-  if (templateId) {
-    const mimeType = lesson.locations.find((l) => l.fileId === templateId)?.mimeType ?? null;
-    pictures['{{template_thumbnail}}'] = { image: thumbnailUrl(templateId), fileId: templateId, link: driveOpenUrl({ fileId: templateId, mimeType }) };
-  }
-  return pictures;
 }
 
 /** Lesson copies (Drive ones) → `copyOf` for reports: entry id → { id, name, url } of its copy, or null. */
@@ -270,7 +236,7 @@ export function reportTab(state, cls, weeks, options) {
 }
 
 /** Changes when how a report is laid out in the Sheet changes, so reports made the old way are rewritten. */
-const LAYOUT_VERSION = 2;
+const LAYOUT_VERSION = 3;
 
 /** A report file's fingerprint (it changes only when what the file shows would). */
 export const reportHash = (file) => fingerprint(JSON.stringify([LAYOUT_VERSION, file.name, file.tabs]));
@@ -370,25 +336,17 @@ function columnHeads(tab) {
   return [head(''), ...tab.columns.left.map(head), head('Lesson'), ...tab.columns.right.map(head)];
 }
 
-/** A filled-in value as a cell: plain text, or a picture ({ image, imageId = its Drive file }, linked to its file). */
-function cellValue(value) {
-  if (typeof value === 'string') return { text: value };
-  return { text: value.text ?? '', image: value.image, imageId: value.fileId, ...(value.link ? { url: value.link } : {}) };
-}
-
 /** A lesson's rows: its extra rows above, the lesson itself (numbered, linked to its copy, with its columns), its rows below. */
 function lessonRows(tab, lesson, i) {
   const blanks = (titles) => titles.map(() => ({ text: '', style: 'column' }));
   const { left = [], right = [] } = tab.columns ?? {};
   const extra = (text) => [{ text: '', style: 'number' }, ...blanks(left), { text, style: 'extra' }, ...blanks(right)];
-  const column = (value) => ({ ...cellValue(value), style: 'column' });
-  const extraOf = (value) => extra('').map((cell) => (cell.style === 'extra' ? { ...cellValue(value), style: 'extra' } : cell));
-  const image = lesson.image ? { image: lesson.image, imageId: lesson.imageId } : {};
+  const column = (text) => ({ text, style: 'column' });
   return [
-    ...(lesson.above ?? []).map(extraOf),
+    ...(lesson.above ?? []).map(extra),
     [{ text: String(i + 1), style: 'number' }, ...(lesson.left ?? []).map(column),
-      { text: lesson.text, url: lesson.url, style: 'lesson', ...image }, ...(lesson.right ?? []).map(column)],
-    ...(lesson.below ?? []).map(extraOf),
+      { text: lesson.text, url: lesson.url, style: 'lesson' }, ...(lesson.right ?? []).map(column)],
+    ...(lesson.below ?? []).map(extra),
   ];
 }
 

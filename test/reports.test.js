@@ -8,7 +8,7 @@ import { addWeekLesson, moveWeekLesson, removeWeekLesson } from '../public/js/we
 import { canFillIn, driveFileId, driveLocation } from '../public/js/locations.js';
 import { wantedCopies } from '../public/js/exportPlan.js';
 import {
-  copyFinder, frozenRows, instrumentsLine, reportWidth, thumbnailUrl, tint, watchedReport, watchedEntry, withWatched, instrumentText, lessonLabel, manualReports, REPORT_NOTE, reportRows, reportSettings, reportSteps, SITE_URL,
+  copyFinder, frozenRows, instrumentsLine, LABEL_WORDS, reportWidth, tint, watchedReport, watchedEntry, withWatched, instrumentText, lessonLabel, manualReports, REPORT_NOTE, reportRows, reportSettings, reportSteps, SITE_URL,
   weeklyReports,
 } from '../public/js/reportPlan.js';
 import { driveReports, REPORT_LABEL, sheetCell, SHEETS, sheetRequests } from '../public/js/reportSheets.js';
@@ -457,7 +457,7 @@ test('the layout choice: older plans (one file per grade) still work, and an ass
   assert.throws(() => runCommand(t.s, 'setupReport', { gradesGo: 'diagonal' }), /gradesGo/);
 });
 
-test('{{copy_thumbnail}} and {{template_thumbnail}} show a small picture of the file, in the lesson spot or a column', () => {
+test('reports show no slide pictures (hovering the link previews it); older picture words read as the file names', () => {
   const t = setup();
   lessonAt(t, t.beat);
   lessonAt(t, t.noTemplate);
@@ -468,24 +468,16 @@ test('{{copy_thumbnail}} and {{template_thumbnail}} show a small picture of the 
     manual, copyOf, label: '{{copy_thumbnail}}', right: [{ name: 'Template', value: '{{template_thumbnail}}' }], below: ['{{template_thumbnail}}'],
   });
   const [beat, game] = file.tabs[0].weeks[0].lessons;
-  assert.equal(beat.image, thumbnailUrl('copy1'));
-  assert.equal(beat.imageId, 'copy1', 'the preview asks Drive for the picture by its file');
-  assert.equal(game.image, undefined, 'no copy: no picture …');
-  assert.equal(game.text, '2 - Game', '… the copy name instead');
-  assert.equal(beat.right[0].image, thumbnailUrl('tmpl-Beat'));
-  assert.equal(beat.right[0].fileId, 'tmpl-Beat');
-  assert.match(beat.right[0].link, /tmpl-Beat/, 'the picture links to its file');
-  assert.equal(game.right[0], '', 'a lesson without a Drive template gets an empty cell');
-  assert.equal(game.below.length, 0, 'and no extra row');
-  assert.equal(beat.below[0].image, thumbnailUrl('tmpl-Beat'));
-  assert.equal(file.tabs[0].columns.right[0], 'Template');
-
+  assert.equal(beat.text, 'Copy', 'the copy’s name, linked to it');
+  assert.equal(beat.url, 'https://example.test/c');
+  assert.equal(game.text, '2 - Game');
+  assert.equal(beat.right[0], 'Beat');
+  assert.equal(beat.below[0], 'Beat');
+  assert.ok(!('{{copy_thumbnail}}' in LABEL_WORDS), 'not offered any more');
   const rows = reportRows(file.tabs[0]);
-  const lessonCell = rows.flat().find((c) => c.style === 'lesson' && c.image);
-  const cell = sheetCell(lessonCell);
-  assert.equal(cell.userEnteredValue.formulaValue, `=HYPERLINK("https://example.test/c", IMAGE("${thumbnailUrl('copy1')}"))`);
-  assert.equal(sheetCell({ image: 'https://x.test/a"b', style: 'column' }).userEnteredValue.formulaValue, '=IMAGE("https://x.test/a""b")');
+  assert.ok(rows.flat().every((c) => !c.image), 'no picture cells');
+  const lessonCell = sheetCell(rows.flat().find((c) => c.style === 'lesson' && c.url));
+  assert.equal(lessonCell.userEnteredValue.stringValue, 'Copy');
   const requests = sheetRequests([], file.tabs, [5]);
-  const tall = requests.filter((r) => r.updateDimensionProperties?.range.dimension === 'ROWS' && r.updateDimensionProperties.properties.pixelSize === 120);
-  assert.equal(tall.length, 2, 'rows with a picture are taller (the lesson and its row below)');
+  assert.ok(!requests.some((r) => r.updateDimensionProperties?.properties.pixelSize === 120), 'no tall picture rows');
 });
