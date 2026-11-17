@@ -55,7 +55,7 @@
 .tm-field-pick { margin-left: 8px; border: 1px solid var(--line); border-radius: 8px; padding: 1px 4px; font-size: 13px; background: #fff; }
 
 .tm-pictures { display: flex; flex-wrap: wrap; gap: 10px; }
-.tm-picture { position: relative; width: 150px; border: 2px solid var(--line); border-radius: 12px; background: var(--card); padding: 6px; cursor: pointer; text-align: center; }
+.tm-picture { position: relative; width: 220px; border: 2px solid var(--line); border-radius: 12px; background: var(--card); padding: 6px; cursor: pointer; text-align: center; }
 .tm-picture.on { border-color: var(--royal); }
 .tm-picture-none { height: 90px; display: grid; place-items: center; font-size: 36px; }
 .tm-picture img { width: 100%; height: 90px; object-fit: contain; display: block; }
