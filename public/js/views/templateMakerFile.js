@@ -5,6 +5,7 @@
 import { h } from '../dom.js';
 import { KINDS } from '../templateMaker/fileKinds.js';
 import { preview } from '../templateMaker/numberMatch.js';
+import { pictureName } from '../templateMaker/pictureName.js';
 import { AUTO_FIELD_PLACEHOLDERS } from '../model.js';
 
 const LESSON_FIELDS = [['lessonNumber', 'lesson in the week'], ['lessonNumberAbs', 'lesson in the year']];
@@ -66,7 +67,14 @@ function madeLine(file, session) {
         reviewing ? h('label', { class: 'tm-keep', 'data-tour': 'tm-keep' },
           h('input', { type: 'checkbox', checked: Boolean(file.keep), onchange: (e) => session.setKeep(file.uid, e.target.checked) }),
           'Add this one to my templates') : null)),
-    missed ? h('div', { class: 'tm-notice gold small' }, `${missed} picture${missed === 1 ? '' : 's'} couldn’t be saved (that kind of picture can’t be copied), so ${missed === 1 ? 'it stays' : 'they stay'} in the template as ${missed === 1 ? 'it is' : 'they are'}.`) : null);
+    missed ? h('div', { class: 'tm-notice gold small' }, missedText(missed, made.pictures > 0)) : null);
+}
+
+/** Pictures that couldn't be saved to the pictures folder: in Slides they still became picture spots. */
+function missedText(missed, spots) {
+  const what = missed === 1 ? '1 picture couldn’t be saved to your pictures folder' : `${missed} pictures couldn’t be saved to your pictures folder`;
+  if (spots) return `${what}. ${missed === 1 ? 'It is' : 'They are'} still a picture spot in the template, and ${missed === 1 ? 'it is' : 'they are'} still in your own lesson file if you want to add ${missed === 1 ? 'it' : 'them'} on the Images tab yourself.`;
+  return `${what} (that kind of picture can’t be copied), so ${missed === 1 ? 'it stays' : 'they stay'} in the template as ${missed === 1 ? 'it is' : 'they are'}.`;
 }
 
 /** The template's picture, or what's happening with it. */
@@ -114,7 +122,7 @@ function fieldPick(file, m, field, { session, editable }) {
 }
 
 function picturesOf(file, session, { kind, editable, savingPictures }) {
-  const { scan, choices } = file.prepared;
+  const { scan } = file.prepared;
   let what = 'Ticked pictures are saved to your pictures folder. In a document the picture stays where it is (the planner can only swap pictures in Slides for now).';
   if (kind === 'slides') {
     what = `Ticked pictures (like a bitmoji) are taken out of the template and become a picture spot — the planner puts the week’s picture there.${savingPictures ? ' They are also saved to your pictures folder.' : ''}`;
@@ -122,12 +130,24 @@ function picturesOf(file, session, { kind, editable, savingPictures }) {
   return h('div', {},
     h('div', { class: 'tm-section-title' }, 'Pictures on the first page'),
     h('p', { class: 'tm-hint small' }, what),
-    h('div', { class: 'tm-pictures' }, scan.pictures.map((p, i) => {
-      const on = Boolean(choices.pictures[p.key]);
-      return h('label', { class: `tm-picture${on ? ' on' : ''}` },
-        h('input', { type: 'checkbox', checked: on, disabled: !editable, onchange: (e) => session.tickPicture(file.uid, p.key, e.target.checked) }),
-        p.url ? h('img', { src: p.url, alt: p.title || `Picture ${i + 1}`, referrerpolicy: 'no-referrer', loading: 'lazy' }) : h('div', { class: 'tm-hint' }, '🖼️'),
-        h('div', { class: 'tm-caption' }, p.title || `Picture ${i + 1}`));
-    })),
+    h('div', { class: 'tm-pictures' }, scan.pictures.map((p, i) => pictureCard(file, session, p, { i, count: scan.pictures.length, editable, savingPictures }))),
   );
+}
+
+/** One picture: ticked or not, and (when it's saved) a box for what it's called in the pictures folder. */
+function pictureCard(file, session, p, { i, count, editable, savingPictures }) {
+  const { choices, name } = file.prepared;
+  const on = Boolean(choices.pictures[p.key]);
+  const guess = pictureName(p, { template: name.trim() || 'Lesson', index: i, count });
+  return h('div', { class: `tm-picture${on ? ' on' : ''}`, 'data-tour': 'tm-picture' },
+    h('label', { class: 'tm-picture-pick' },
+      h('input', { type: 'checkbox', checked: on, disabled: !editable, 'aria-label': `Take out picture ${i + 1}`, onchange: (e) => session.tickPicture(file.uid, p.key, e.target.checked) }),
+      p.url ? h('img', { src: p.url, alt: `Picture ${i + 1}`, referrerpolicy: 'no-referrer', loading: 'lazy' }) : h('div', { class: 'tm-hint' }, '🖼️')),
+    savingPictures && on
+      ? h('input', {
+        class: 'tm-picture-name', type: 'text', value: choices.pictureNames?.[p.key] ?? '', placeholder: guess, disabled: !editable,
+        'aria-label': `Name for picture ${i + 1}`, 'data-tip': 'What it’s called on the Images tab — say what it shows, like “Arms up, cheering”.',
+        onchange: (e) => session.namePicture(file.uid, p.key, e.target.value),
+      })
+      : h('div', { class: 'tm-caption' }, on ? guess : 'Stays in the template'));
 }

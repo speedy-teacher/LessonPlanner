@@ -250,6 +250,8 @@ export function createSession({ calls, pace, storage, plan, pictureRetries = PIC
     rename: (id, name) => edit(id, (p) => { p.name = name; }),
     tickMatch: (id, key, field) => edit(id, (p) => { p.choices.matches[key] = field; }),
     tickPicture: (id, key, on) => edit(id, (p) => { p.choices.pictures[key] = on; }),
+    /** What a picture is called in the pictures folder ("Arms up, happy face"); empty = a name is made up. */
+    namePicture: (id, key, name) => edit(id, (p) => { p.choices.pictureNames = { ...p.choices.pictureNames, [key]: name }; }),
   };
 }
 

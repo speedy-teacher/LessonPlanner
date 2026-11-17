@@ -277,6 +277,12 @@ const makeTemplates = {
       backIf: (ctx) => !inMaker(ctx),
     },
     {
+      target: 'tm-picture', pick: 'first',
+      text: 'Pictures on the first slide (like a bitmoji) are ticked too: they are taken out and become a picture spot, and saved to your pictures folder. Type what each one shows in its box (“Arms up, cheering”) — that’s its name on the Images tab.',
+      skipIf: (ctx) => !ctx.exists('tm-picture'),
+      backIf: (ctx) => !inMaker(ctx),
+    },
+    {
       target: 'tm-goes-in', pick: 'first',
       text: 'Each template goes in the folder chosen at the top — or pick a folder of its own here. You can still change it after the templates are made, until you add them.',
       skipIf: (ctx) => !ctx.exists('tm-goes-in'),

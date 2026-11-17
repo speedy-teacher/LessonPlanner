@@ -13,14 +13,17 @@ const place = (x, y) => ({ scaleX: 1, scaleY: 1, translateX: x, translateY: y, u
 export const PRETEND_PICTURE = `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="80">🧑‍🎤</text></svg>')}`;
 const textOf = (content) => ({ textElements: [{ startIndex: 0, endIndex: content.length, textRun: { content } }] });
 
-/** slides = [{ texts: ['Lesson 1+2', …], pictures: [{ id, x, y, w, h }] }] */
+/** slides = [{ texts: ['Lesson 1+2', …], pictures: [{ id, x, y, w, h, flipped?, title? }] }] */
 export function deck(slides) {
   return {
     slides: slides.map((s, i) => ({
       objectId: `slide${i + 1}`,
       pageElements: [
         ...(s.texts ?? []).map((t, j) => ({ objectId: `s${i + 1}text${j + 1}`, size: { width: emu(100), height: emu(50) }, transform: place(0, 0), shape: { text: textOf(`${t}\n`) } })),
-        ...(s.pictures ?? []).map((p) => ({ objectId: p.id, size: { width: emu(p.w), height: emu(p.h) }, transform: place(p.x, p.y), image: { contentUrl: PRETEND_PICTURE } })),
+        ...(s.pictures ?? []).map((p) => ({
+          objectId: p.id, size: { width: emu(p.w), height: emu(p.h) }, transform: { ...place(p.x, p.y), ...(p.flipped ? { scaleX: -1, translateX: p.x + p.w } : {}) },
+          image: { contentUrl: PRETEND_PICTURE }, ...(p.title ? { title: p.title } : {}),
+        })),
       ],
     })),
   };

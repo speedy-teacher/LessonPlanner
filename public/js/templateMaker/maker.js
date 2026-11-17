@@ -12,6 +12,7 @@ import { isGoogleFile, KINDS, kindOf, openUrl } from './fileKinds.js';
 import { GoogleError } from './googleApi.js';
 import { documentPictures, matchPictures, pictureFile, slidePictures, zipEntries } from './officePackage.js';
 import { chosen, defaultChoices, editRequests, fieldsUsed, placeholdersIn, scanFile, SCANNERS } from './scan.js';
+import { pictureName } from './pictureName.js';
 import { suggestName } from './templateName.js';
 
 /** Read a picked file: { source, kind, draft, name, scan, choices }. `step(text)` tells how it's going. */
@@ -52,9 +53,7 @@ export async function makeTemplate(calls, prepared, { setup, shared, step = () =
   step('Finding the numbers in the copy…');
   const before = await calls.readFile(kind, copy.id);
   const picked = chosen(scanFile(kind, before, { pictures: picturesWanted(kind, setup) }), prepared.choices);
-  const saved = picked.pictures.length
-    ? (step('Saving pictures…'), await savePictures(calls, { prepared, pictures: picked.pictures, setup, shared, name }))
-    : { placed: [], images: [], failed: [] };
+  const saved = await picturesStep(calls, { prepared, pictures: picked.pictures, setup, shared, name, slides: before.slides?.length ?? 0 }, step);
   step('Typing in the placeholders…');
   await calls.changeFile(kind, copy.id, editRequests(kind, picked, saved.placed));
   const after = await calls.readFile(kind, copy.id);
@@ -117,41 +116,69 @@ export async function previewPicture(calls, made) {
   try { return await calls.thumbnailLink(made.lesson.fileId); } catch { return null; }
 }
 
-/** The file as a PowerPoint/Word zip (Google's files are exported; Office files are already one). */
-async function packageOf(calls, { source, kind }) {
-  const bytes = isGoogleFile(source.mimeType) ? await calls.exportFile(source.id, KINDS[kind].office) : await calls.download(source.id);
-  return zipEntries(bytes);
+/**
+ * The file as a PowerPoint/Word zip (Google's files are exported; Office files are already one). Google only
+ * exports files up to 10 MB, which a deck full of pictures soon passes — so for a Google deck of several slides
+ * a throwaway copy with only its first slide (where the pictures are taken from) is exported instead.
+ */
+async function packageOf(calls, { source, kind, name }, { folder, slides }) {
+  if (!isGoogleFile(source.mimeType)) return zipEntries(await calls.download(source.id));
+  if (kind !== 'slides' || slides <= 1) return zipEntries(await calls.exportFile(source.id, KINDS[kind].office));
+  const temp = await calls.copyFile(source.id, { name: `${name} (first slide, for its pictures)`, folderId: folder.driveId, label: 'draft' });
+  try {
+    const later = ((await calls.readFile('slides', temp.id)).slides ?? []).slice(1);
+    await calls.changeFile('slides', temp.id, later.map((s) => ({ deleteObject: { objectId: s.objectId } })));
+    return zipEntries(await calls.exportFile(temp.id, KINDS.slides.office));
+  } finally {
+    await calls.trashFile(temp.id).catch(() => {});
+  }
 }
 
 /** The zip, or null when Google couldn't make one (then the pictures can't be saved; the template still can). */
-async function packageOrNull(calls, prepared) {
+async function packageOrNull(calls, prepared, where) {
   try {
-    return await packageOf(calls, prepared);
+    return await packageOf(calls, prepared, where);
   } catch (err) {
-    if (err instanceof GoogleError && err.message !== 'failed') throw err;
+    if (err instanceof GoogleError && ['signed_out', 'offline'].includes(err.message)) throw err;
     return null;
   }
 }
 
-async function savePictures(calls, { prepared, pictures, setup, shared, name }) {
-  const out = { placed: [], images: [], failed: [] };
-  if (!setup.imageFolder) return { ...out, placed: pictures };
-  const zip = await packageOrNull(calls, prepared);
-  if (!zip) return { ...out, failed: pictures.map((p) => ({ key: p.key, why: 'unreadable' })) };
-  const found = prepared.kind === 'slides' ? await slidePictures(zip) : await documentPictures(zip);
-  const pairs = matchPictures(pictures, found);
-  for (const [i, picture] of pictures.entries()) {
-    const file = pairs.has(picture.key) ? await pictureFile(zip, pairs.get(picture.key)) : null;
-    if (!file) { out.failed.push({ key: picture.key, why: pairs.has(picture.key) ? 'kind' : 'not_found' }); continue; }
-    const drive = await savedPicture(calls, { file, title: pictureTitle(picture, i, pictures.length, name), folder: setup.imageFolder, shared });
-    out.placed.push(picture);
-    out.images.push({ fileId: drive.id, mimeType: drive.mimeType, modifiedTime: drive.modifiedTime ?? null, name: drive.name.replace(/\.[a-z0-9]{2,5}$/i, ''), folderId: setup.imageFolder.id });
-  }
-  return out;
+/**
+ * Save the ticked pictures to the pictures folder. In Slides every ticked picture becomes a picture spot, saved
+ * or not (the teacher's own lesson still has it); in a document only the saved ones count.
+ */
+function picturesStep(calls, job, step) {
+  if (!job.pictures.length) return { placed: [], images: [], failed: [] };
+  step('Saving pictures…');
+  return savePictures(calls, job);
 }
 
-/** The picture's alt text, else "Rhythm Tree picture" (numbered when a file has several). */
-const pictureTitle = (picture, i, count, name) => picture.title || (count > 1 ? `${name} picture ${i + 1}` : `${name} picture`);
+async function savePictures(calls, { prepared, pictures, setup, shared, name, slides }) {
+  const spots = SCANNERS[prepared.kind].picturesStay ? null : pictures;
+  if (!setup.imageFolder) return { placed: pictures, images: [], failed: [] };
+  const zip = await packageOrNull(calls, prepared, { folder: setup.templateFolder, slides });
+  if (!zip) return { placed: spots ?? [], images: [], failed: pictures.map((p) => ({ key: p.key, why: 'unreadable' })) };
+  const found = prepared.kind === 'slides' ? await slidePictures(zip) : await documentPictures(zip);
+  const pairs = matchPictures(pictures, found);
+  const out = { placed: [], images: [], failed: [] };
+  for (const [i, picture] of pictures.entries()) {
+    const title = pictureName(picture, { typed: prepared.choices.pictureNames?.[picture.key], template: name, index: i, count: pictures.length });
+    const result = await saveOne(calls, { zip, part: pairs.get(picture.key), title, folder: setup.imageFolder, shared });
+    if (result.why) out.failed.push({ key: picture.key, why: result.why });
+    else { out.placed.push(picture); out.images.push(result.image); }
+  }
+  return spots ? { ...out, placed: spots } : out;
+}
+
+/** One picture from the zip into the pictures folder: { image } or { why } it couldn't be. */
+async function saveOne(calls, { zip, part, title, folder, shared }) {
+  if (!part) return { why: 'not_found' };
+  const file = await pictureFile(zip, part);
+  if (!file) return { why: 'kind' };
+  const drive = await savedPicture(calls, { file, title, folder, shared });
+  return { image: { fileId: drive.id, mimeType: drive.mimeType, modifiedTime: drive.modifiedTime ?? null, name: drive.name.replace(/\.[a-z0-9]{2,5}$/i, ''), folderId: folder.id } };
+}
 
 /** The picture's Drive file: one saved before with the same fingerprint, or a new upload. */
 function savedPicture(calls, { file, title, folder, shared }) {

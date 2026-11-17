@@ -58,13 +58,18 @@ export function slidesPictures(presentation) {
   }));
 }
 
-/** Where a page element is, in EMU: { x, y, width, height }. */
+/**
+ * Where a page element is, in EMU: { x, y, width, height }. A flipped picture (a bitmoji turned to face the
+ * other way) has a negative scale: its box then starts that far left/up of where Google says it is.
+ */
 export function boxOf(el) {
   const t = el.transform ?? {};
   const unit = t.unit === 'PT' ? 12700 : 1;
+  const width = toEmu(el.size?.width) * (t.scaleX ?? 1);
+  const height = toEmu(el.size?.height) * (t.scaleY ?? 1);
   return {
-    x: (t.translateX ?? 0) * unit, y: (t.translateY ?? 0) * unit,
-    width: toEmu(el.size?.width) * (t.scaleX ?? 1), height: toEmu(el.size?.height) * (t.scaleY ?? 1),
+    x: (t.translateX ?? 0) * unit + Math.min(0, width), y: (t.translateY ?? 0) * unit + Math.min(0, height),
+    width: Math.abs(width), height: Math.abs(height),
   };
 }
 

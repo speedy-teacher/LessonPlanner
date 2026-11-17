@@ -38,7 +38,7 @@ export function fakeGoogle() {
     ? { thumbnailLink: `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 120"><rect width="160" height="120" fill="#f4eedd"/><text x="10" y="60" font-size="14">${f.name.replace(/[<&>]/g, '')}</text></svg>`)}` }
     : {});
   const meta = (f) => {
-    const { content: _c, text: _t, bytes: _b, converted: _v, exported: _e, noThumbnail: _n, ...rest } = f;
+    const { content: _c, text: _t, bytes: _b, converted: _v, exported: _e, noThumbnail: _n, exportSlidesAtMost: _x, ...rest } = f;
     return { ...structuredClone(rest), ...thumbnail(f) };
   };
   const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
@@ -79,11 +79,19 @@ export function fakeGoogle() {
     const file = files.get(id);
     if (!file) return missing();
     if (extra === '/copy') return copy(file, JSON.parse(init.body));
-    if (extra === '/export') return file.exported ? new Response(file.exported) : json({ error: { code: 400, message: 'cannot export' } }, 400);
+    if (extra === '/export') return exportOf(file);
     if (isUpload) { file.text = init.body; touch(file); return json({ headRevisionId: file.headRevisionId }); }
     if (method === 'PATCH') return patch(move(file, u), JSON.parse(init.body));
     if (u.searchParams.get('alt') === 'media') return new Response(file.text ?? file.bytes ?? '');
     return json(meta(file));
+  }
+
+  // Like Google, only files up to a size are exported: `exportSlidesAtMost` = how many slides fit.
+  function exportOf(file) {
+    if ((file.content?.slides?.length ?? 0) > (file.exportSlidesAtMost ?? Infinity)) {
+      return json({ error: { code: 403, message: 'This file is too large to be exported.', errors: [{ reason: 'exportSizeLimitExceeded' }] } }, 403);
+    }
+    return file.exported ? new Response(file.exported) : json({ error: { code: 400, message: 'cannot export' } }, 400);
   }
 
   /** addParents / removeParents in the address: the file moves folder. */
@@ -119,7 +127,7 @@ export function fakeGoogle() {
     const made = add({
       name: body.name ?? `Copy of ${file.name}`, mimeType: body.mimeType ?? file.mimeType, parents: body.parents ?? file.parents,
       appProperties: body.appProperties ?? {}, properties: body.properties ?? {},
-      content: renamed(structuredClone(converting ? file.converted : file.content), (n += 1)), exported: file.exported, text: file.text, bytes: file.bytes,
+      content: renamed(structuredClone(converting ? file.converted : file.content), (n += 1)), exported: file.exported, exportSlidesAtMost: file.exportSlidesAtMost, text: file.text, bytes: file.bytes,
     });
     return json(meta(made));
   }
@@ -204,6 +212,7 @@ function applySlidesRequest(presentation, r) {
     const { el } = slidesElements(presentation).find((x) => x.el.objectId === r.updateShapeProperties.objectId);
     el.shape.shapeProperties = r.updateShapeProperties.shapeProperties;
   } else if (r.deleteObject) {
+    presentation.slides = presentation.slides.filter((s) => s.objectId !== r.deleteObject.objectId);
     for (const s of presentation.slides) s.pageElements = s.pageElements.filter((el) => el.objectId !== r.deleteObject.objectId);
   }
 }
