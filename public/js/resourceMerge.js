@@ -13,6 +13,14 @@ const ORDER = ['localRoots', 'tagGroups', 'tags', 'deckFolders', 'imageFolders',
 const BY_NAME = { localRoots: [], tagGroups: [], tags: ['groupId'] };
 
 /**
+ * A Teacher Resources record a new plan may add its templates to: only your own. A colleague's (open
+ * because their School Year or Resources was shared with you) is never filled; returns null for it.
+ */
+export function ownRecordOnly(record) {
+  return record && record.ownedByMe !== false ? record : null;
+}
+
+/**
  * Add `incoming` (a Teacher Resources piece) to `existing`. Returns { resources, map } — `map` =
  * { incomingId: existingId } for everything matched, to point the plan's schedule at. Nothing passed in is changed.
  */

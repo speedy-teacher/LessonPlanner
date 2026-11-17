@@ -17,6 +17,7 @@ import {
 } from './driveFiles.js';
 import { joinedPieces } from './joinYear.js';
 import { linkTo, newPieceRecord, resourcesFor } from './pieceFiles.js';
+import { ownRecordOnly } from './resourceMerge.js';
 import { keysToRemove, listedPlans } from './planList.js';
 import { driveKey, MISSING_WORDS, PiecePlan, rebaseState } from './pieceEngine.js';
 import { fromPieceFile, PIECES, pieceFileName, pieceKind, splitState } from './pieces.js';
@@ -181,7 +182,7 @@ export async function saveOpenPlan() {
  */
 export function ownResources() {
   const rec = pieces && pieces.access('resources') !== 'none' ? (pieces.own ?? pieces.recs).resources : null;
-  return rec ?? true;
+  return ownRecordOnly(rec) ?? true; // a colleague's Resources are never reused
 }
 
 /**

@@ -6,7 +6,7 @@ import { add, normalize } from '../public/js/model.js';
 import { seedState } from '../public/js/seed.js';
 import { splitState } from '../public/js/pieces.js';
 import { newYearPlan } from '../public/js/workspaceFile.js';
-import { mergeResources, relinkSchedule } from '../public/js/resourceMerge.js';
+import { mergeResources, ownRecordOnly, relinkSchedule } from '../public/js/resourceMerge.js';
 
 const drive = (id) => ({ kind: 'drive', uri: `https://drive.google.com/open?id=${id}`, fileId: id });
 
@@ -58,4 +58,13 @@ test('the moved plan’s schedule and lesson order point at the matched template
   assert.ok(schedule.weekLessons.every((w) => ids.has(w.lessonId)));
   assert.ok(schedule.criterionLessons.every((c) => ids.has(c.lessonId)));
   assert.equal(schedule.weekLessons[0].schoolId, last.schedule.weekLessons[0].schoolId, 'School Year links untouched');
+});
+
+test('a colleague\'s Teacher Resources is never filled with your templates; your own is', () => {
+  assert.equal(ownRecordOnly({ key: 'a', ownedByMe: false }), null);
+  assert.equal(ownRecordOnly(null), null);
+  const mine = { key: 'b', ownedByMe: true };
+  assert.equal(ownRecordOnly(mine), mine);
+  const older = { key: 'c' }; // records cached before ownership was noted
+  assert.equal(ownRecordOnly(older), older);
 });

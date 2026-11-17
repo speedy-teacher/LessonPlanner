@@ -9,7 +9,7 @@ import { createPlanFile, listMyResources, PIECE_PROPERTY, readPlanFile, SCHOOL_Y
 import { allPlans, getPlan, putPlan } from './localCache.js';
 import { driveKey } from './pieceEngine.js';
 import { fromPieceFile, pieceFileName, toPieceFile } from './pieces.js';
-import { mergeResources, relinkSchedule } from './resourceMerge.js';
+import { mergeResources, ownRecordOnly, relinkSchedule } from './resourceMerge.js';
 
 const driveReady = () => google.status === 'connected' && google.token;
 
@@ -47,8 +47,9 @@ export async function resourcesFor({ resources, schedule }, { year, folderId, re
 
 async function existingResources(reuse) {
   if (!reuse) return null;
-  if (reuse === true) return myResources();
-  return await getPlan(reuse.key).catch(() => null) ?? reuse; // the newest copy kept on this computer
+  const record = reuse === true ? null : await getPlan(reuse.key).catch(() => null) ?? reuse; // the newest copy kept on this computer
+  // Never fill someone else's Teacher Resources (e.g. a colleague's, open because their School Year was shared): find your own, or make one.
+  return ownRecordOnly(record) ?? myResources();
 }
 
 /** Your own Teacher Resources, if you have one: in Google Drive (newest), or else on this computer. */
