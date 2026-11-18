@@ -65,7 +65,7 @@ function lessonEditor(l) {
     h('div', { class: 'editor-head' },
       h('label', { class: 'field grow' }, h('span', {}, 'Lesson name'),
         editable(l.name, (name) => commit((s) => editLesson(s, l.id, { name })))),
-      h('label', { class: 'field' }, h('span', {}, 'Category'),
+      h('label', { class: 'field category-field' }, h('span', {}, 'Category'),
         editable(l.category, (category) => commit((s) => editLesson(s, l.id, { category })), { list: 'lesson-categories', placeholder: 'e.g. Ukulele', allowEmpty: true }),
         h('datalist', { id: 'lesson-categories' }, categories.map((c) => h('option', { value: c })))),
       folderPicker(l),
@@ -96,7 +96,7 @@ function folderPicker(l) {
     walk(f.id, depth + 1);
   });
   walk(null, 0);
-  return h('label', { class: 'field' }, h('span', {}, 'Folder'),
+  return h('label', { class: 'field folder-field' }, h('span', {}, 'Folder'),
     h('select', {
       class: 'inline-edit',
       onchange: (e) => {
