@@ -234,6 +234,12 @@ const lessonTemplates = {
       skipIf: (ctx) => !ctx.exists('auto-fields'),
     },
     {
+      target: 'deck-add-to-planner',
+      title: 'Add it to a week',
+      text: 'Click “📅 Add to planner”, choose the class, then click a week: this lesson goes on the Lesson Schedule that week (last in its order). Handy when you’ve found a lesson here and want it in your plans right away.',
+      skipIf: (ctx) => !ctx.exists('deck-add-to-planner'),
+    },
+    {
       target: 'used-in',
       text: 'This shows which evals teach this lesson. You can add it to an eval right here, too — and the × beside an eval takes it back out.',
       skipIf: (ctx) => !ctx.exists('used-in'),

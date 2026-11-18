@@ -13,6 +13,7 @@ import { lessonPreview } from './lessonPreview.js';
 import { showEval } from './outcomes.js';
 import { deckTree, instrumentFilter, openFolders, visibleDecks } from './deckTree.js';
 import { addMenu } from './deckImport.js';
+import { addToPlannerMenu } from './addToPlanner.js';
 import { copiesOfLesson, copyStatus } from '../exportBridge.js';
 import { lessonPictures, wantsPicture } from '../imagePick.js';
 import { checkSharing, isShared, shareRefused } from '../imageSharing.js';
@@ -68,6 +69,7 @@ function lessonEditor(l) {
         editable(l.category, (category) => commit((s) => editLesson(s, l.id, { category })), { list: 'lesson-categories', placeholder: 'e.g. Ukulele', allowEmpty: true }),
         h('datalist', { id: 'lesson-categories' }, categories.map((c) => h('option', { value: c })))),
       folderPicker(l),
+      addToPlannerMenu(l),
       h('button', { class: 'btn light', 'data-edit': 'hide', onclick: () => duplicate(l) }, 'Duplicate'),
       h('button', {
         class: 'btn light danger', onclick: () => deleteLesson(l),

@@ -4,9 +4,10 @@
 // Records live in the `weekLessons` collection (see model.js). Shared by the
 // browser app and the Node tests.
 
-import { addDays, mondayOf, weekdaysBetween } from './dates.js';
+import { addDays, formatRange, mondayOf, weekdaysBetween } from './dates.js';
 import { add, find, outcomeOf, placementsFor, remove, stepsFor, instrumentsAt } from './model.js';
 import { fromAuthor } from './sharedLessons.js';
+import { lessonText, searchWords } from './lessonSearch.js';
 
 /** Every school week of a year: [{ number, weekStart (Monday), friday, days: school days inside the year }]. */
 export function schoolWeeks(year) {
@@ -19,6 +20,18 @@ export function schoolWeeks(year) {
     weeks.push({ number: n, weekStart: monday, friday, days: weekdaysBetween(from, to) });
   }
   return weeks;
+}
+
+/**
+ * The weeks to pick from in Lesson Templates' "📅 Add to planner" menu, for one class:
+ * [{ number, weekStart, dates ("Nov 16 – Nov 20"), count (lessons already that week), thisWeek }].
+ * Weeks with no school days (all holidays outside the year) are left out.
+ */
+export function weekChoices(state, cls, weeks, today) {
+  return weeks.filter((w) => w.days.length).map((w) => ({
+    number: w.number, weekStart: w.weekStart, dates: formatRange(w.days[0], w.days.at(-1)),
+    count: weekLessonsFor(state, cls, w.weekStart).length, thisWeek: w.weekStart <= today && today <= w.friday,
+  }));
 }
 
 /** A class's lessons in one week, in teaching order. `cls` = { yearId, schoolId, gradeId }. */
@@ -124,7 +137,7 @@ export function entryOutcome(state, entry, weekPlacements) {
 
 /**
  * The lesson library for the schedule's side list, narrowed by any of:
- * search text, category, grade, outcome, eval (ids; empty = any) and author ('' = everyone, see sharedLessons.js fromAuthor).
+ * search text (every word, anywhere in the name, category or folders), category, grade, outcome, eval (ids; empty = any) and author ('' = everyone, see sharedLessons.js fromAuthor).
  * When a grade, outcome or eval is chosen, only decks taught in matching evals are listed,
  * in teaching order. Returns [{ lesson, criterionId }] — criterionId is set when one eval is chosen.
  */
@@ -137,14 +150,18 @@ export function filterLessons(state, yearId, filters = {}) {
     ? lessonsInEvals(state, yearId, { gradeId, outcomeId, criterionId })
     : state.lessons.filter((l) => l.yearId === yearId)
       .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
-  const words = search.trim().toLowerCase();
+  const words = searchWords(search);
   return list
-    .filter((l) => (!category || l.category === category) && fromAuthor(l, author) && hasWords(l, words))
+    .filter((l) => (!category || l.category === category) && fromAuthor(l, author) && hasWords(state, l, words))
     .map((lesson) => ({ lesson, criterionId: criterionId || null }));
 }
 
-/** Search words in a lesson's name, category or (for a colleague's) who shared it. */
-const hasWords = (lesson, words) => !words || `${lesson.name} ${lesson.category} ${lesson.sharedBy ?? ''}`.toLowerCase().includes(words);
+/** Search words anywhere in a lesson's name, category, folders or (a colleague's) who shared it — lessonSearch.js. */
+function hasWords(state, lesson, words) {
+  if (!words.length) return true;
+  const text = lessonText(state, lesson);
+  return words.every((w) => text.includes(w));
+}
 
 function lessonsInEvals(state, yearId, { gradeId, outcomeId, criterionId }) {
   const outcomeIds = state.outcomes.filter((o) => o.yearId === yearId && (!outcomeId || o.id === outcomeId)).map((o) => o.id);

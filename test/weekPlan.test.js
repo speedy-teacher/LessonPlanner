@@ -6,6 +6,9 @@ import {
   addWeekLesson, autoFillWeek, autoFillWeeks, entryOutcome, filterLessons, instrumentsInWeek, missingInstruments,
   moveWeekLesson, placementsInWeek, removeWeekLesson, schoolWeeks, weekLessonsFor,
 } from '../public/js/weekPlan.js';
+import { filterLessons as findLessons, weekChoices } from '../public/js/weekPlan.js';
+import { lessonMatches, searchWords } from '../public/js/lessonSearch.js';
+import { addWeekLesson as addEntry, schoolWeeks as weeksOf } from '../public/js/weekPlan.js';
 
 function setup() {
   const s = emptyState();
@@ -206,4 +209,45 @@ test('the ✨ on a week with nothing on the calendar leaves the week as it is', 
   addWeekLesson(s, { ...cls, weekStart: weeks[4].weekStart, lessonId: d.id });
   assert.equal(autoFillWeek(s, cls, weeks, weeks[4].weekStart), 0);
   assert.deepEqual(names(s, weekLessonsFor(s, cls, weeks[4].weekStart)), ['Delta']);
+});
+
+// ---------- searching lessons (Lesson Schedule list = Lesson Templates search) ----------
+
+function searchState() {
+  return {
+    lessons: [
+      { id: 'l1', yearId: 'y', name: 'Lines_and-Spaces Lesson 2', category: '', folderId: null },
+      { id: 'l2', yearId: 'y', name: 'Staff Spaces & Lines', category: 'Reading', folderId: null },
+      { id: 'l3', yearId: 'y', name: 'Lesson 4', category: '', folderId: 'f2' },
+      { id: 'l4', yearId: 'y', name: 'Steady Beat', category: '', folderId: null },
+    ],
+    deckFolders: [{ id: 'f1', name: 'Treble Clef' }, { id: 'f2', name: 'Lines and spaces', parentId: 'f1' }],
+    outcomes: [], criteria: [], criterionLessons: [], weekLessons: [],
+  };
+}
+
+test('the Lesson Schedule search finds what the Lesson Templates search finds: every word, anywhere', () => {
+  const state = searchState();
+  const names = (search) => findLessons(state, 'y', { search }).map((x) => x.lesson.id).sort();
+  assert.deepEqual(names('lines and spaces'), ['l1', 'l2', 'l3'], 'punctuation, “&”, word order and folder names all count');
+  assert.deepEqual(names('treble lesson'), ['l3'], 'a folder higher up counts too');
+  assert.deepEqual(names('  BEAT '), ['l4']);
+  assert.deepEqual(names('lines beat'), [], 'every word must be there');
+  const words = searchWords('Lines & Spaces');
+  assert.deepEqual(state.lessons.filter((l) => lessonMatches(state, l, words)).map((l) => l.id).sort(), ['l1', 'l2', 'l3'], 'the Lesson Templates tab uses the same test');
+});
+
+test('“📅 Add to planner”: the weeks to pick from, and the lesson goes last in the chosen week', () => {
+  const year = { id: 'y', startDate: '2026-08-19', endDate: '2026-09-04' };
+  const state = { ...searchState(), weekLessons: [] };
+  const cls = { yearId: 'y', schoolId: 's1', gradeId: 'g1' };
+  const weeks = weeksOf(year);
+  addEntry(state, { ...cls, weekStart: weeks[1].weekStart, lessonId: 'l4' });
+  const choices = weekChoices(state, cls, weeks, '2026-08-26');
+  assert.deepEqual(choices.map((w) => [w.number, w.dates, w.count, w.thisWeek]), [
+    [1, 'Aug 19 – Aug 21', 0, false], [2, 'Aug 24 – Aug 28', 1, true], [3, 'Aug 31 – Sep 4', 0, false],
+  ]);
+  addEntry(state, { ...cls, weekStart: choices[1].weekStart, lessonId: 'l1' });
+  const week2 = state.weekLessons.filter((e) => e.weekStart === choices[1].weekStart).sort((a, b) => a.position - b.position);
+  assert.deepEqual(week2.map((e) => e.lessonId), ['l4', 'l1']);
 });

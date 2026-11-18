@@ -3,23 +3,15 @@
 
 import { h } from '../dom.js';
 import { find } from '../model.js';
-import { folderPath, LESSON_SHELF } from '../library.js';
+import { LESSON_SHELF } from '../library.js';
+import { lessonMatches, searchWords } from '../lessonSearch.js';
 import { store } from '../store.js';
 import { current, year } from './common.js';
 import { askName, folderTree, newTreeFolder, openTreeFolders, plural, treeTarget, visibleItems } from './folderTree.js';
 
 export { askName };
 
-function searchWords() {
-  return (store.ui.lessonSearch || '').trim().toLowerCase().split(/\s+/).filter(Boolean);
-}
-
-/** Search looks at the deck's name, category and the folders it's in. */
-function matches(lesson, words) {
-  const folders = folderPath(store.state, lesson.folderId).map((f) => f.name).join(' ');
-  const text = `${lesson.name} ${lesson.category} ${folders}`.toLowerCase();
-  return words.every((word) => text.includes(word));
-}
+const typedWords = () => searchWords(store.ui.lessonSearch);
 
 /** The instrument chosen with "Lessons that use …" (only those lessons are shown), if any. */
 export function instrumentFilter() {
@@ -29,9 +21,9 @@ export function instrumentFilter() {
 
 /** The decks that pass the search box and instrument filter (all of them when both are empty). */
 function shownDecks() {
-  const words = searchWords();
+  const words = typedWords();
   const ins = instrumentFilter();
-  return current('lessons').filter((l) => (!words.length || matches(l, words)) && (!ins || l.instrumentIds.includes(ins.id)));
+  return current('lessons').filter((l) => (!words.length || lessonMatches(store.state, l, words)) && (!ins || l.instrumentIds.includes(ins.id)));
 }
 
 /** How many evals teach each deck, counted once per redraw: lesson id → number of evals. */
@@ -55,7 +47,7 @@ const DECKS = {
   keys: { item: 'lessonId', folder: 'deckFolderId', open: 'openFolderIds' },
   noun: 'deck', icon: '🖼️', folderHint: 'e.g. Rhythm unit',
   shown: shownDecks,
-  filtering: () => searchWords().length > 0 || Boolean(instrumentFilter()),
+  filtering: () => typedWords().length > 0 || Boolean(instrumentFilter()),
   prepare: evalCounts,
   extra: evalCount,
   emptyText: 'No lesson decks yet. Use “+ Add” above.',

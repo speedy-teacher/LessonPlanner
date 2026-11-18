@@ -842,3 +842,16 @@ button.ins-tag:hover { filter: brightness(.92); box-shadow: 0 0 0 1.5px var(--in
   position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
   overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
 }
+
+/* Lesson Templates: "📅 Add to planner ▾" (views/addToPlanner.js) */
+.add-to-planner { align-self: flex-end; }
+.add-to-planner > summary { list-style: none; }
+.add-to-planner > summary::-webkit-details-marker { display: none; }
+.add-to-planner .menu-card { min-width: 300px; }
+.atp-class { display: flex; flex-direction: column; gap: 2px; padding: 4px 10px 6px; }
+.atp-weeks { max-height: 340px; overflow-y: auto; display: flex; flex-direction: column; gap: 1px; }
+.atp-week { font-weight: 500; }
+.atp-week strong { min-width: 62px; }
+.atp-dates { color: var(--ink-soft, #6b5d50); flex: 1; }
+.atp-week.this-week { background: var(--gold-soft, #fbf1d6); }
+.atp-now { font-size: 11px; font-weight: 800; color: var(--terracotta); text-transform: uppercase; }
