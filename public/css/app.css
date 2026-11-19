@@ -867,3 +867,8 @@ button.ins-tag:hover { filter: brightness(.92); box-shadow: 0 0 0 1.5px var(--in
 .ls-week.off .ls-zone, .ls-week.off .ls-week-fill { display: none; }
 .ls-off-note { font-style: italic; font-size: .85rem; }
 .ls-week-skip { font-size: .8rem; padding: 2px 8px; border-radius: 999px; cursor: pointer; }
+
+/* Skip / count buttons sit in the top-right corner of a week, clear of the lessons; the strip leaves room for them. */
+.ls-week { position: relative; }
+.ls-week > .ls-week-skip { position: absolute; top: 6px; right: 8px; z-index: 2; font-size: 11px; padding: 1px 8px; }
+.ls-week .ls-info { padding-right: 112px; }

@@ -98,12 +98,13 @@ function autoFill(ctx, classes) {
 
 /** A skipped or break week: greyed out, no number, no lessons shown (they come back when it's counted again). */
 function offRow(ctx, week) {
-  const note = week.off === 'break' ? 'Break — not counted' : 'Skipped — not counted, its lessons are kept';
+  const note = week.off === 'break' ? 'Not counted' : 'Not counted · lessons kept';
   const dates = week.days.length ? formatRange(week.days[0], week.days.at(-1)) : formatRange(week.weekStart, week.friday);
   return h('div', { class: 'ls-week off', dataset: { week: week.weekStart } },
+    h('div', { class: 'ls-stripe', 'aria-hidden': 'true' }),
     h('div', { class: 'ls-label' }, h('strong', {}, week.off === 'break' ? 'Break' : 'Skipped'), h('small', {}, dates)),
-    h('div', { class: 'ls-body' },
-      h('div', { class: 'ls-info' }, h('span', { class: 'ls-off-note' }, note), week.off === 'skipped' ? countWeekButton(week) : null)));
+    h('div', { class: 'ls-body' }, h('div', { class: 'ls-info' }, h('span', { class: 'ls-off-note' }, note))),
+    week.off === 'skipped' ? countWeekButton(week) : null);
 }
 
 /** The corner button of a counted week: skip it (no number, lessons kept) so the weeks after it renumber. */
@@ -159,8 +160,9 @@ function weekRow(ctx, week, isThisWeek) {
       h('small', {}, week.days.length ? formatRange(week.days[0], week.days.at(-1)) : formatRange(week.weekStart, week.friday))),
     h('div', { class: 'ls-body' },
       h('div', { class: 'ls-info' }, placements.map(evalTag), instrumentTags(ctx, week),
-        placements.length ? weekFillButton(ctx, week, entries.length) : null, skipButton(week, entries.length)),
+        placements.length ? weekFillButton(ctx, week, entries.length) : null),
       dropZone(ctx, week, entries, placements)),
+    skipButton(week, entries.length),
   );
 }
 
