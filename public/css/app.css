@@ -861,3 +861,9 @@ button.ins-tag:hover { filter: brightness(.92); box-shadow: 0 0 0 1.5px var(--in
 .folder-field select { width: 100%; text-overflow: ellipsis; }
 .category-field { width: 140px; min-width: 0; }
 .category-field .inline-edit { width: 100%; min-width: 0; }
+
+/* Skipped and break weeks on the Lesson Schedule: greyed out, no number, nothing to drop into. */
+.ls-week.off { opacity: .55; filter: grayscale(1); }
+.ls-week.off .ls-zone, .ls-week.off .ls-week-fill { display: none; }
+.ls-off-note { font-style: italic; font-size: .85rem; }
+.ls-week-skip { font-size: .8rem; padding: 2px 8px; border-radius: 999px; cursor: pointer; }

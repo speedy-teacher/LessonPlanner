@@ -126,13 +126,13 @@ export function mondayOf(iso) {
  * or the first week after it that isn't a whole-week break). Break weeks don't count. Returns null for a date
  * in a break week. `events` = the year's events (schoolEvents.js yearEvents).
  */
-export function weekNumber(yearStartDate, date, events = []) {
+export function weekNumber(yearStartDate, date, events = [], skipped = []) {
   const target = mondayOf(date);
   let number = 0;
   for (let monday = mondayOf(yearStartDate); monday <= target; monday = addDays(monday, 7)) {
     const friday = addDays(monday, 4);
     const days = weekdaysBetween(monday < yearStartDate ? yearStartDate : monday, friday);
-    if (isBreakWeek(days, events)) {
+    if (skipped.includes(monday) || isBreakWeek(days, events)) {
       if (monday === target) return null;
       continue;
     }

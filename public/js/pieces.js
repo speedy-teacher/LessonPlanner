@@ -36,7 +36,7 @@ export const PIECES = {
 };
 
 /** Fields of School Year records that belong to the teacher instead (their own look and settings). */
-export const TEACHER_FIELDS = { years: ['output', 'reports'], grades: ['color'], instruments: ['color'] };
+export const TEACHER_FIELDS = { years: ['output', 'reports', 'skippedWeeks'], grades: ['color'], instruments: ['color'] };
 
 /** Records in these pieces don't carry their year in the file: the School Year they're opened with gives it. */
 const YEARLESS = ['schedule', 'resources'];

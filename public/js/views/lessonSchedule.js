@@ -7,7 +7,7 @@ import { h, iconButton, openModal, toast } from '../dom.js';
 import { evalLabel, find, inYear, lessonInstruments, outcomeLabel } from '../model.js';
 import {
   addWeekLesson, autoFillWeek, autoFillWeeks, entryOutcome, filterLessons, instrumentsInWeek, missingInstruments,
-  moveWeekLesson, placementsInWeek, removeWeekLesson, teachingWeeks, weekLessonsFor,
+  moveWeekLesson, placementsInWeek, removeWeekLesson, setWeekSkipped, weekLessonsFor, yearWeeksOf,
 } from '../weekPlan.js';
 import { commit, setUi, store, undo } from '../store.js';
 import { formatRange, todayISO } from '../dates.js';
@@ -26,7 +26,7 @@ function context() {
   const schools = current('schools');
   const grades = current('grades');
   const cls = { yearId: year().id, schoolId: pickId(schools, store.ui.schoolId), gradeId: pickId(grades, store.ui.gradeId) };
-  return { schools, grades, cls, weeks: teachingWeeks(store.state, year().id) };
+  return { schools, grades, cls, weeks: yearWeeksOf(store.state, year().id) };
 }
 
 const name = (collection, id) => find(store.state, collection, id)?.name ?? '';
@@ -96,6 +96,39 @@ function autoFill(ctx, classes) {
     count ? { label: 'Undo', run: undo } : null);
 }
 
+/** A skipped or break week: greyed out, no number, no lessons shown (they come back when it's counted again). */
+function offRow(ctx, week) {
+  const note = week.off === 'break' ? 'Break — not counted' : 'Skipped — not counted, its lessons are kept';
+  const dates = week.days.length ? formatRange(week.days[0], week.days.at(-1)) : formatRange(week.weekStart, week.friday);
+  return h('div', { class: 'ls-week off', dataset: { week: week.weekStart } },
+    h('div', { class: 'ls-label' }, h('strong', {}, week.off === 'break' ? 'Break' : 'Skipped'), h('small', {}, dates)),
+    h('div', { class: 'ls-body' },
+      h('div', { class: 'ls-info' }, h('span', { class: 'ls-off-note' }, note), week.off === 'skipped' ? countWeekButton(week) : null)));
+}
+
+/** The corner button of a counted week: skip it (no number, lessons kept) so the weeks after it renumber. */
+function skipButton(week, lessonCount) {
+  const tip = `Skip this week: it gets no number, the weeks after it renumber, and its ${lessonCount} lesson${lessonCount === 1 ? '' : 's'} are kept but hidden`;
+  return h('button', {
+    class: 'ls-week-skip', 'aria-label': 'Skip this week', 'data-tip': tip,
+    onclick: () => {
+      commit((s) => setWeekSkipped(s, year().id, week.weekStart, true));
+      toast(`Week skipped — the weeks after it renumber.`, { label: 'Undo', run: undo });
+    },
+  }, 'Skip this week');
+}
+
+/** A skipped week's button: count it again (its number comes back and its lessons return). */
+function countWeekButton(week) {
+  return h('button', {
+    class: 'ls-week-skip', 'aria-label': 'Count this week again', 'data-tip': 'Count this week again: it gets its number back',
+    onclick: () => {
+      commit((s) => setWeekSkipped(s, year().id, week.weekStart, false));
+      toast('Week counted again.', { label: 'Undo', run: undo });
+    },
+  }, 'Count this week again');
+}
+
 /** The ✨ at the top right of a week: fill just this week from the calendar. */
 function weekFillButton(ctx, week, hasLessons) {
   const tip = `Fill Week ${week.number} from the Outcome & Eval Calendar${hasLessons ? ' (replaces this week’s lessons — you can undo)' : ''}`;
@@ -112,6 +145,7 @@ function weekFillButton(ctx, week, hasLessons) {
 // ---------- the weeks ----------
 
 function weekRow(ctx, week, isThisWeek) {
+  if (week.off) return offRow(ctx, week);
   const placements = placementsInWeek(store.state, ctx.cls, week);
   const entries = weekLessonsFor(store.state, ctx.cls, week.weekStart);
   const colors = [...new Set(placements.map((p) => outcomeColor(find(store.state, 'criteria', p.criterionId)?.outcomeId)))];
@@ -125,7 +159,7 @@ function weekRow(ctx, week, isThisWeek) {
       h('small', {}, week.days.length ? formatRange(week.days[0], week.days.at(-1)) : formatRange(week.weekStart, week.friday))),
     h('div', { class: 'ls-body' },
       h('div', { class: 'ls-info' }, placements.map(evalTag), instrumentTags(ctx, week),
-        placements.length ? weekFillButton(ctx, week, entries.length) : null),
+        placements.length ? weekFillButton(ctx, week, entries.length) : null, skipButton(week, entries.length)),
       dropZone(ctx, week, entries, placements)),
   );
 }

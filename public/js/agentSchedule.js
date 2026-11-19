@@ -1,17 +1,17 @@
 // Assistant commands for the three calendars: the Lesson Schedule, the Outcome & Eval
 // Calendar and the Instrument Schedule. See agentCommands.js for how commands are run.
 
-import { addDays, weekdaysBetween } from './dates.js';
+import { addDays, mondayOf, weekdaysBetween } from './dates.js';
 import { yearEvents } from './schoolEvents.js';
 import {
   blocksFor, find, outcomeLabel, outcomeOf, paintInstrument, placeCriterion, placementWarnings, placementsFor, remove, resizeRange,
 } from './model.js';
 import {
   addWeekLesson, autoFillWeek, autoFillWeeks, entryCriterion, moveWeekLesson, placementsInWeek, removeWeekLesson,
-  teachingWeeks, weekLessonsFor,
+  setWeekSkipped, teachingWeeks, weekLessonsFor,
 } from './weekPlan.js';
 import {
-  classOf, dateIn, evalOf, indexOf, instrument, lesson, ofYear, record, school, weekOf, year,
+  classOf, dateIn, evalOf, fail, indexOf, instrument, lesson, ofYear, record, school, weekOf, year,
 } from './agentHelpers.js';
 
 function placementInfo(state, p) {
@@ -117,6 +117,18 @@ export const SCHEDULE_COMMANDS = {
       record(state, 'weekLessons', a.entryId, 'scheduled lesson');
       removeWeekLesson(state, a.entryId);
       return { done: 'Removed from the schedule.' };
+    },
+  },
+  skipWeek: {
+    summary: 'Skip a school week (no number; the weeks after it renumber; its lessons are kept but hidden) or count it again. Use for a break the holiday list does not cover.',
+    changes: true,
+    params: { week: ['A date in the week, like 2026-11-23 (a skipped week has no number)', true], skip: ['true to skip it, false to count it again'] },
+    run: (state, a) => {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(String(a.week ?? ''))) fail('Give the week as a date in it, like 2026-11-23.');
+      const weekStart = mondayOf(a.week);
+      const skip = String(a.skip) !== 'false';
+      setWeekSkipped(state, year(state).id, weekStart, skip);
+      return { done: skip ? `Skipped the week of ${weekStart}.` : `Counted the week of ${weekStart} again.` };
     },
   },
   fillWeekFromCalendar: {

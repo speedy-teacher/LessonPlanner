@@ -708,7 +708,7 @@ function scheduleValues(state, placement) {
 /** "3", or "3–4" when a placement runs over more than one teaching week; '' in a break week. */
 function weekLabel(year, { startDate, endDate }, events = []) {
   if (!year) return '';
-  const numbers = [weekNumber(year.startDate, startDate, events), weekNumber(year.startDate, endDate, events)].filter((n) => n != null);
+  const numbers = [weekNumber(year.startDate, startDate, events, year.skippedWeeks), weekNumber(year.startDate, endDate, events, year.skippedWeeks)].filter((n) => n != null);
   if (!numbers.length) return '';
   const [a, b] = [numbers[0], numbers.at(-1)];
   return a === b ? String(a) : `${a}–${b}`;

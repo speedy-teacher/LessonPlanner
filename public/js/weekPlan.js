@@ -16,22 +16,52 @@ import { yearEvents } from './schoolEvents.js';
  * (isBreakWeek) are left out and don't count, so numbering resumes after each break.
  */
 export function schoolWeeks(year, events = []) {
+  return yearWeeks(year, events).filter((w) => !w.off);
+}
+
+/**
+ * Every week of a year, in order: [{ weekStart (Monday), friday, days, number (null when off), off }].
+ * A week is off ('skipped' when the teacher skipped it, `year.skippedWeeks` = Mondays; 'break' when every school
+ * day is inside an event, see isBreakWeek). Off weeks get no number, and numbering resumes after them.
+ */
+export function yearWeeks(year, events = []) {
   if (!year) return [];
+  const skipped = new Set(year.skippedWeeks ?? []);
   const weeks = [];
+  let number = 0;
   for (let monday = mondayOf(year.startDate); monday <= year.endDate; monday = addDays(monday, 7)) {
     const friday = addDays(monday, 4);
     const from = monday < year.startDate ? year.startDate : monday;
     const to = friday > year.endDate ? year.endDate : friday;
     const days = weekdaysBetween(from, to);
-    if (isBreakWeek(days, events)) continue;
-    weeks.push({ number: weeks.length + 1, weekStart: monday, friday, days });
+    const off = skipped.has(monday) ? 'skipped' : isBreakWeek(days, events) ? 'break' : null;
+    if (off) {
+      weeks.push({ weekStart: monday, friday, days, number: null, off });
+    } else {
+      number += 1;
+      weeks.push({ weekStart: monday, friday, days, number, off: null });
+    }
   }
   return weeks;
+}
+
+/** Skip a school week (or count it again). The week keeps its lessons; they show again when it's counted. */
+export function setWeekSkipped(state, yearId, weekStart, skip) {
+  const year = find(state, 'years', yearId);
+  const list = new Set(year.skippedWeeks ?? []);
+  if (skip) list.add(weekStart);
+  else list.delete(weekStart);
+  year.skippedWeeks = [...list].sort();
 }
 
 /** The teaching weeks of a year in a state (schoolWeeks with that year's events, so breaks are skipped). */
 export function teachingWeeks(state, yearId) {
   return schoolWeeks(find(state, 'years', yearId), yearEvents(state, yearId));
+}
+
+/** Every week of a year in a state, skipped and break weeks included (see yearWeeks). */
+export function yearWeeksOf(state, yearId) {
+  return yearWeeks(find(state, 'years', yearId), yearEvents(state, yearId));
 }
 
 /**
