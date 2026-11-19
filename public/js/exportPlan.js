@@ -16,7 +16,7 @@
 
 import { formatRange } from './dates.js';
 import { AUTO_FIELD_PLACEHOLDERS, find, lessonInstruments, outcomeLabel, TEXT_FIELDS } from './model.js';
-import { entryCriterion, placementsInWeek, schoolWeeks } from './weekPlan.js';
+import { entryCriterion, placementsInWeek, teachingWeeks } from './weekPlan.js';
 import { pictureForEntry, wantsPicture } from './imagePick.js';
 import { driveFileId } from './locations.js';
 
@@ -93,7 +93,7 @@ function fillValues(all) {
  * Lessons with no template file the folder can copy from are left out.
  */
 export function wantedCopies(state, yearId, target) {
-  const weeks = new Map(schoolWeeks(find(state, 'years', yearId)).map((w) => [w.weekStart, w]));
+  const weeks = new Map(teachingWeeks(state, yearId).map((w) => [w.weekStart, w]));
   const entries = state.weekLessons.filter((e) => e.yearId === yearId && weeks.has(e.weekStart)).sort(scheduleOrder);
   const numbers = lessonNumbers(entries);
   return entries

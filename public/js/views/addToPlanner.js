@@ -5,7 +5,7 @@
 
 import { h, toast } from '../dom.js';
 import { find } from '../model.js';
-import { addWeekLesson, schoolWeeks, weekChoices } from '../weekPlan.js';
+import { addWeekLesson, teachingWeeks, weekChoices } from '../weekPlan.js';
 import { commit, setUi, store, undo } from '../store.js';
 import { todayISO } from '../dates.js';
 import { current, pickId, popMenu, year } from './common.js';
@@ -51,7 +51,7 @@ function showThisWeek(menu, box) {
 }
 
 function weekButtons(lesson, cls) {
-  const choices = weekChoices(store.state, { yearId: year().id, schoolId: cls.schoolId, gradeId: cls.gradeId }, schoolWeeks(year()), todayISO());
+  const choices = weekChoices(store.state, { yearId: year().id, schoolId: cls.schoolId, gradeId: cls.gradeId }, teachingWeeks(store.state, year().id), todayISO());
   return choices.map((w) => h('button', {
     class: `menu-item atp-week${w.thisWeek ? ' this-week' : ''}`,
     title: w.count ? `Already planned that week: ${plural(w.count, 'lesson')}. This one goes last.` : null,

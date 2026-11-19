@@ -44,6 +44,15 @@ export function weekdaysBetween(start, end) {
   return out;
 }
 
+/**
+ * A whole-week break: every school day in the week (`days`, from weekdaysBetween) is inside one of `events`
+ * ({ startDate, endDate }). A week with no school days is not a break. Single-day holidays only count
+ * when they cover the whole week.
+ */
+export function isBreakWeek(days, events) {
+  return days.length > 0 && days.every((d) => events.some((e) => e.startDate <= d && d <= e.endDate));
+}
+
 export function todayISO() {
   const now = new Date();
   return toISO(new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate())));

@@ -8,6 +8,7 @@ import { todayISO } from './dates.js';
 import {
   copyFinder, currentWeekNumber, reportSettings, reportSteps, sameReport, watchedReport, weeklyReports,
 } from './reportPlan.js';
+import { teachingWeeks } from './weekPlan.js';
 import { driveReports, reportUrl } from './reportSheets.js';
 
 const WEEKLY = 'weekly';
@@ -53,7 +54,7 @@ export function weeklyReportKeeper(adapter, yearId) {
   /** The watched reports to make or bring up to date (one that isn't wanted any more is just left alone). */
   const manualSteps = (state, { copies }) => {
     const settings = reportSettings(yearOf(state));
-    const context = { settings, copyOf: copyFinder(copies), defaultWeek: currentWeekNumber(yearOf(state), todayISO()) };
+    const context = { settings, copyOf: copyFinder(copies), defaultWeek: currentWeekNumber(teachingWeeks(state, yearOf(state).id), todayISO()) };
     return settings.watched.flatMap((entry) => {
       const found = keeper.manualHaves.get(entry.folder.folderId);
       const want = found && watchedReport(state, yearId, entry, context);

@@ -8,7 +8,7 @@ import {
 } from './model.js';
 import {
   addWeekLesson, autoFillWeek, autoFillWeeks, entryCriterion, moveWeekLesson, placementsInWeek, removeWeekLesson,
-  schoolWeeks, weekLessonsFor,
+  teachingWeeks, weekLessonsFor,
 } from './weekPlan.js';
 import {
   classOf, dateIn, evalOf, indexOf, instrument, lesson, ofYear, record, school, weekOf, year,
@@ -62,7 +62,7 @@ export const SCHEDULE_COMMANDS = {
     params: { ...CLASS, fromWeek: ['First week (number or date); default week 1'], toWeek: ['Last week (number or date); default the last week'] },
     run: (state, a) => {
       const cls = classOf(state, a);
-      const weeks = schoolWeeks(year(state));
+      const weeks = teachingWeeks(state, year(state).id);
       const from = a.fromWeek ? weekOf(state, a.fromWeek).number : 1;
       const to = a.toWeek ? weekOf(state, a.toWeek).number : weeks.length;
       return weeks.filter((w) => w.number >= from && w.number <= to).map((w) => weekInfo(state, cls, w));
@@ -123,7 +123,7 @@ export const SCHEDULE_COMMANDS = {
     summary: 'Fill one week of a class\'s Lesson Schedule from the Outcome & Eval Calendar, replacing that week.',
     changes: true,
     params: { ...CLASS, week: WEEK },
-    run: (state, a) => ({ lessonsPlaced: autoFillWeek(state, classOf(state, a), schoolWeeks(year(state)), weekOf(state, a.week).weekStart) }),
+    run: (state, a) => ({ lessonsPlaced: autoFillWeek(state, classOf(state, a), teachingWeeks(state, year(state).id), weekOf(state, a.week).weekStart) }),
   },
   fillScheduleFromCalendar: {
     summary: 'Fill a class\'s whole Lesson Schedule from the Outcome & Eval Calendar, replacing everything on it. Leave out school and grade to fill every class.',
@@ -131,7 +131,7 @@ export const SCHEDULE_COMMANDS = {
     params: { school: ['School name; leave out (with grade) for every class'], grade: ['Grade name'] },
     run: (state, a) => {
       const classes = a.school || a.grade ? [classOf(state, a)] : allClasses(state);
-      const weeks = schoolWeeks(year(state));
+      const weeks = teachingWeeks(state, year(state).id);
       return { lessonsPlaced: classes.reduce((sum, cls) => sum + autoFillWeeks(state, cls, weeks), 0) };
     },
   },

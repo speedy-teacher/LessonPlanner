@@ -4,22 +4,34 @@
 // Records live in the `weekLessons` collection (see model.js). Shared by the
 // browser app and the Node tests.
 
-import { addDays, formatRange, mondayOf, weekdaysBetween } from './dates.js';
+import { addDays, formatRange, isBreakWeek, mondayOf, weekdaysBetween } from './dates.js';
 import { add, find, outcomeOf, placementsFor, remove, stepsFor, instrumentsAt } from './model.js';
 import { fromAuthor } from './sharedLessons.js';
 import { lessonText, searchWords } from './lessonSearch.js';
+import { yearEvents } from './schoolEvents.js';
 
-/** Every school week of a year: [{ number, weekStart (Monday), friday, days: school days inside the year }]. */
-export function schoolWeeks(year) {
+/**
+ * Every teaching week of a year: [{ number, weekStart (Monday), friday, days: school days inside the year }].
+ * `events` = the year's events ({ startDate, endDate }, see schoolEvents.js yearEvents). Whole-week breaks
+ * (isBreakWeek) are left out and don't count, so numbering resumes after each break.
+ */
+export function schoolWeeks(year, events = []) {
   if (!year) return [];
   const weeks = [];
-  for (let monday = mondayOf(year.startDate), n = 1; monday <= year.endDate; monday = addDays(monday, 7), n += 1) {
+  for (let monday = mondayOf(year.startDate); monday <= year.endDate; monday = addDays(monday, 7)) {
     const friday = addDays(monday, 4);
     const from = monday < year.startDate ? year.startDate : monday;
     const to = friday > year.endDate ? year.endDate : friday;
-    weeks.push({ number: n, weekStart: monday, friday, days: weekdaysBetween(from, to) });
+    const days = weekdaysBetween(from, to);
+    if (isBreakWeek(days, events)) continue;
+    weeks.push({ number: weeks.length + 1, weekStart: monday, friday, days });
   }
   return weeks;
+}
+
+/** The teaching weeks of a year in a state (schoolWeeks with that year's events, so breaks are skipped). */
+export function teachingWeeks(state, yearId) {
+  return schoolWeeks(find(state, 'years', yearId), yearEvents(state, yearId));
 }
 
 /**
@@ -224,8 +236,8 @@ export function weeksFrom(from, to, { map = {}, onlyEmpty = false } = {}) {
   const toYear = to.years.find((y) => y.id === to.activeYearId);
   const lay = {
     map, yearId: toYear.id, here: idSets(to),
-    numberOf: new Map(schoolWeeks(fromYear).map((w) => [w.weekStart, w.number])),
-    startOf: new Map(schoolWeeks(toYear).map((w) => [w.number, w.weekStart])),
+    numberOf: new Map(schoolWeeks(fromYear, yearEvents(from, fromYear?.id)).map((w) => [w.weekStart, w.number])),
+    startOf: new Map(schoolWeeks(toYear, yearEvents(to, toYear.id)).map((w) => [w.number, w.weekStart])),
   };
   const filled = new Set(to.weekLessons.filter((e) => e.yearId === toYear.id).map(classWeek));
   const out = { entries: [], kept: 0, dropped: 0, skipped: 0 };

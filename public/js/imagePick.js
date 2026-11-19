@@ -26,7 +26,7 @@
 
 import { addDays } from './dates.js';
 import { find } from './model.js';
-import { schoolWeeks } from './weekPlan.js';
+import { schoolWeeks, teachingWeeks } from './weekPlan.js';
 import { yearEvents } from './schoolEvents.js';
 
 /** How strongly a picture's windows count when they fit. */
@@ -97,7 +97,7 @@ export function pickImages(images, { start, end, holidays = [], instrumentIds = 
 
 /** The dates a schedule entry's lesson is shown: the school days of its week. */
 export function entryDates(state, entry) {
-  const week = schoolWeeks(find(state, 'years', entry.yearId)).find((w) => w.weekStart === entry.weekStart);
+  const week = teachingWeeks(state, entry.yearId).find((w) => w.weekStart === entry.weekStart);
   const days = week?.days.length ? week.days : [entry.weekStart, addDays(entry.weekStart, 4)];
   return { week, start: days[0], end: days.at(-1) };
 }
@@ -181,7 +181,7 @@ export function themedSet(images, start, end, holidays = []) {
 }
 
 function planSequences(year, images, holidays, sequences) {
-  const fits = new Map(schoolWeeks(year).filter((w) => w.days.length).map((w) => [w.weekStart,
+  const fits = new Map(schoolWeeks(year, holidays).filter((w) => w.days.length).map((w) => [w.weekStart,
     themedSet(images, w.days[0], w.days.at(-1), holidays)]));
   const plan = new Map();
   for (const sequence of sequences) {
@@ -245,7 +245,7 @@ export function imageUses(state, imageId, sharing) {
 /** The school weeks where one of a picture's windows fits (not counting "any time"). */
 export function weeksImageFits(state, image) {
   const holidays = yearEvents(state, image.yearId);
-  return schoolWeeks(find(state, 'years', image.yearId))
+  return schoolWeeks(find(state, 'years', image.yearId), holidays)
     .filter((w) => w.days.length && image.when.windows.some((win) => windowFits(win, w.days[0], w.days.at(-1), holidays)));
 }
 

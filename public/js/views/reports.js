@@ -11,7 +11,7 @@ import { apiKey, clientId } from '../deviceSettings.js';
 import { pickFolderFromDrive } from '../drive.js';
 import { todayISO } from '../dates.js';
 import { AUTO_FIELD_PLACEHOLDERS, AUTO_FIELDS, TEXT_FIELDS } from '../model.js';
-import { schoolWeeks } from '../weekPlan.js';
+import { teachingWeeks } from '../weekPlan.js';
 import { showNotice } from '../notices.js';
 import {
   changedReports, copyFinder, currentWeekNumber, DEFAULT_LABEL, LABEL_WORDS, manualReports, reportFolder, reportRows, reportSettings, reportWidth,
@@ -35,7 +35,7 @@ function saveSettings({ manual, ...patch }) {
   commit((s) => update(s, 'years', y.id, { reports: changedReports(y, patch, manual) }));
 }
 
-const thisWeek = () => currentWeekNumber(year(), todayISO());
+const thisWeek = () => currentWeekNumber(teachingWeeks(store.state, year().id), todayISO());
 
 function copiesForPreview() {
   const mine = knownCopies();
@@ -85,7 +85,7 @@ function formCard(files) {
 }
 
 function weekPickers(manual) {
-  const weeks = schoolWeeks(year());
+  const weeks = teachingWeeks(store.state, year().id);
   const from = manual.fromWeek ?? thisWeek();
   const to = Math.max(from, manual.toWeek ?? from);
   const select = (value, onPick, min = 1) => h('select', { class: 'report-week', onchange: (e) => onPick(Number(e.target.value)) },

@@ -32,7 +32,7 @@
 import { formatRange, formatShort } from './dates.js';
 import { AUTO_FIELD_PLACEHOLDERS, AUTO_FIELDS, find, inYear, TEXT_FIELDS, toRanges } from './model.js';
 import { entryValues, fingerprint, lessonNumbers, safeName } from './exportPlan.js';
-import { instrumentsInWeek, schoolWeeks, weekLessonsFor } from './weekPlan.js';
+import { instrumentsInWeek, teachingWeeks, weekLessonsFor } from './weekPlan.js';
 import { driveOpenUrl } from './locations.js';
 import { readableText } from './evalGrade.js';
 
@@ -358,7 +358,7 @@ function lessonRows(tab, lesson, i) {
  * Returns [{ key, path, name, place, hash, tabs }].
  */
 export function weeklyReports(state, yearId, { wants, copyOf, rootKey, ...look }) {
-  const weeks = new Map(schoolWeeks(find(state, 'years', yearId)).map((w) => [w.weekStart, w]));
+  const weeks = new Map(teachingWeeks(state, yearId).map((w) => [w.weekStart, w]));
   const numbers = lessonNumbers(state.weekLessons.filter((e) => e.yearId === yearId && weeks.has(e.weekStart)));
   const files = new Map();
   for (const want of wants) {
@@ -394,8 +394,7 @@ export function reportSteps(wants, haves) {
 // ---------- reports made from the Reports tab ----------
 
 /** The week number of the school week `today` falls in (the first week when it's not in a school week). */
-export function currentWeekNumber(year, today) {
-  const weeks = schoolWeeks(year);
+export function currentWeekNumber(weeks, today) {
   return (weeks.find((w) => w.weekStart <= today && today <= w.friday) ?? weeks[0])?.number ?? 1;
 }
 
@@ -445,9 +444,8 @@ export function watchedReport(state, yearId, entry, { settings, copyOf, defaultW
   return manualReports(state, yearId, { ...settings, manual, copyOf, defaultWeek })[0] ?? null;
 }
 
-/** The school weeks a manual report covers (from/to are week numbers; missing = the given default week). */
-export function manualWeeks(year, manual, defaultWeek = 1) {
-  const weeks = schoolWeeks(year);
+/** The school weeks (`weeks` = teachingWeeks) a manual report covers (from/to are week numbers; missing = the given default week). */
+export function manualWeeks(weeks, manual, defaultWeek = 1) {
   const from = manual.fromWeek ?? defaultWeek;
   const to = Math.max(from, manual.toWeek ?? from);
   return weeks.filter((w) => w.number >= from && w.number <= to);
@@ -461,8 +459,7 @@ export function manualWeeks(year, manual, defaultWeek = 1) {
  * while a report for other weeks is a file of its own; `oldKey` = the key before weeks counted, see sameReport).
  */
 export function manualReports(state, yearId, { manual, copyOf, defaultWeek, ...look }) {
-  const year = find(state, 'years', yearId);
-  const weeks = manualWeeks(year, manual, defaultWeek);
+  const weeks = manualWeeks(teachingWeeks(state, yearId), manual, defaultWeek);
   const chosen = (collection, ids) => inYear(state, collection, yearId).filter((r) => !ids.length || ids.includes(r.id));
   const schools = chosen('schools', manual.schoolIds);
   const grades = chosen('grades', manual.gradeIds);

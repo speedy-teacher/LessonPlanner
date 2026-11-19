@@ -7,7 +7,7 @@ import { h, iconButton, openModal, toast } from '../dom.js';
 import { evalLabel, find, inYear, lessonInstruments, outcomeLabel } from '../model.js';
 import {
   addWeekLesson, autoFillWeek, autoFillWeeks, entryOutcome, filterLessons, instrumentsInWeek, missingInstruments,
-  moveWeekLesson, placementsInWeek, removeWeekLesson, schoolWeeks, weekLessonsFor,
+  moveWeekLesson, placementsInWeek, removeWeekLesson, teachingWeeks, weekLessonsFor,
 } from '../weekPlan.js';
 import { commit, setUi, store, undo } from '../store.js';
 import { formatRange, todayISO } from '../dates.js';
@@ -26,7 +26,7 @@ function context() {
   const schools = current('schools');
   const grades = current('grades');
   const cls = { yearId: year().id, schoolId: pickId(schools, store.ui.schoolId), gradeId: pickId(grades, store.ui.gradeId) };
-  return { schools, grades, cls, weeks: schoolWeeks(year()) };
+  return { schools, grades, cls, weeks: teachingWeeks(store.state, year().id) };
 }
 
 const name = (collection, id) => find(store.state, collection, id)?.name ?? '';

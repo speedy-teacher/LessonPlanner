@@ -4,7 +4,7 @@
 
 import { mondayOf } from './dates.js';
 import { activeYear, find, inYear, outcomeLabel, outcomeOf, stepsFor } from './model.js';
-import { schoolWeeks } from './weekPlan.js';
+import { teachingWeeks } from './weekPlan.js';
 import { folderPath, IMAGE_SHELF, LESSON_SHELF } from './library.js';
 
 /** A command's problem, worded for the person reading the assistant's reply. */
@@ -118,7 +118,7 @@ export function anyDate(value, what = 'date') {
 
 /** A school week, given by its number (1 = first week) or any date inside it. */
 export function weekOf(state, ref) {
-  const weeks = schoolWeeks(year(state));
+  const weeks = teachingWeeks(state, year(state).id);
   const byNumber = typeof ref === 'number' || /^\d+$/.test(String(ref ?? ''));
   const week = byNumber
     ? weeks.find((w) => w.number === Number(ref))

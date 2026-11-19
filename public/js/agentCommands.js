@@ -15,7 +15,7 @@
 // Shared by the browser app and the Node tests.
 
 import { COLLECTIONS, outcomeLabel } from './model.js';
-import { schoolWeeks } from './weekPlan.js';
+import { teachingWeeks } from './weekPlan.js';
 import { CommandError, fail, ofYear, year } from './agentHelpers.js';
 import { SCHEDULE_COMMANDS } from './agentSchedule.js';
 import { SETUP_COMMANDS } from './agentSetup.js';
@@ -45,7 +45,7 @@ const GENERAL_COMMANDS = {
       const y = year(state);
       const names = (collection) => ofYear(state, collection).map((r) => r.name);
       return {
-        year: y.name, startDate: y.startDate, endDate: y.endDate, weeks: schoolWeeks(y).length,
+        year: y.name, startDate: y.startDate, endDate: y.endDate, weeks: teachingWeeks(state, y.id).length,
         schools: names('schools'), grades: names('grades'), instruments: names('instruments'),
         outcomes: ofYear(state, 'outcomes').map((o) => ({ id: o.id, label: outcomeLabel(o) })),
         lessonCount: ofYear(state, 'lessons').length, pictureCount: ofYear(state, 'images').length,

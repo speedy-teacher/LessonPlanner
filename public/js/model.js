@@ -10,8 +10,9 @@
 //
 // This module is shared by the browser app and the Node tests.
 
-import { addDays, daysBetween, isWeekday, mondayOf, nextWeekday, weekdaysBetween } from './dates.js';
+import { addDays, daysBetween, isBreakWeek, isWeekday, mondayOf, nextWeekday, weekdaysBetween } from './dates.js';
 import { canFillIn, driveLocation, localLocation } from './locations.js';
+import { yearEvents } from './schoolEvents.js';
 
 export const SCHEMA_VERSION = 6;
 
@@ -682,7 +683,7 @@ export function autoFill(state, step, placement) {
   const criterion = find(state, 'criteria', step.criterionId ?? placement?.criterionId);
   const values = {
     ...scheduleValues(state, placement),
-    week: placement ? weekLabel(find(state, 'years', placement.yearId), placement) : '',
+    week: placement ? weekLabel(find(state, 'years', placement.yearId), placement, yearEvents(state, placement.yearId)) : '',
     lessonNumber: placement ? String(lessonNumber(state, placement, step)) : '',
     lessonNumberAbs: placement ? String(lessonNumber(state, placement, step)) : '',
     instrument: lessonInstruments(state, lesson).map((i) => i.name).join(', '),
@@ -702,15 +703,32 @@ function scheduleValues(state, placement) {
   };
 }
 
-/** School week of a date: week 1 is the week (Mon–Fri) the school year starts in. */
-export function weekNumber(yearStartDate, date) {
-  return Math.floor(daysBetween(mondayOf(yearStartDate), date) / 7) + 1;
+/**
+ * School week of a date: week 1 is the first teaching week of the year (the week Mon–Fri the year starts in,
+ * or the first week after it that isn't a whole-week break). Break weeks don't count. Returns null for a date
+ * in a break week. `events` = the year's events (schoolEvents.js yearEvents).
+ */
+export function weekNumber(yearStartDate, date, events = []) {
+  const target = mondayOf(date);
+  let number = 0;
+  for (let monday = mondayOf(yearStartDate); monday <= target; monday = addDays(monday, 7)) {
+    const friday = addDays(monday, 4);
+    const days = weekdaysBetween(monday < yearStartDate ? yearStartDate : monday, friday);
+    if (isBreakWeek(days, events)) {
+      if (monday === target) return null;
+      continue;
+    }
+    number += 1;
+  }
+  return number;
 }
 
-/** "3", or "3–4" when a placement runs over more than one week. */
-function weekLabel(year, { startDate, endDate }) {
+/** "3", or "3–4" when a placement runs over more than one teaching week; '' in a break week. */
+function weekLabel(year, { startDate, endDate }, events = []) {
   if (!year) return '';
-  const [a, b] = [weekNumber(year.startDate, startDate), weekNumber(year.startDate, endDate)];
+  const numbers = [weekNumber(year.startDate, startDate, events), weekNumber(year.startDate, endDate, events)].filter((n) => n != null);
+  if (!numbers.length) return '';
+  const [a, b] = [numbers[0], numbers.at(-1)];
   return a === b ? String(a) : `${a}–${b}`;
 }
 
