@@ -10,7 +10,8 @@
 //
 // This module is shared by the browser app and the Node tests.
 
-import { addDays, daysBetween, isBreakWeek, isWeekday, mondayOf, nextWeekday, weekdaysBetween } from './dates.js';
+import { addDays, daysBetween, isWeekday, nextWeekday, weekdaysBetween, weekNumber } from './dates.js';
+export { weekNumber };
 import { canFillIn, driveLocation, localLocation } from './locations.js';
 import { yearEvents } from './schoolEvents.js';
 
@@ -703,25 +704,6 @@ function scheduleValues(state, placement) {
   };
 }
 
-/**
- * School week of a date: week 1 is the first teaching week of the year (the week Mon–Fri the year starts in,
- * or the first week after it that isn't a whole-week break). Break weeks don't count. Returns null for a date
- * in a break week. `events` = the year's events (schoolEvents.js yearEvents).
- */
-export function weekNumber(yearStartDate, date, events = []) {
-  const target = mondayOf(date);
-  let number = 0;
-  for (let monday = mondayOf(yearStartDate); monday <= target; monday = addDays(monday, 7)) {
-    const friday = addDays(monday, 4);
-    const days = weekdaysBetween(monday < yearStartDate ? yearStartDate : monday, friday);
-    if (isBreakWeek(days, events)) {
-      if (monday === target) return null;
-      continue;
-    }
-    number += 1;
-  }
-  return number;
-}
 
 /** "3", or "3–4" when a placement runs over more than one teaching week; '' in a break week. */
 function weekLabel(year, { startDate, endDate }, events = []) {

@@ -120,3 +120,23 @@ export function daysBetween(a, b) {
 export function mondayOf(iso) {
   return addDays(iso, -((weekday(iso) + 6) % 7));
 }
+
+/**
+ * School week of a date: week 1 is the first teaching week of the year (the week Mon–Fri the year starts in,
+ * or the first week after it that isn't a whole-week break). Break weeks don't count. Returns null for a date
+ * in a break week. `events` = the year's events (schoolEvents.js yearEvents).
+ */
+export function weekNumber(yearStartDate, date, events = []) {
+  const target = mondayOf(date);
+  let number = 0;
+  for (let monday = mondayOf(yearStartDate); monday <= target; monday = addDays(monday, 7)) {
+    const friday = addDays(monday, 4);
+    const days = weekdaysBetween(monday < yearStartDate ? yearStartDate : monday, friday);
+    if (isBreakWeek(days, events)) {
+      if (monday === target) return null;
+      continue;
+    }
+    number += 1;
+  }
+  return number;
+}

@@ -38,7 +38,7 @@ test('a single holiday, such as Thanksgiving, does not skip a week by itself', (
 });
 
 test('a date in a break week has no week number; the next date counts from the break', () => {
-  const { s, year } = yearWithBreak('2026-11-23', '2026-11-27');
+  const { year } = yearWithBreak('2026-11-23', '2026-11-27');
   assert.equal(weekNumber(year.startDate, '2026-11-24', [{ startDate: '2026-11-23', endDate: '2026-11-27' }]), null);
   assert.equal(weekNumber(year.startDate, '2026-11-30', [{ startDate: '2026-11-23', endDate: '2026-11-27' }]),
     weekNumber(year.startDate, '2026-11-16', [{ startDate: '2026-11-23', endDate: '2026-11-27' }]) + 1);
